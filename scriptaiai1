@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Bay + Đứng trên không + Tất cả tính năng trước)
+-- EXECUTOR MENU (Bay điều khiển + Tất cả tính năng)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -8,6 +8,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ExecutorMenu"
@@ -264,7 +265,7 @@ minOption.MouseButton1Click:Connect(function()
 	dropdownFrame.Visible = false
 end)
 
-local UserInputService = game:GetService("UserInputService")
+-- Để ẩn dropdown khi click ra ngoài (đã có trong InputBegan)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -407,10 +408,35 @@ Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
 
 -- ======================== BAY & ĐỨNG TRÊN KHÔNG ========================
 
+-- Thanh trượt tốc độ bay
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(1, -20, 0, 18)
+speedLabel.Position = UDim2.new(0, 10, 0, 483)
+speedLabel.Text = "⚡ Tốc độ bay: 50"
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+speedLabel.Font = Enum.Font.SourceSans
+speedLabel.TextSize = 13
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = scrollFrame
+
+local speedSlider = Instance.new("TextBox") -- dùng TextBox để nhập số, đơn giản
+speedSlider.Size = UDim2.new(0, 60, 0, 28)
+speedSlider.Position = UDim2.new(0, 10, 0, 502)
+speedSlider.PlaceholderText = "50"
+speedSlider.Text = ""
+speedSlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedSlider.Font = Enum.Font.SourceSans
+speedSlider.TextSize = 14
+speedSlider.BorderSizePixel = 0
+speedSlider.Parent = scrollFrame
+Instance.new("UICorner", speedSlider).CornerRadius = UDim.new(0, 5)
+
 local flyButton = Instance.new("TextButton")
 flyButton.Size = UDim2.new(0, 150, 0, 28)
-flyButton.Position = UDim2.new(0, 10, 0, 481)
-flyButton.Text = "🕊️ Bay lên trời: TẮT"
+flyButton.Position = UDim2.new(0, 90, 0, 502)
+flyButton.Text = "🕊️ Bay: TẮT"
 flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 flyButton.Font = Enum.Font.SourceSansBold
@@ -421,7 +447,7 @@ Instance.new("UICorner", flyButton).CornerRadius = UDim.new(0, 5)
 
 local standAirButton = Instance.new("TextButton")
 standAirButton.Size = UDim2.new(0, 150, 0, 28)
-standAirButton.Position = UDim2.new(0, 170, 0, 481)
+standAirButton.Position = UDim2.new(0, 10, 0, 535)  -- xuống hàng dưới
 standAirButton.Text = "🧍 Đứng trên không: TẮT"
 standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 standAirButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -431,7 +457,7 @@ standAirButton.BorderSizePixel = 0
 standAirButton.Parent = scrollFrame
 Instance.new("UICorner", standAirButton).CornerRadius = UDim.new(0, 5)
 
--- ======================== BIẾN TRẠNG THÁI ========================
+-- Biến trạng thái
 local isFogOn = false
 local isFlying = false
 local isStandingOnAir = false
@@ -440,15 +466,38 @@ local flyBodyGyro = nil
 local standBodyPosition = nil
 local character = player.Character or player.CharacterAdded:Wait()
 
--- Hàm lấy character mới khi respawn
-player.CharacterAdded:Connect(function(char)
-	character = char
-	-- Tắt các hiệu ứng nếu đang bật để tránh lỗi
-	if isFlying then stopFly() isFlying = true flyButton.Text = "🕊️ Bay lên trời: BẬT" end
-	if isStandingOnAir then stopStandOnAir() isStandingOnAir = true standAirButton.Text = "🧍 Đứng trên không: BẬT" end
+-- Tốc độ bay mặc định
+local flySpeed = 50
+-- Cập nhật tốc độ từ ô nhập
+speedSlider.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		local num = tonumber(speedSlider.Text)
+		if num and num >= 0 then
+			flySpeed = num
+			speedLabel.Text = "⚡ Tốc độ bay: " .. tostring(num)
+		else
+			speedSlider.Text = tostring(flySpeed)
+		end
+	end
 end)
 
--- Hàm hủy các body mover
+player.CharacterAdded:Connect(function(char)
+	character = char
+	if isFlying then
+		-- Nếu đang bay, dừng bay và bật lại sau khi character load xong? Hoặc để người dùng tự bấm lại.
+		stopFly()
+		isFlying = false
+		flyButton.Text = "🕊️ Bay: TẮT"
+		flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	end
+	if isStandingOnAir then
+		stopStandOnAir()
+		isStandingOnAir = false
+		standAirButton.Text = "🧍 Đứng trên không: TẮT"
+		standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	end
+end)
+
 local function stopFly()
 	if flyBodyVelocity then
 		flyBodyVelocity:Destroy()
@@ -460,7 +509,9 @@ local function stopFly()
 	end
 	if character and character:FindFirstChild("Humanoid") then
 		character.Humanoid.AutoRotate = true
+		character.Humanoid.PlatformStand = false
 	end
+	RunService:UnbindFromRenderStep("FlyUpdate")
 end
 
 local function stopStandOnAir()
@@ -473,10 +524,9 @@ local function stopStandOnAir()
 	end
 end
 
--- Bật/tắt bay
 local function toggleFly()
 	isFlying = not isFlying
-	flyButton.Text = isFlying and "🕊️ Bay lên trời: BẬT" or "🕊️ Bay lên trời: TẮT"
+	flyButton.Text = isFlying and "🕊️ Bay: BẬT" or "🕊️ Bay: TẮT"
 	flyButton.BackgroundColor3 = isFlying and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(45, 45, 45)
 	animateButton(flyButton)
 
@@ -488,40 +538,59 @@ local function toggleFly()
 	local humanoid = character:WaitForChild("Humanoid")
 
 	if isFlying then
-		-- Tắt đứng trên không nếu đang bật
 		if isStandingOnAir then
 			toggleStandOnAir()
 		end
-		-- Tạo BodyVelocity để bay lên
 		flyBodyVelocity = Instance.new("BodyVelocity")
-		flyBodyVelocity.Velocity = Vector3.new(0, 50, 0)  -- bay lên với tốc độ cao
 		flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
 		flyBodyVelocity.Parent = rootPart
 
-		-- Giữ thăng bằng
 		flyBodyGyro = Instance.new("BodyGyro")
 		flyBodyGyro.CFrame = rootPart.CFrame
 		flyBodyGyro.MaxTorque = Vector3.new(4000, 4000, 4000)
 		flyBodyGyro.Parent = rootPart
 
 		humanoid.AutoRotate = false
-		humanoid.PlatformStand = true  -- tránh rơi xuống
-		-- Tạo dáng bay (tilt nhẹ về trước) - cập nhật liên tục
-		RunService:BindToRenderStep("FlyTilt", 1, function()
-			if flyBodyGyro and rootPart then
-				local lookVector = rootPart.CFrame.LookVector
-				local tiltAngle = math.rad(20)  -- nghiêng 20 độ về trước
-				local tiltCFrame = CFrame.Angles(-tiltAngle, 0, 0)
-				flyBodyGyro.CFrame = CFrame.new(rootPart.Position) * tiltCFrame
+		humanoid.PlatformStand = true
+
+		RunService:BindToRenderStep("FlyUpdate", 1, function()
+			if not isFlying or not character or not rootPart or not flyBodyVelocity or not flyBodyGyro then return end
+			local camera = workspace.CurrentCamera
+			if not camera then return end
+
+			local moveDirection = Vector3.new(0,0,0)
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+				moveDirection += camera.CFrame.LookVector
 			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+				moveDirection -= camera.CFrame.LookVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+				moveDirection -= camera.CFrame.RightVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+				moveDirection += camera.CFrame.RightVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+				moveDirection += Vector3.new(0,1,0)
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+				moveDirection -= Vector3.new(0,1,0)
+			end
+
+			if moveDirection.Magnitude > 0 then
+				moveDirection = moveDirection.Unit
+			end
+			flyBodyVelocity.Velocity = moveDirection * flySpeed
+
+			-- Giữ nhân vật hướng về phía trước của camera
+			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector)
 		end)
 	else
-		RunService:UnbindFromRenderStep("FlyTilt")
 		stopFly()
 	end
 end
 
--- Bật/tắt đứng trên không
 local function toggleStandOnAir()
 	isStandingOnAir = not isStandingOnAir
 	standAirButton.Text = isStandingOnAir and "🧍 Đứng trên không: BẬT" or "🧍 Đứng trên không: TẮT"
@@ -536,11 +605,9 @@ local function toggleStandOnAir()
 	local humanoid = character:WaitForChild("Humanoid")
 
 	if isStandingOnAir then
-		-- Tắt bay nếu đang bật
 		if isFlying then
 			toggleFly()
 		end
-		-- Tạo BodyPosition để giữ nguyên vị trí
 		standBodyPosition = Instance.new("BodyPosition")
 		standBodyPosition.Position = rootPart.Position
 		standBodyPosition.MaxForce = Vector3.new(100000, 100000, 100000)
@@ -554,13 +621,13 @@ end
 flyButton.MouseButton1Click:Connect(toggleFly)
 standAirButton.MouseButton1Click:Connect(toggleStandOnAir)
 
--- ======================== LƯU & DANH SÁCH SCRIPT (giữ nguyên) ========================
+-- ======================== LƯU & DANH SÁCH SCRIPT ========================
 
 local savedScripts = {}
 
 local scriptListLabel = Instance.new("TextLabel")
 scriptListLabel.Size = UDim2.new(1, -20, 0, 18)
-scriptListLabel.Position = UDim2.new(0, 10, 0, 515)
+scriptListLabel.Position = UDim2.new(0, 10, 0, 570)
 scriptListLabel.Text = "💾 Script đã lưu (nhấn để chạy ngay)"
 scriptListLabel.BackgroundTransparency = 1
 scriptListLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -571,7 +638,7 @@ scriptListLabel.Parent = scrollFrame
 
 local saveButton = Instance.new("TextButton")
 saveButton.Size = UDim2.new(0, 150, 0, 28)
-saveButton.Position = UDim2.new(0, 10, 0, 535)
+saveButton.Position = UDim2.new(0, 10, 0, 590)
 saveButton.Text = "➕ Lưu script hiện tại"
 saveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -583,7 +650,7 @@ Instance.new("UICorner", saveButton).CornerRadius = UDim.new(0, 5)
 
 local scriptListFrame = Instance.new("Frame")
 scriptListFrame.Size = UDim2.new(1, -20, 0, 0)
-scriptListFrame.Position = UDim2.new(0, 10, 0, 568)
+scriptListFrame.Position = UDim2.new(0, 10, 0, 623)
 scriptListFrame.BackgroundTransparency = 1
 scriptListFrame.BorderSizePixel = 0
 scriptListFrame.Parent = scrollFrame
@@ -593,7 +660,7 @@ scriptListLayout.Parent = scriptListFrame
 scriptListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 scriptListLayout.Padding = UDim.new(0, 4)
 
--- ==================== HÀM THỰC THI (đã sửa thứ tự) ====================
+-- ==================== HÀM THỰC THI ====================
 local function executeOnce(code, name)
 	if #name > 0 then
 		print("👤 Tên người dùng:", name)
@@ -683,8 +750,8 @@ runButton.MouseButton1Click:Connect(executeCurrentCode)
 -- Quản lý danh sách script
 local function updateCanvasSize()
 	local count = #savedScripts
-	local height = 568 + count * 32 + 20
-	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 620))
+	local height = 623 + count * 32 + 20
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 680))
 end
 
 local function clearScriptListUI()
