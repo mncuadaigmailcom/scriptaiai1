@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Hỗ trợ lặp code N lần)
+-- EXECUTOR MENU (Lặp code + Tốc độ chạy)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -32,10 +32,10 @@ toggleButton.MouseLeave:Connect(function()
 	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 end)
 
--- Khung chính (tăng chiều cao để chứa thêm ô lặp)
+-- Khung chính
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 340, 0, 370)
-mainFrame.Position = UDim2.new(0.5, -170, 0.5, -185)
+mainFrame.Size = UDim2.new(0, 340, 0, 430)   -- tăng chiều cao
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -215)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
@@ -143,7 +143,9 @@ codeBox.BorderSizePixel = 0
 codeBox.Parent = mainFrame
 Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
 
--- Ô nhập SỐ LẦN LẶP
+-- === Phần cấu hình lặp và tốc độ ===
+
+-- Label "Số lần lặp"
 local loopLabel = Instance.new("TextLabel")
 loopLabel.Size = UDim2.new(1, -20, 0, 18)
 loopLabel.Position = UDim2.new(0, 10, 0, 235)
@@ -168,10 +170,121 @@ loopBox.BorderSizePixel = 0
 loopBox.Parent = mainFrame
 Instance.new("UICorner", loopBox).CornerRadius = UDim.new(0, 5)
 
--- Nút chạy code (dịch xuống dưới một chút)
+-- Label "Khoảng thời gian chờ"
+local delayLabel = Instance.new("TextLabel")
+delayLabel.Size = UDim2.new(1, -20, 0, 18)
+delayLabel.Position = UDim2.new(0, 10, 0, 290)
+delayLabel.Text = "⏱️ Khoảng thời gian chờ"
+delayLabel.BackgroundTransparency = 1
+delayLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+delayLabel.Font = Enum.Font.SourceSans
+delayLabel.TextSize = 13
+delayLabel.TextXAlignment = Enum.TextXAlignment.Left
+delayLabel.Parent = mainFrame
+
+-- Ô nhập số thời gian (bên trái)
+local delayBox = Instance.new("TextBox")
+delayBox.Size = UDim2.new(0, 55, 0, 28)
+delayBox.Position = UDim2.new(0, 10, 0, 310)
+delayBox.PlaceholderText = "0"
+delayBox.Text = ""
+delayBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+delayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+delayBox.Font = Enum.Font.SourceSans
+delayBox.TextSize = 14
+delayBox.BorderSizePixel = 0
+delayBox.Parent = mainFrame
+Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 5)
+
+-- Nút chọn đơn vị (Giây/Phút) – sẽ hoạt động như dropdown
+local unitButton = Instance.new("TextButton")
+unitButton.Size = UDim2.new(0, 70, 0, 28)
+unitButton.Position = UDim2.new(0, 75, 0, 310)  -- nằm bên phải delayBox
+unitButton.Text = "Giây"
+unitButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+unitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+unitButton.Font = Enum.Font.SourceSansBold
+unitButton.TextSize = 14
+unitButton.BorderSizePixel = 0
+unitButton.Parent = mainFrame
+Instance.new("UICorner", unitButton).CornerRadius = UDim.new(0, 5)
+
+-- Menu thả xuống giả (Frame chứa các lựa chọn)
+local dropdownFrame = Instance.new("Frame")
+dropdownFrame.Size = UDim2.new(0, 70, 0, 56)  -- 2 lựa chọn * 28px
+dropdownFrame.Position = UDim2.new(0, 75, 0, 310 + 28)  -- ngay dưới unitButton
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.Visible = false
+dropdownFrame.Parent = mainFrame
+Instance.new("UICorner", dropdownFrame).CornerRadius = UDim.new(0, 5)
+
+-- Lựa chọn "Giây"
+local secOption = Instance.new("TextButton")
+secOption.Size = UDim2.new(1, 0, 0, 28)
+secOption.Text = "Giây"
+secOption.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+secOption.TextColor3 = Color3.fromRGB(255, 255, 255)
+secOption.Font = Enum.Font.SourceSansBold
+secOption.TextSize = 14
+secOption.BorderSizePixel = 0
+secOption.Parent = dropdownFrame
+Instance.new("UICorner", secOption).CornerRadius = UDim.new(0, 5)
+
+-- Lựa chọn "Phút"
+local minOption = Instance.new("TextButton")
+minOption.Size = UDim2.new(1, 0, 0, 28)
+minOption.Position = UDim2.new(0, 0, 0, 28)
+minOption.Text = "Phút"
+minOption.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+minOption.TextColor3 = Color3.fromRGB(255, 255, 255)
+minOption.Font = Enum.Font.SourceSansBold
+minOption.TextSize = 14
+minOption.BorderSizePixel = 0
+minOption.Parent = dropdownFrame
+Instance.new("UICorner", minOption).CornerRadius = UDim.new(0, 5)
+
+-- Hành vi dropdown
+unitButton.MouseButton1Click:Connect(function()
+	dropdownFrame.Visible = not dropdownFrame.Visible
+end)
+
+secOption.MouseButton1Click:Connect(function()
+	unitButton.Text = "Giây"
+	dropdownFrame.Visible = false
+end)
+
+minOption.MouseButton1Click:Connect(function()
+	unitButton.Text = "Phút"
+	dropdownFrame.Visible = false
+end)
+
+-- Ẩn dropdown khi click ra ngoài (tùy chọn đơn giản: đặt 1 hàm toàn cục)
+-- Ta sẽ dùng UserInputService để phát hiện click ngoài
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		-- Kiểm tra xem có phải click vào unitButton hoặc dropdown không, nếu không thì ẩn dropdown
+		local mousePos = input.Position
+		local guiObjectsAtPos = screenGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+		local found = false
+		for _, obj in ipairs(guiObjectsAtPos) do
+			if obj == unitButton or obj:IsDescendantOf(dropdownFrame) then
+				found = true
+				break
+			end
+		end
+		if not found then
+			dropdownFrame.Visible = false
+		end
+	end
+end)
+
+-- === Nút chạy code ===
 local runButton = Instance.new("TextButton")
 runButton.Size = UDim2.new(0, 120, 0, 30)
-runButton.Position = UDim2.new(0.5, -60, 0, 290)
+runButton.Position = UDim2.new(0.5, -60, 0, 345)  -- đẩy xuống
 runButton.Text = "▶ Chạy Code"
 runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
 runButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -191,7 +304,7 @@ end)
 -- Label trạng thái
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 18)
-statusLabel.Position = UDim2.new(0, 10, 0, 325)
+statusLabel.Position = UDim2.new(0, 10, 0, 382)
 statusLabel.Text = ""
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 120)
@@ -200,10 +313,10 @@ statusLabel.TextSize = 12
 statusLabel.TextWrapped = true
 statusLabel.Parent = mainFrame
 
--- Label đếm tổng số lần đã thực thi
+-- Label tổng số lần đã chạy
 local countLabel = Instance.new("TextLabel")
 countLabel.Size = UDim2.new(1, -20, 0, 18)
-countLabel.Position = UDim2.new(0, 10, 0, 343)
+countLabel.Position = UDim2.new(0, 10, 0, 400)
 countLabel.Text = "🔄 Tổng số lần đã chạy: 0"
 countLabel.BackgroundTransparency = 1
 countLabel.TextColor3 = Color3.fromRGB(130, 230, 130)
@@ -212,7 +325,7 @@ countLabel.TextSize = 12
 countLabel.TextWrapped = true
 countLabel.Parent = mainFrame
 
--- Biến đếm tổng số lần thực thi (tích lũy)
+-- Biến đếm tổng
 local totalExecutions = 0
 
 -- Logic ẩn/hiện menu
@@ -230,13 +343,12 @@ closeButton.MouseButton1Click:Connect(function()
 	setMenuVisible(false)
 end)
 
--- Hàm thực thi code một lần, trả về true nếu thành công, false + lỗi nếu thất bại
+-- Hàm thực thi code một lần
 local function executeOnce(code, name)
 	if #name > 0 then
 		print("👤 Tên người dùng:", name)
 	end
 
-	-- Dùng pcall để bắt lỗi
 	local success, result = pcall(function()
 		local executor = loadstring or function(c) return loadstring(c) end
 		local fn, err = executor(code)
@@ -253,11 +365,13 @@ local function executeOnce(code, name)
 	end
 end
 
--- Nút chạy code (có lặp)
+-- Nút chạy code với lặp và delay
 runButton.MouseButton1Click:Connect(function()
 	local code = codeBox.Text
 	local name = nameBox.Text
 	local loopStr = loopBox.Text
+	local delayStr = delayBox.Text
+	local unit = unitButton.Text   -- "Giây" hoặc "Phút"
 
 	if #code == 0 then
 		statusLabel.Text = "⚠️ Vui lòng nhập code!"
@@ -278,11 +392,31 @@ runButton.MouseButton1Click:Connect(function()
 		end
 	end
 
-	-- Đếm số lần thành công/thất bại trong lần chạy này
+	-- Xác định khoảng thời gian chờ (giây)
+	local delaySeconds = 0
+	if #delayStr > 0 then
+		delaySeconds = tonumber(delayStr)
+		if not delaySeconds or delaySeconds < 0 then
+			statusLabel.Text = "⚠️ Thời gian chờ không hợp lệ (phải là số >= 0)"
+			return
+		end
+		if unit == "Phút" then
+			delaySeconds = delaySeconds * 60
+		end
+	end
+
+	-- Cập nhật trạng thái
+	statusLabel.Text = "⏳ Đang thực thi..."
 	local successCount = 0
 	local failCount = 0
 
+	-- Vòng lặp thực thi
 	for i = 1, loopCount do
+		-- Nếu đây không phải lần đầu tiên và delay > 0 thì chờ
+		if i > 1 and delaySeconds > 0 then
+			task.wait(delaySeconds)
+		end
+
 		local ok, err = executeOnce(code, name)
 		if ok then
 			successCount = successCount + 1
@@ -290,16 +424,17 @@ runButton.MouseButton1Click:Connect(function()
 			failCount = failCount + 1
 			warn("Lần chạy thứ " .. i .. " lỗi:", err)
 		end
+
+		-- Cập nhật nhãn nhỏ trong khi chạy (nếu cần, có thể cập nhật sau mỗi lần)
+		statusLabel.Text = string.format("⏳ Đang chạy %d/%d...", i, loopCount)
 	end
 
-	-- Cập nhật tổng số lần đã chạy
 	totalExecutions = totalExecutions + loopCount
 	countLabel.Text = "🔄 Tổng số lần đã chạy: " .. totalExecutions
 
-	-- Hiển thị kết quả của lần chạy này
 	if failCount == 0 then
-		statusLabel.Text = "✅ Đã chạy " .. loopCount .. " lần, tất cả thành công! (Xem Output)"
+		statusLabel.Text = string.format("✅ Hoàn tất %d lần, tất cả thành công!", loopCount)
 	else
-		statusLabel.Text = "⚠️ Chạy " .. loopCount .. " lần: " .. successCount .. " thành công, " .. failCount .. " thất bại."
+		statusLabel.Text = string.format("⚠️ Hoàn tất %d lần: %d thành công, %d thất bại.", loopCount, successCount, failCount)
 	end
 end)
