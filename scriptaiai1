@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Đứng trên không bằng nút game + tất cả tính năng)
+-- EXECUTOR MENU (Bay & Đứng trên không dùng nút game)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -265,7 +265,6 @@ minOption.MouseButton1Click:Connect(function()
 	dropdownFrame.Visible = false
 end)
 
--- Dropdown outside click
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -456,51 +455,45 @@ standAirButton.BorderSizePixel = 0
 standAirButton.Parent = scrollFrame
 Instance.new("UICorner", standAirButton).CornerRadius = UDim.new(0, 5)
 
--- ==================== MOBILE VIRTUAL CONTROLS (chỉ dùng cho Bay) ====================
+-- ==================== MOBILE VIRTUAL CONTROLS (chỉ cho bay lên/xuống) ====================
 local mobileControlsFrame = Instance.new("Frame")
-mobileControlsFrame.Size = UDim2.new(0, 200, 0, 200)
-mobileControlsFrame.Position = UDim2.new(0, 10, 1, -210)
+mobileControlsFrame.Size = UDim2.new(0, 200, 0, 80)
+mobileControlsFrame.Position = UDim2.new(0, 10, 1, -90)
 mobileControlsFrame.BackgroundTransparency = 1
 mobileControlsFrame.Visible = false
 mobileControlsFrame.Parent = screenGui
 
-local function createMobileButton(text, posX, posY, size)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0, size or 44, 0, size or 44)
-	btn.Position = UDim2.new(0, posX, 0, posY)
-	btn.Text = text
-	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 20
-	btn.BorderSizePixel = 0
-	btn.Parent = mobileControlsFrame
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
-	return btn
-end
+local btnFlyUp = Instance.new("TextButton")
+btnFlyUp.Size = UDim2.new(0, 44, 0, 44)
+btnFlyUp.Position = UDim2.new(0, 10, 0, 10)
+btnFlyUp.Text = "⏫"
+btnFlyUp.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+btnFlyUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlyUp.Font = Enum.Font.SourceSansBold
+btnFlyUp.TextSize = 20
+btnFlyUp.BorderSizePixel = 0
+btnFlyUp.Parent = mobileControlsFrame
+Instance.new("UICorner", btnFlyUp).CornerRadius = UDim.new(1, 0)
 
-local btnUp = createMobileButton("▲", 78, 0)
-local btnDown = createMobileButton("▼", 78, 88)
-local btnLeft = createMobileButton("◀", 34, 44)
-local btnRight = createMobileButton("▶", 122, 44)
-local btnFlyUp = createMobileButton("⏫", 10, 156, 36)
-local btnFlyDown = createMobileButton("⏬", 154, 156, 36)
+local btnFlyDown = Instance.new("TextButton")
+btnFlyDown.Size = UDim2.new(0, 44, 0, 44)
+btnFlyDown.Position = UDim2.new(0, 146, 0, 10)
+btnFlyDown.Text = "⏬"
+btnFlyDown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+btnFlyDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlyDown.Font = Enum.Font.SourceSansBold
+btnFlyDown.TextSize = 20
+btnFlyDown.BorderSizePixel = 0
+btnFlyDown.Parent = mobileControlsFrame
+Instance.new("UICorner", btnFlyDown).CornerRadius = UDim.new(1, 0)
 
-local mobileKeys = {
-	Up = false, Down = false, Left = false, Right = false,
-	FlyUp = false, FlyDown = false
-}
-
-local touchButtons = {
-	[btnUp] = "Up", [btnDown] = "Down", [btnLeft] = "Left", [btnRight] = "Right",
-	[btnFlyUp] = "FlyUp", [btnFlyDown] = "FlyDown"
-}
-
+local mobileKeys = { FlyUp = false, FlyDown = false }
 local activeTouches = {}
 
 local function onTouchStarted(input, processed)
 	if processed then return end
-	for button, key in pairs(touchButtons) do
+	for _, btnData in ipairs({{btnFlyUp, "FlyUp"}, {btnFlyDown, "FlyDown"}}) do
+		local button, key = btnData[1], btnData[2]
 		local pos = input.Position
 		local absPos = button.AbsolutePosition
 		local absSize = button.AbsoluteSize
@@ -522,23 +515,6 @@ end
 
 UserInputService.TouchStarted:Connect(onTouchStarted)
 UserInputService.TouchEnded:Connect(onTouchEnded)
-
-local function getMovementInput()
-	local move = Vector3.new(0,0,0)
-	if UserInputService:IsKeyDown(Enum.KeyCode.W) or mobileKeys.Up then
-		move += Vector3.new(0, 0, -1)
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.S) or mobileKeys.Down then
-		move += Vector3.new(0, 0, 1)
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.A) or mobileKeys.Left then
-		move += Vector3.new(-1, 0, 0)
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.D) or mobileKeys.Right then
-		move += Vector3.new(1, 0, 0)
-	end
-	return move
-end
 
 local function getVerticalInput()
 	local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) or mobileKeys.FlyUp
@@ -564,52 +540,42 @@ local character = player.Character or player.CharacterAdded:Wait()
 
 player.CharacterAdded:Connect(function(char)
 	character = char
-	if isFlying then
-		stopFly()
-		isFlying = false
-		flyButton.Text = "🕊️ Bay: TẮT"
-		flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	end
-	if isStandingOnAir then
-		stopStandOnAir()
-		isStandingOnAir = false
-		standAirButton.Text = "🧍 Đứng trên không: TẮT"
-		standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	end
+	if isFlying then stopFly() isFlying = false end
+	if isStandingOnAir then stopStandOnAir() isStandingOnAir = false end
+	flyButton.Text = "🕊️ Bay: TẮT"
+	flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	standAirButton.Text = "🧍 Đứng trên không: TẮT"
+	standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	mobileControlsFrame.Visible = false
 end)
 
-local function showMobileControls(show)
-	mobileControlsFrame.Visible = show and UserInputService.TouchEnabled
+-- Cập nhật hiển thị nút ảo mobile
+local function updateMobileControls()
+	if isFlying then
+		mobileControlsFrame.Visible = UserInputService.TouchEnabled
+	else
+		mobileControlsFrame.Visible = false
+	end
 end
 
 local function stopFly()
-	if flyBodyVelocity then
-		flyBodyVelocity:Destroy()
-		flyBodyVelocity = nil
-	end
-	if flyBodyGyro then
-		flyBodyGyro:Destroy()
-		flyBodyGyro = nil
-	end
+	if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity = nil end
+	if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
 	if character and character:FindFirstChild("Humanoid") then
 		character.Humanoid.AutoRotate = true
 		character.Humanoid.PlatformStand = false
 	end
 	RunService:UnbindFromRenderStep("FlyUpdate")
-	showMobileControls(false)
+	updateMobileControls()
 end
 
 local function stopStandOnAir()
-	if standBodyPosition then
-		standBodyPosition:Destroy()
-		standBodyPosition = nil
-	end
+	if standBodyPosition then standBodyPosition:Destroy() standBodyPosition = nil end
 	if character and character:FindFirstChild("Humanoid") then
 		character.Humanoid.PlatformStand = false
 	end
 	RunService:UnbindFromRenderStep("StandUpdate")
-	showMobileControls(false)
+	updateMobileControls()
 end
 
 local function toggleFly()
@@ -618,7 +584,7 @@ local function toggleFly()
 	flyButton.BackgroundColor3 = isFlying and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(45, 45, 45)
 	animateButton(flyButton)
 
-	if not character or not character:FindFirstChild("HumanoidRootPart") then
+	if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Humanoid") then
 		character = player.Character
 		if not character then return end
 	end
@@ -641,27 +607,25 @@ local function toggleFly()
 
 		RunService:BindToRenderStep("FlyUpdate", 1, function()
 			if not isFlying or not character or not rootPart or not flyBodyVelocity or not flyBodyGyro then return end
-			local camera = workspace.CurrentCamera
-			if not camera then return end
 
-			local moveDirection = getMovementInput()
-			if moveDirection.Magnitude > 0 then
-				moveDirection = moveDirection.Unit
-			end
-			local worldMove = (camera.CFrame.RightVector * moveDirection.X + camera.CFrame.LookVector * (-moveDirection.Z))
+			-- Dùng MoveDirection từ humanoid (WASD/joystick)
+			local moveDir = humanoid.MoveDirection
+			local worldMove = rootPart.CFrame:VectorToWorldSpace(moveDir)
 			if worldMove.Magnitude > 0 then worldMove = worldMove.Unit end
+
 			local upInput, downInput = getVerticalInput()
 			local vertical = (upInput and 1 or 0) - (downInput and 1 or 0)
+
 			flyBodyVelocity.Velocity = (worldMove + Vector3.new(0, vertical, 0)) * flySpeed
-			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector)
+			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + workspace.CurrentCamera.CFrame.LookVector)
 		end)
-		showMobileControls(true)
 	else
 		stopFly()
 	end
+	updateMobileControls()
 end
 
--- ==================== ĐỨNG TRÊN KHÔNG (dùng MoveDirection của game) ====================
+-- Đứng trên không (dùng MoveDirection, giữ độ cao)
 local function toggleStandOnAir()
 	isStandingOnAir = not isStandingOnAir
 	standAirButton.Text = isStandingOnAir and "🧍 Đứng trên không: BẬT" or "🧍 Đứng trên không: TẮT"
@@ -686,16 +650,18 @@ local function toggleStandOnAir()
 
 		RunService:BindToRenderStep("StandUpdate", 1, function()
 			if not isStandingOnAir or not character or not rootPart or not standBodyPosition then return end
-			local moveDir = humanoid.MoveDirection  -- hướng di chuyển từ nút game (WASD / joystick)
-			local newPos = rootPart.Position + moveDir * flySpeed * 0.016  -- dt ~ 0.016s
+			local moveDir = humanoid.MoveDirection
+			local worldMove = rootPart.CFrame:VectorToWorldSpace(moveDir)
+			if worldMove.Magnitude > 0 then worldMove = worldMove.Unit end
+
+			local newPos = rootPart.Position + worldMove * flySpeed * 0.016
 			newPos = Vector3.new(newPos.X, targetY, newPos.Z)
 			standBodyPosition.Position = newPos
 		end)
-		-- Ẩn nút ảo vì không cần
-		showMobileControls(false)
 	else
 		stopStandOnAir()
 	end
+	updateMobileControls()
 end
 
 flyButton.MouseButton1Click:Connect(toggleFly)
