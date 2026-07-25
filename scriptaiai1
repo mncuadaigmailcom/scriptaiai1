@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Bay mobile + Đứng trên không di chuyển)
+-- EXECUTOR MENU (Đứng trên không cố định độ cao)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -265,7 +265,7 @@ minOption.MouseButton1Click:Connect(function()
 	dropdownFrame.Visible = false
 end)
 
--- Dropdown click outside
+-- Dropdown outside click
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -406,7 +406,7 @@ resetEnvButton.BorderSizePixel = 0
 resetEnvButton.Parent = scrollFrame
 Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
 
--- ======================== BAY & ĐỨNG TRÊN KHÔNG (MOBILE) ========================
+-- ======================== BAY & ĐỨNG TRÊN KHÔNG ========================
 
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(1, -20, 0, 18)
@@ -464,7 +464,6 @@ mobileControlsFrame.BackgroundTransparency = 1
 mobileControlsFrame.Visible = false
 mobileControlsFrame.Parent = screenGui
 
--- Các nút ảo (dùng TextButton đơn giản)
 local function createMobileButton(text, posX, posY, size)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(0, size or 44, 0, size or 44)
@@ -487,19 +486,17 @@ local btnRight = createMobileButton("▶", 122, 44)
 local btnFlyUp = createMobileButton("⏫", 10, 156, 36)
 local btnFlyDown = createMobileButton("⏬", 154, 156, 36)
 
--- Trạng thái nút (dùng dictionary với key là tên nút)
 local mobileKeys = {
 	Up = false, Down = false, Left = false, Right = false,
 	FlyUp = false, FlyDown = false
 }
 
--- Kết nối sự kiện Touch để biết nút nào đang được nhấn
 local touchButtons = {
 	[btnUp] = "Up", [btnDown] = "Down", [btnLeft] = "Left", [btnRight] = "Right",
 	[btnFlyUp] = "FlyUp", [btnFlyDown] = "FlyDown"
 }
 
-local activeTouches = {} -- lưu {touchId, buttonKey}
+local activeTouches = {}
 
 local function onTouchStarted(input, processed)
 	if processed then return end
@@ -509,10 +506,7 @@ local function onTouchStarted(input, processed)
 		local absSize = button.AbsoluteSize
 		if pos.X >= absPos.X and pos.X <= absPos.X + absSize.X and pos.Y >= absPos.Y and pos.Y <= absPos.Y + absSize.Y then
 			mobileKeys[key] = true
-			-- Lưu touch để khi End thì tắt
-			if not activeTouches[input.UserInputState] then
-				activeTouches[input] = key
-			end
+			activeTouches[input] = key
 			break
 		end
 	end
@@ -570,7 +564,6 @@ local character = player.Character or player.CharacterAdded:Wait()
 
 player.CharacterAdded:Connect(function(char)
 	character = char
-	-- Tắt các chế độ nếu đang bật
 	if isFlying then
 		stopFly()
 		isFlying = false
@@ -655,15 +648,11 @@ local function toggleFly()
 			if moveDirection.Magnitude > 0 then
 				moveDirection = moveDirection.Unit
 			end
-			-- Chuyển đổi moveDirection sang không gian thế giới dựa trên hướng camera
 			local worldMove = (camera.CFrame.RightVector * moveDirection.X + camera.CFrame.LookVector * (-moveDirection.Z))
-			if worldMove.Magnitude > 0 then
-				worldMove = worldMove.Unit
-			end
+			if worldMove.Magnitude > 0 then worldMove = worldMove.Unit end
 			local upInput, downInput = getVerticalInput()
 			local vertical = (upInput and 1 or 0) - (downInput and 1 or 0)
 			flyBodyVelocity.Velocity = (worldMove + Vector3.new(0, vertical, 0)) * flySpeed
-
 			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector)
 		end)
 		showMobileControls(true)
@@ -692,7 +681,7 @@ local function toggleStandOnAir()
 		standBodyPosition.Parent = rootPart
 		humanoid.PlatformStand = true
 
-		local targetY = rootPart.Position.Y -- giữ nguyên độ cao ban đầu
+		local targetY = rootPart.Position.Y  -- giữ nguyên độ cao này
 
 		RunService:BindToRenderStep("StandUpdate", 1, function()
 			if not isStandingOnAir or not character or not rootPart or not standBodyPosition then return end
@@ -702,15 +691,11 @@ local function toggleStandOnAir()
 			if camera and moveDirection.Magnitude > 0 then
 				moveDirection = moveDirection.Unit
 				worldMove = camera.CFrame.RightVector * moveDirection.X + camera.CFrame.LookVector * (-moveDirection.Z)
-				worldMove = worldMove.Unit * (flySpeed * 0.5) -- tốc độ bằng nửa tốc độ bay
+				worldMove = worldMove.Unit * flySpeed
 			end
-			local upInput, downInput = getVerticalInput()
-			if upInput then targetY = targetY + 0.5 end
-			if downInput then targetY = targetY - 0.5 end
-
-			local newPosition = rootPart.Position + worldMove * 0.016 -- giả lập delta time ~0.016
-			newPosition = Vector3.new(newPosition.X, targetY, newPosition.Z)
-			standBodyPosition.Position = newPosition
+			local newPos = rootPart.Position + worldMove * 0.016  -- giả lập dt
+			newPos = Vector3.new(newPos.X, targetY, newPos.Z)     -- Y cố định
+			standBodyPosition.Position = newPos
 		end)
 		showMobileControls(true)
 	else
