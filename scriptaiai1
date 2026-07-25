@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Có đếm số lần chạy)
+-- EXECUTOR MENU (Hỗ trợ lặp code N lần)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -32,10 +32,10 @@ toggleButton.MouseLeave:Connect(function()
 	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 end)
 
--- Khung chính (tăng chiều cao thêm 20px để chứa label đếm)
+-- Khung chính (tăng chiều cao để chứa thêm ô lặp)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 340, 0, 320)   -- cũ: 300 -> mới: 320
-mainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
+mainFrame.Size = UDim2.new(0, 340, 0, 370)
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -185)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
@@ -143,10 +143,35 @@ codeBox.BorderSizePixel = 0
 codeBox.Parent = mainFrame
 Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
 
--- Nút chạy code
+-- Ô nhập SỐ LẦN LẶP
+local loopLabel = Instance.new("TextLabel")
+loopLabel.Size = UDim2.new(1, -20, 0, 18)
+loopLabel.Position = UDim2.new(0, 10, 0, 235)
+loopLabel.Text = "🔁 Số lần lặp"
+loopLabel.BackgroundTransparency = 1
+loopLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+loopLabel.Font = Enum.Font.SourceSans
+loopLabel.TextSize = 13
+loopLabel.TextXAlignment = Enum.TextXAlignment.Left
+loopLabel.Parent = mainFrame
+
+local loopBox = Instance.new("TextBox")
+loopBox.Size = UDim2.new(0, 70, 0, 28)
+loopBox.Position = UDim2.new(0, 10, 0, 255)
+loopBox.PlaceholderText = "1"
+loopBox.Text = ""
+loopBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+loopBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+loopBox.Font = Enum.Font.SourceSans
+loopBox.TextSize = 14
+loopBox.BorderSizePixel = 0
+loopBox.Parent = mainFrame
+Instance.new("UICorner", loopBox).CornerRadius = UDim.new(0, 5)
+
+-- Nút chạy code (dịch xuống dưới một chút)
 local runButton = Instance.new("TextButton")
 runButton.Size = UDim2.new(0, 120, 0, 30)
-runButton.Position = UDim2.new(0.5, -60, 0, 240)
+runButton.Position = UDim2.new(0.5, -60, 0, 290)
 runButton.Text = "▶ Chạy Code"
 runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
 runButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -163,10 +188,10 @@ runButton.MouseLeave:Connect(function()
 	runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
 end)
 
--- Label trạng thái (dòng trên cùng của khu vực dưới)
+-- Label trạng thái
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 18)
-statusLabel.Position = UDim2.new(0, 10, 0, 275)
+statusLabel.Position = UDim2.new(0, 10, 0, 325)
 statusLabel.Text = ""
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 120)
@@ -175,11 +200,11 @@ statusLabel.TextSize = 12
 statusLabel.TextWrapped = true
 statusLabel.Parent = mainFrame
 
--- Label đếm số lần chạy code
+-- Label đếm tổng số lần đã thực thi
 local countLabel = Instance.new("TextLabel")
 countLabel.Size = UDim2.new(1, -20, 0, 18)
-countLabel.Position = UDim2.new(0, 10, 0, 293)   -- ngay dưới statusLabel
-countLabel.Text = "🔄 Số lần chạy: 0"
+countLabel.Position = UDim2.new(0, 10, 0, 343)
+countLabel.Text = "🔄 Tổng số lần đã chạy: 0"
 countLabel.BackgroundTransparency = 1
 countLabel.TextColor3 = Color3.fromRGB(130, 230, 130)
 countLabel.Font = Enum.Font.SourceSansBold
@@ -187,8 +212,8 @@ countLabel.TextSize = 12
 countLabel.TextWrapped = true
 countLabel.Parent = mainFrame
 
--- Biến đếm toàn cục
-local executionCount = 0
+-- Biến đếm tổng số lần thực thi (tích lũy)
+local totalExecutions = 0
 
 -- Logic ẩn/hiện menu
 local menuVisible = false
@@ -205,25 +230,13 @@ closeButton.MouseButton1Click:Connect(function()
 	setMenuVisible(false)
 end)
 
--- Chạy code + đếm số lần
-runButton.MouseButton1Click:Connect(function()
-	local code = codeBox.Text
-	local name = nameBox.Text
-
-	if #code == 0 then
-		statusLabel.Text = "⚠️ Vui lòng nhập code!"
-		return
-	end
-
+-- Hàm thực thi code một lần, trả về true nếu thành công, false + lỗi nếu thất bại
+local function executeOnce(code, name)
 	if #name > 0 then
 		print("👤 Tên người dùng:", name)
 	end
 
-	-- Tăng số lần chạy và cập nhật label
-	executionCount = executionCount + 1
-	countLabel.Text = "🔄 Số lần chạy: " .. executionCount
-
-	-- Thực thi code (chỉ hoạt động khi có executor)
+	-- Dùng pcall để bắt lỗi
 	local success, result = pcall(function()
 		local executor = loadstring or function(c) return loadstring(c) end
 		local fn, err = executor(code)
@@ -234,10 +247,59 @@ runButton.MouseButton1Click:Connect(function()
 	end)
 
 	if success then
-		statusLabel.Text = "✅ Đã thực thi (xem Output)"
-		print("✅ [Executor] Hoàn tất.")
+		return true
 	else
-		statusLabel.Text = "❌ Lỗi: " .. tostring(result)
-		warn("❌ Lỗi thực thi:", result)
+		return false, result
+	end
+end
+
+-- Nút chạy code (có lặp)
+runButton.MouseButton1Click:Connect(function()
+	local code = codeBox.Text
+	local name = nameBox.Text
+	local loopStr = loopBox.Text
+
+	if #code == 0 then
+		statusLabel.Text = "⚠️ Vui lòng nhập code!"
+		return
+	end
+
+	-- Xác định số lần lặp
+	local loopCount = 1
+	if #loopStr > 0 then
+		loopCount = tonumber(loopStr)
+		if not loopCount or loopCount <= 0 then
+			statusLabel.Text = "⚠️ Số lần lặp không hợp lệ (phải là số > 0)"
+			return
+		end
+		if loopCount > 1000 then
+			statusLabel.Text = "⚠️ Tối đa 1000 lần lặp để tránh lag"
+			return
+		end
+	end
+
+	-- Đếm số lần thành công/thất bại trong lần chạy này
+	local successCount = 0
+	local failCount = 0
+
+	for i = 1, loopCount do
+		local ok, err = executeOnce(code, name)
+		if ok then
+			successCount = successCount + 1
+		else
+			failCount = failCount + 1
+			warn("Lần chạy thứ " .. i .. " lỗi:", err)
+		end
+	end
+
+	-- Cập nhật tổng số lần đã chạy
+	totalExecutions = totalExecutions + loopCount
+	countLabel.Text = "🔄 Tổng số lần đã chạy: " .. totalExecutions
+
+	-- Hiển thị kết quả của lần chạy này
+	if failCount == 0 then
+		statusLabel.Text = "✅ Đã chạy " .. loopCount .. " lần, tất cả thành công! (Xem Output)"
+	else
+		statusLabel.Text = "⚠️ Chạy " .. loopCount .. " lần: " .. successCount .. " thành công, " .. failCount .. " thất bại."
 	end
 end)
