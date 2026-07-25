@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Bay điều khiển + Tất cả tính năng)
+-- EXECUTOR MENU (Bay mobile + Đứng trên không di chuyển)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -265,7 +265,7 @@ minOption.MouseButton1Click:Connect(function()
 	dropdownFrame.Visible = false
 end)
 
--- Để ẩn dropdown khi click ra ngoài (đã có trong InputBegan)
+-- Dropdown click outside
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -406,13 +406,12 @@ resetEnvButton.BorderSizePixel = 0
 resetEnvButton.Parent = scrollFrame
 Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
 
--- ======================== BAY & ĐỨNG TRÊN KHÔNG ========================
+-- ======================== BAY & ĐỨNG TRÊN KHÔNG (MOBILE) ========================
 
--- Thanh trượt tốc độ bay
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(1, -20, 0, 18)
 speedLabel.Position = UDim2.new(0, 10, 0, 483)
-speedLabel.Text = "⚡ Tốc độ bay: 50"
+speedLabel.Text = "⚡ Tốc độ bay/đi: 50"
 speedLabel.BackgroundTransparency = 1
 speedLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 speedLabel.Font = Enum.Font.SourceSans
@@ -420,7 +419,7 @@ speedLabel.TextSize = 13
 speedLabel.TextXAlignment = Enum.TextXAlignment.Left
 speedLabel.Parent = scrollFrame
 
-local speedSlider = Instance.new("TextBox") -- dùng TextBox để nhập số, đơn giản
+local speedSlider = Instance.new("TextBox")
 speedSlider.Size = UDim2.new(0, 60, 0, 28)
 speedSlider.Position = UDim2.new(0, 10, 0, 502)
 speedSlider.PlaceholderText = "50"
@@ -447,7 +446,7 @@ Instance.new("UICorner", flyButton).CornerRadius = UDim.new(0, 5)
 
 local standAirButton = Instance.new("TextButton")
 standAirButton.Size = UDim2.new(0, 150, 0, 28)
-standAirButton.Position = UDim2.new(0, 10, 0, 535)  -- xuống hàng dưới
+standAirButton.Position = UDim2.new(0, 10, 0, 535)
 standAirButton.Text = "🧍 Đứng trên không: TẮT"
 standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 standAirButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -457,34 +456,122 @@ standAirButton.BorderSizePixel = 0
 standAirButton.Parent = scrollFrame
 Instance.new("UICorner", standAirButton).CornerRadius = UDim.new(0, 5)
 
--- Biến trạng thái
-local isFogOn = false
-local isFlying = false
-local isStandingOnAir = false
-local flyBodyVelocity = nil
-local flyBodyGyro = nil
-local standBodyPosition = nil
-local character = player.Character or player.CharacterAdded:Wait()
+-- ==================== MOBILE VIRTUAL CONTROLS ====================
+local mobileControlsFrame = Instance.new("Frame")
+mobileControlsFrame.Size = UDim2.new(0, 200, 0, 200)
+mobileControlsFrame.Position = UDim2.new(0, 10, 1, -210)
+mobileControlsFrame.BackgroundTransparency = 1
+mobileControlsFrame.Visible = false
+mobileControlsFrame.Parent = screenGui
 
--- Tốc độ bay mặc định
+-- Các nút ảo (dùng TextButton đơn giản)
+local function createMobileButton(text, posX, posY, size)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, size or 44, 0, size or 44)
+	btn.Position = UDim2.new(0, posX, 0, posY)
+	btn.Text = text
+	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 20
+	btn.BorderSizePixel = 0
+	btn.Parent = mobileControlsFrame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+	return btn
+end
+
+local btnUp = createMobileButton("▲", 78, 0)
+local btnDown = createMobileButton("▼", 78, 88)
+local btnLeft = createMobileButton("◀", 34, 44)
+local btnRight = createMobileButton("▶", 122, 44)
+local btnFlyUp = createMobileButton("⏫", 10, 156, 36)
+local btnFlyDown = createMobileButton("⏬", 154, 156, 36)
+
+-- Trạng thái nút (dùng dictionary với key là tên nút)
+local mobileKeys = {
+	Up = false, Down = false, Left = false, Right = false,
+	FlyUp = false, FlyDown = false
+}
+
+-- Kết nối sự kiện Touch để biết nút nào đang được nhấn
+local touchButtons = {
+	[btnUp] = "Up", [btnDown] = "Down", [btnLeft] = "Left", [btnRight] = "Right",
+	[btnFlyUp] = "FlyUp", [btnFlyDown] = "FlyDown"
+}
+
+local activeTouches = {} -- lưu {touchId, buttonKey}
+
+local function onTouchStarted(input, processed)
+	if processed then return end
+	for button, key in pairs(touchButtons) do
+		local pos = input.Position
+		local absPos = button.AbsolutePosition
+		local absSize = button.AbsoluteSize
+		if pos.X >= absPos.X and pos.X <= absPos.X + absSize.X and pos.Y >= absPos.Y and pos.Y <= absPos.Y + absSize.Y then
+			mobileKeys[key] = true
+			-- Lưu touch để khi End thì tắt
+			if not activeTouches[input.UserInputState] then
+				activeTouches[input] = key
+			end
+			break
+		end
+	end
+end
+
+local function onTouchEnded(input)
+	if activeTouches[input] then
+		local key = activeTouches[input]
+		mobileKeys[key] = false
+		activeTouches[input] = nil
+	end
+end
+
+UserInputService.TouchStarted:Connect(onTouchStarted)
+UserInputService.TouchEnded:Connect(onTouchEnded)
+
+local function getMovementInput()
+	local move = Vector3.new(0,0,0)
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) or mobileKeys.Up then
+		move += Vector3.new(0, 0, -1)
+	end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) or mobileKeys.Down then
+		move += Vector3.new(0, 0, 1)
+	end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) or mobileKeys.Left then
+		move += Vector3.new(-1, 0, 0)
+	end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) or mobileKeys.Right then
+		move += Vector3.new(1, 0, 0)
+	end
+	return move
+end
+
+local function getVerticalInput()
+	local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) or mobileKeys.FlyUp
+	local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or mobileKeys.FlyDown
+	return up, down
+end
+
+-- ==================== CÀI ĐẶT CHUNG ====================
 local flySpeed = 50
--- Cập nhật tốc độ từ ô nhập
 speedSlider.FocusLost:Connect(function(enterPressed)
 	if enterPressed then
 		local num = tonumber(speedSlider.Text)
 		if num and num >= 0 then
 			flySpeed = num
-			speedLabel.Text = "⚡ Tốc độ bay: " .. tostring(num)
+			speedLabel.Text = "⚡ Tốc độ bay/đi: " .. tostring(num)
 		else
 			speedSlider.Text = tostring(flySpeed)
 		end
 	end
 end)
 
+local character = player.Character or player.CharacterAdded:Wait()
+
 player.CharacterAdded:Connect(function(char)
 	character = char
+	-- Tắt các chế độ nếu đang bật
 	if isFlying then
-		-- Nếu đang bay, dừng bay và bật lại sau khi character load xong? Hoặc để người dùng tự bấm lại.
 		stopFly()
 		isFlying = false
 		flyButton.Text = "🕊️ Bay: TẮT"
@@ -496,7 +583,12 @@ player.CharacterAdded:Connect(function(char)
 		standAirButton.Text = "🧍 Đứng trên không: TẮT"
 		standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	end
+	mobileControlsFrame.Visible = false
 end)
+
+local function showMobileControls(show)
+	mobileControlsFrame.Visible = show and UserInputService.TouchEnabled
+end
 
 local function stopFly()
 	if flyBodyVelocity then
@@ -512,6 +604,7 @@ local function stopFly()
 		character.Humanoid.PlatformStand = false
 	end
 	RunService:UnbindFromRenderStep("FlyUpdate")
+	showMobileControls(false)
 end
 
 local function stopStandOnAir()
@@ -522,6 +615,8 @@ local function stopStandOnAir()
 	if character and character:FindFirstChild("Humanoid") then
 		character.Humanoid.PlatformStand = false
 	end
+	RunService:UnbindFromRenderStep("StandUpdate")
+	showMobileControls(false)
 end
 
 local function toggleFly()
@@ -538,9 +633,7 @@ local function toggleFly()
 	local humanoid = character:WaitForChild("Humanoid")
 
 	if isFlying then
-		if isStandingOnAir then
-			toggleStandOnAir()
-		end
+		if isStandingOnAir then toggleStandOnAir() end
 		flyBodyVelocity = Instance.new("BodyVelocity")
 		flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
 		flyBodyVelocity.Parent = rootPart
@@ -558,34 +651,22 @@ local function toggleFly()
 			local camera = workspace.CurrentCamera
 			if not camera then return end
 
-			local moveDirection = Vector3.new(0,0,0)
-			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-				moveDirection += camera.CFrame.LookVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-				moveDirection -= camera.CFrame.LookVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-				moveDirection -= camera.CFrame.RightVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-				moveDirection += camera.CFrame.RightVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-				moveDirection += Vector3.new(0,1,0)
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-				moveDirection -= Vector3.new(0,1,0)
-			end
-
+			local moveDirection = getMovementInput()
 			if moveDirection.Magnitude > 0 then
 				moveDirection = moveDirection.Unit
 			end
-			flyBodyVelocity.Velocity = moveDirection * flySpeed
+			-- Chuyển đổi moveDirection sang không gian thế giới dựa trên hướng camera
+			local worldMove = (camera.CFrame.RightVector * moveDirection.X + camera.CFrame.LookVector * (-moveDirection.Z))
+			if worldMove.Magnitude > 0 then
+				worldMove = worldMove.Unit
+			end
+			local upInput, downInput = getVerticalInput()
+			local vertical = (upInput and 1 or 0) - (downInput and 1 or 0)
+			flyBodyVelocity.Velocity = (worldMove + Vector3.new(0, vertical, 0)) * flySpeed
 
-			-- Giữ nhân vật hướng về phía trước của camera
 			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector)
 		end)
+		showMobileControls(true)
 	else
 		stopFly()
 	end
@@ -605,14 +686,33 @@ local function toggleStandOnAir()
 	local humanoid = character:WaitForChild("Humanoid")
 
 	if isStandingOnAir then
-		if isFlying then
-			toggleFly()
-		end
+		if isFlying then toggleFly() end
 		standBodyPosition = Instance.new("BodyPosition")
-		standBodyPosition.Position = rootPart.Position
 		standBodyPosition.MaxForce = Vector3.new(100000, 100000, 100000)
 		standBodyPosition.Parent = rootPart
 		humanoid.PlatformStand = true
+
+		local targetY = rootPart.Position.Y -- giữ nguyên độ cao ban đầu
+
+		RunService:BindToRenderStep("StandUpdate", 1, function()
+			if not isStandingOnAir or not character or not rootPart or not standBodyPosition then return end
+			local moveDirection = getMovementInput()
+			local camera = workspace.CurrentCamera
+			local worldMove = Vector3.new(0,0,0)
+			if camera and moveDirection.Magnitude > 0 then
+				moveDirection = moveDirection.Unit
+				worldMove = camera.CFrame.RightVector * moveDirection.X + camera.CFrame.LookVector * (-moveDirection.Z)
+				worldMove = worldMove.Unit * (flySpeed * 0.5) -- tốc độ bằng nửa tốc độ bay
+			end
+			local upInput, downInput = getVerticalInput()
+			if upInput then targetY = targetY + 0.5 end
+			if downInput then targetY = targetY - 0.5 end
+
+			local newPosition = rootPart.Position + worldMove * 0.016 -- giả lập delta time ~0.016
+			newPosition = Vector3.new(newPosition.X, targetY, newPosition.Z)
+			standBodyPosition.Position = newPosition
+		end)
+		showMobileControls(true)
 	else
 		stopStandOnAir()
 	end
@@ -662,22 +762,14 @@ scriptListLayout.Padding = UDim.new(0, 4)
 
 -- ==================== HÀM THỰC THI ====================
 local function executeOnce(code, name)
-	if #name > 0 then
-		print("👤 Tên người dùng:", name)
-	end
+	if #name > 0 then print("👤 Tên người dùng:", name) end
 	local success, result = pcall(function()
 		local executor = loadstring or function(c) return loadstring(c) end
 		local fn, err = executor(code)
-		if not fn then
-			error("Lỗi biên dịch: " .. tostring(err))
-		end
+		if not fn then error("Lỗi biên dịch: " .. tostring(err)) end
 		fn()
 	end)
-	if success then
-		return true
-	else
-		return false, result
-	end
+	return success, result
 end
 
 local function executeCurrentCode()
@@ -712,9 +804,7 @@ local function executeCurrentCode()
 			statusLabel.Text = "⚠️ Thời gian chờ không hợp lệ (phải là số >= 0)"
 			return
 		end
-		if unit == "Phút" then
-			delaySeconds = delaySeconds * 60
-		end
+		if unit == "Phút" then delaySeconds = delaySeconds * 60 end
 	end
 
 	statusLabel.Text = "⏳ Đang thực thi..."
@@ -722,27 +812,17 @@ local function executeCurrentCode()
 	local failCount = 0
 
 	for i = 1, loopCount do
-		if i > 1 and delaySeconds > 0 then
-			task.wait(delaySeconds)
-		end
+		if i > 1 and delaySeconds > 0 then task.wait(delaySeconds) end
 		local ok, err = executeOnce(code, name)
-		if ok then
-			successCount = successCount + 1
-		else
-			failCount = failCount + 1
-			warn("Lần chạy thứ " .. i .. " lỗi:", err)
-		end
+		if ok then successCount = successCount + 1
+		else failCount = failCount + 1; warn("Lần chạy thứ " .. i .. " lỗi:", err) end
 		statusLabel.Text = string.format("⏳ Đang chạy %d/%d...", i, loopCount)
 	end
 
 	totalExecutions = totalExecutions + loopCount
 	countLabel.Text = "🔄 Tổng số lần đã chạy: " .. totalExecutions
-
-	if failCount == 0 then
-		statusLabel.Text = string.format("✅ Hoàn tất %d lần, tất cả thành công!", loopCount)
-	else
-		statusLabel.Text = string.format("⚠️ Hoàn tất %d lần: %d thành công, %d thất bại.", loopCount, successCount, failCount)
-	end
+	statusLabel.Text = failCount == 0 and string.format("✅ Hoàn tất %d lần, tất cả thành công!", loopCount)
+		or string.format("⚠️ Hoàn tất %d lần: %d thành công, %d thất bại.", loopCount, successCount, failCount)
 end
 
 runButton.MouseButton1Click:Connect(executeCurrentCode)
@@ -772,7 +852,6 @@ local function rebuildScriptList()
 
 		local scriptButton = Instance.new("TextButton")
 		scriptButton.Size = UDim2.new(1, -30, 1, 0)
-		scriptButton.Position = UDim2.new(0, 0, 0, 0)
 		scriptButton.Text = scriptData.name
 		scriptButton.BackgroundTransparency = 1
 		scriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -816,19 +895,12 @@ saveButton.MouseButton1Click:Connect(function()
 		statusLabel.Text = "⚠️ Không có code để lưu!"
 		return
 	end
-	if #currentName == 0 then
-		currentName = "Script " .. (#savedScripts + 1)
-	end
+	if #currentName == 0 then currentName = "Script " .. (#savedScripts + 1) end
 	local baseName = currentName
 	local counter = 1
 	while true do
 		local exists = false
-		for _, s in ipairs(savedScripts) do
-			if s.name == currentName then
-				exists = true
-				break
-			end
-		end
+		for _, s in ipairs(savedScripts) do if s.name == currentName then exists = true break end end
 		if not exists then break end
 		counter = counter + 1
 		currentName = baseName .. " (" .. counter .. ")"
@@ -843,9 +915,7 @@ end)
 local function tweenLighting(properties, duration)
 	local tweenInfo = TweenInfo.new(duration or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
 	local goals = {}
-	for prop, value in pairs(properties) do
-		goals[prop] = value
-	end
+	for prop, value in pairs(properties) do goals[prop] = value end
 	local tween = TweenService:Create(lighting, tweenInfo, goals)
 	tween:Play()
 	return tween
