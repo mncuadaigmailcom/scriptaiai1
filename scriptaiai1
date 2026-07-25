@@ -1,0 +1,243 @@
+-- ============================================
+-- EXECUTOR MENU (Có đếm số lần chạy)
+-- Đặt trong StarterGui -> LocalScript
+-- ============================================
+
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ExecutorMenu"
+screenGui.Parent = playerGui
+
+print("✅ Script executor đã khởi động.")
+
+-- Nút toggle
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 45, 0, 45)
+toggleButton.Position = UDim2.new(1, -55, 1, -55)
+toggleButton.Text = "⚙"
+toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 24
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = screenGui
+Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
+
+toggleButton.MouseEnter:Connect(function()
+	toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+end)
+toggleButton.MouseLeave:Connect(function()
+	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+end)
+
+-- Khung chính (tăng chiều cao thêm 20px để chứa label đếm)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 340, 0, 320)   -- cũ: 300 -> mới: 320
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+
+-- Viền giả
+local borderFrame = Instance.new("Frame")
+borderFrame.Size = UDim2.new(1, 2, 1, 2)
+borderFrame.Position = UDim2.new(0, -1, 0, -1)
+borderFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+borderFrame.BorderSizePixel = 0
+borderFrame.Parent = mainFrame
+Instance.new("UICorner", borderFrame).CornerRadius = UDim.new(0, 10)
+
+-- Thanh tiêu đề
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+titleBar.Draggable = true
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.Text = "⚡ Executor"
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 16
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.Text = "✕"
+closeButton.BackgroundTransparency = 1
+closeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 16
+closeButton.BorderSizePixel = 0
+closeButton.Parent = titleBar
+
+closeButton.MouseEnter:Connect(function()
+	closeButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+end)
+closeButton.MouseLeave:Connect(function()
+	closeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+end)
+
+-- Ô nhập tên
+local nameLabel = Instance.new("TextLabel")
+nameLabel.Size = UDim2.new(1, -20, 0, 18)
+nameLabel.Position = UDim2.new(0, 10, 0, 40)
+nameLabel.Text = "👤 Tên"
+nameLabel.BackgroundTransparency = 1
+nameLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+nameLabel.Font = Enum.Font.SourceSans
+nameLabel.TextSize = 13
+nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+nameLabel.Parent = mainFrame
+
+local nameBox = Instance.new("TextBox")
+nameBox.Size = UDim2.new(1, -20, 0, 28)
+nameBox.Position = UDim2.new(0, 10, 0, 60)
+nameBox.PlaceholderText = "Nhập tên..."
+nameBox.Text = ""
+nameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameBox.Font = Enum.Font.SourceSans
+nameBox.TextSize = 14
+nameBox.BorderSizePixel = 0
+nameBox.Parent = mainFrame
+Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 5)
+
+-- Ô nhập code
+local codeLabel = Instance.new("TextLabel")
+codeLabel.Size = UDim2.new(1, -20, 0, 18)
+codeLabel.Position = UDim2.new(0, 10, 0, 98)
+codeLabel.Text = "💻 Code (Lua)"
+codeLabel.BackgroundTransparency = 1
+codeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+codeLabel.Font = Enum.Font.SourceSans
+codeLabel.TextSize = 13
+codeLabel.TextXAlignment = Enum.TextXAlignment.Left
+codeLabel.Parent = mainFrame
+
+local codeBox = Instance.new("TextBox")
+codeBox.Size = UDim2.new(1, -20, 0, 110)
+codeBox.Position = UDim2.new(0, 10, 0, 118)
+codeBox.PlaceholderText = [[loadstring(game:HttpGet("..."))()]]
+codeBox.Text = ""
+codeBox.MultiLine = true
+codeBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+codeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+codeBox.Font = Enum.Font.SourceSans
+codeBox.TextSize = 14
+codeBox.TextWrapped = true
+codeBox.TextXAlignment = Enum.TextXAlignment.Left
+codeBox.TextYAlignment = Enum.TextYAlignment.Top
+codeBox.BorderSizePixel = 0
+codeBox.Parent = mainFrame
+Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
+
+-- Nút chạy code
+local runButton = Instance.new("TextButton")
+runButton.Size = UDim2.new(0, 120, 0, 30)
+runButton.Position = UDim2.new(0.5, -60, 0, 240)
+runButton.Text = "▶ Chạy Code"
+runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
+runButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+runButton.Font = Enum.Font.SourceSansBold
+runButton.TextSize = 14
+runButton.BorderSizePixel = 0
+runButton.Parent = mainFrame
+Instance.new("UICorner", runButton).CornerRadius = UDim.new(0, 6)
+
+runButton.MouseEnter:Connect(function()
+	runButton.BackgroundColor3 = Color3.fromRGB(0, 180, 110)
+end)
+runButton.MouseLeave:Connect(function()
+	runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
+end)
+
+-- Label trạng thái (dòng trên cùng của khu vực dưới)
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 18)
+statusLabel.Position = UDim2.new(0, 10, 0, 275)
+statusLabel.Text = ""
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 120)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 12
+statusLabel.TextWrapped = true
+statusLabel.Parent = mainFrame
+
+-- Label đếm số lần chạy code
+local countLabel = Instance.new("TextLabel")
+countLabel.Size = UDim2.new(1, -20, 0, 18)
+countLabel.Position = UDim2.new(0, 10, 0, 293)   -- ngay dưới statusLabel
+countLabel.Text = "🔄 Số lần chạy: 0"
+countLabel.BackgroundTransparency = 1
+countLabel.TextColor3 = Color3.fromRGB(130, 230, 130)
+countLabel.Font = Enum.Font.SourceSansBold
+countLabel.TextSize = 12
+countLabel.TextWrapped = true
+countLabel.Parent = mainFrame
+
+-- Biến đếm toàn cục
+local executionCount = 0
+
+-- Logic ẩn/hiện menu
+local menuVisible = false
+local function setMenuVisible(state)
+	menuVisible = state
+	mainFrame.Visible = state
+	toggleButton.Text = state and "✕" or "⚙"
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+	setMenuVisible(not menuVisible)
+end)
+closeButton.MouseButton1Click:Connect(function()
+	setMenuVisible(false)
+end)
+
+-- Chạy code + đếm số lần
+runButton.MouseButton1Click:Connect(function()
+	local code = codeBox.Text
+	local name = nameBox.Text
+
+	if #code == 0 then
+		statusLabel.Text = "⚠️ Vui lòng nhập code!"
+		return
+	end
+
+	if #name > 0 then
+		print("👤 Tên người dùng:", name)
+	end
+
+	-- Tăng số lần chạy và cập nhật label
+	executionCount = executionCount + 1
+	countLabel.Text = "🔄 Số lần chạy: " .. executionCount
+
+	-- Thực thi code (chỉ hoạt động khi có executor)
+	local success, result = pcall(function()
+		local executor = loadstring or function(c) return loadstring(c) end
+		local fn, err = executor(code)
+		if not fn then
+			error("Lỗi biên dịch: " .. tostring(err))
+		end
+		fn()
+	end)
+
+	if success then
+		statusLabel.Text = "✅ Đã thực thi (xem Output)"
+		print("✅ [Executor] Hoàn tất.")
+	else
+		statusLabel.Text = "❌ Lỗi: " .. tostring(result)
+		warn("❌ Lỗi thực thi:", result)
+	end
+end)
