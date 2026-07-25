@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Đã sửa lỗi thứ tự hàm + Tự động cuộn)
+-- EXECUTOR MENU (Bay + Đứng trên không + Tất cả tính năng trước)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -7,6 +7,7 @@ local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ExecutorMenu"
@@ -404,59 +405,162 @@ resetEnvButton.BorderSizePixel = 0
 resetEnvButton.Parent = scrollFrame
 Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
 
+-- ======================== BAY & ĐỨNG TRÊN KHÔNG ========================
+
+local flyButton = Instance.new("TextButton")
+flyButton.Size = UDim2.new(0, 150, 0, 28)
+flyButton.Position = UDim2.new(0, 10, 0, 481)
+flyButton.Text = "🕊️ Bay lên trời: TẮT"
+flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyButton.Font = Enum.Font.SourceSansBold
+flyButton.TextSize = 13
+flyButton.BorderSizePixel = 0
+flyButton.Parent = scrollFrame
+Instance.new("UICorner", flyButton).CornerRadius = UDim.new(0, 5)
+
+local standAirButton = Instance.new("TextButton")
+standAirButton.Size = UDim2.new(0, 150, 0, 28)
+standAirButton.Position = UDim2.new(0, 170, 0, 481)
+standAirButton.Text = "🧍 Đứng trên không: TẮT"
+standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+standAirButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+standAirButton.Font = Enum.Font.SourceSansBold
+standAirButton.TextSize = 13
+standAirButton.BorderSizePixel = 0
+standAirButton.Parent = scrollFrame
+Instance.new("UICorner", standAirButton).CornerRadius = UDim.new(0, 5)
+
+-- ======================== BIẾN TRẠNG THÁI ========================
 local isFogOn = false
+local isFlying = false
+local isStandingOnAir = false
+local flyBodyVelocity = nil
+local flyBodyGyro = nil
+local standBodyPosition = nil
+local character = player.Character or player.CharacterAdded:Wait()
 
-local function tweenLighting(properties, duration)
-	local tweenInfo = TweenInfo.new(duration or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-	local goals = {}
-	for prop, value in pairs(properties) do
-		goals[prop] = value
+-- Hàm lấy character mới khi respawn
+player.CharacterAdded:Connect(function(char)
+	character = char
+	-- Tắt các hiệu ứng nếu đang bật để tránh lỗi
+	if isFlying then stopFly() isFlying = true flyButton.Text = "🕊️ Bay lên trời: BẬT" end
+	if isStandingOnAir then stopStandOnAir() isStandingOnAir = true standAirButton.Text = "🧍 Đứng trên không: BẬT" end
+end)
+
+-- Hàm hủy các body mover
+local function stopFly()
+	if flyBodyVelocity then
+		flyBodyVelocity:Destroy()
+		flyBodyVelocity = nil
 	end
-	local tween = TweenService:Create(lighting, tweenInfo, goals)
-	tween:Play()
-	return tween
+	if flyBodyGyro then
+		flyBodyGyro:Destroy()
+		flyBodyGyro = nil
+	end
+	if character and character:FindFirstChild("Humanoid") then
+		character.Humanoid.AutoRotate = true
+	end
 end
 
-local function setDark()
-	animateButton(darkButton)
-	tweenLighting({ClockTime = 0, Brightness = 0.3, OutdoorAmbient = Color3.fromRGB(20, 20, 40)}, 1.5)
+local function stopStandOnAir()
+	if standBodyPosition then
+		standBodyPosition:Destroy()
+		standBodyPosition = nil
+	end
+	if character and character:FindFirstChild("Humanoid") then
+		character.Humanoid.PlatformStand = false
+	end
 end
 
-local function setLight()
-	animateButton(lightButton)
-	tweenLighting({ClockTime = 14, Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(180, 180, 180)}, 1.5)
-end
+-- Bật/tắt bay
+local function toggleFly()
+	isFlying = not isFlying
+	flyButton.Text = isFlying and "🕊️ Bay lên trời: BẬT" or "🕊️ Bay lên trời: TẮT"
+	flyButton.BackgroundColor3 = isFlying and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(45, 45, 45)
+	animateButton(flyButton)
 
-local function toggleFog()
-	animateButton(fogButton)
-	isFogOn = not isFogOn
-	fogButton.Text = isFogOn and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
-	fogButton.BackgroundColor3 = isFogOn and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
-	if isFogOn then
-		tweenLighting({FogStart = 0, FogEnd = 80, FogColor = Color3.fromRGB(180, 180, 180)}, 1)
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		character = player.Character
+		if not character then return end
+	end
+	local rootPart = character:WaitForChild("HumanoidRootPart")
+	local humanoid = character:WaitForChild("Humanoid")
+
+	if isFlying then
+		-- Tắt đứng trên không nếu đang bật
+		if isStandingOnAir then
+			toggleStandOnAir()
+		end
+		-- Tạo BodyVelocity để bay lên
+		flyBodyVelocity = Instance.new("BodyVelocity")
+		flyBodyVelocity.Velocity = Vector3.new(0, 50, 0)  -- bay lên với tốc độ cao
+		flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+		flyBodyVelocity.Parent = rootPart
+
+		-- Giữ thăng bằng
+		flyBodyGyro = Instance.new("BodyGyro")
+		flyBodyGyro.CFrame = rootPart.CFrame
+		flyBodyGyro.MaxTorque = Vector3.new(4000, 4000, 4000)
+		flyBodyGyro.Parent = rootPart
+
+		humanoid.AutoRotate = false
+		humanoid.PlatformStand = true  -- tránh rơi xuống
+		-- Tạo dáng bay (tilt nhẹ về trước) - cập nhật liên tục
+		RunService:BindToRenderStep("FlyTilt", 1, function()
+			if flyBodyGyro and rootPart then
+				local lookVector = rootPart.CFrame.LookVector
+				local tiltAngle = math.rad(20)  -- nghiêng 20 độ về trước
+				local tiltCFrame = CFrame.Angles(-tiltAngle, 0, 0)
+				flyBodyGyro.CFrame = CFrame.new(rootPart.Position) * tiltCFrame
+			end
+		end)
 	else
-		tweenLighting({FogStart = 0, FogEnd = 100000, FogColor = Color3.fromRGB(255, 255, 255)}, 1)
+		RunService:UnbindFromRenderStep("FlyTilt")
+		stopFly()
 	end
 end
 
-local function resetEnvironment()
-	animateButton(resetEnvButton)
-	setLight()
-	if isFogOn then toggleFog() end
+-- Bật/tắt đứng trên không
+local function toggleStandOnAir()
+	isStandingOnAir = not isStandingOnAir
+	standAirButton.Text = isStandingOnAir and "🧍 Đứng trên không: BẬT" or "🧍 Đứng trên không: TẮT"
+	standAirButton.BackgroundColor3 = isStandingOnAir and Color3.fromRGB(160, 100, 200) or Color3.fromRGB(45, 45, 45)
+	animateButton(standAirButton)
+
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		character = player.Character
+		if not character then return end
+	end
+	local rootPart = character:WaitForChild("HumanoidRootPart")
+	local humanoid = character:WaitForChild("Humanoid")
+
+	if isStandingOnAir then
+		-- Tắt bay nếu đang bật
+		if isFlying then
+			toggleFly()
+		end
+		-- Tạo BodyPosition để giữ nguyên vị trí
+		standBodyPosition = Instance.new("BodyPosition")
+		standBodyPosition.Position = rootPart.Position
+		standBodyPosition.MaxForce = Vector3.new(100000, 100000, 100000)
+		standBodyPosition.Parent = rootPart
+		humanoid.PlatformStand = true
+	else
+		stopStandOnAir()
+	end
 end
 
-darkButton.MouseButton1Click:Connect(setDark)
-lightButton.MouseButton1Click:Connect(setLight)
-fogButton.MouseButton1Click:Connect(toggleFog)
-resetEnvButton.MouseButton1Click:Connect(resetEnvironment)
+flyButton.MouseButton1Click:Connect(toggleFly)
+standAirButton.MouseButton1Click:Connect(toggleStandOnAir)
 
--- ======================== LƯU & DANH SÁCH SCRIPT ========================
+-- ======================== LƯU & DANH SÁCH SCRIPT (giữ nguyên) ========================
 
 local savedScripts = {}
 
 local scriptListLabel = Instance.new("TextLabel")
 scriptListLabel.Size = UDim2.new(1, -20, 0, 18)
-scriptListLabel.Position = UDim2.new(0, 10, 0, 490)
+scriptListLabel.Position = UDim2.new(0, 10, 0, 515)
 scriptListLabel.Text = "💾 Script đã lưu (nhấn để chạy ngay)"
 scriptListLabel.BackgroundTransparency = 1
 scriptListLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -467,7 +571,7 @@ scriptListLabel.Parent = scrollFrame
 
 local saveButton = Instance.new("TextButton")
 saveButton.Size = UDim2.new(0, 150, 0, 28)
-saveButton.Position = UDim2.new(0, 10, 0, 510)
+saveButton.Position = UDim2.new(0, 10, 0, 535)
 saveButton.Text = "➕ Lưu script hiện tại"
 saveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -479,7 +583,7 @@ Instance.new("UICorner", saveButton).CornerRadius = UDim.new(0, 5)
 
 local scriptListFrame = Instance.new("Frame")
 scriptListFrame.Size = UDim2.new(1, -20, 0, 0)
-scriptListFrame.Position = UDim2.new(0, 10, 0, 545)
+scriptListFrame.Position = UDim2.new(0, 10, 0, 568)
 scriptListFrame.BackgroundTransparency = 1
 scriptListFrame.BorderSizePixel = 0
 scriptListFrame.Parent = scrollFrame
@@ -489,8 +593,7 @@ scriptListLayout.Parent = scriptListFrame
 scriptListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 scriptListLayout.Padding = UDim.new(0, 4)
 
--- ==================== HÀM THỰC THI (ĐÃ SỬA THỨ TỰ) ====================
--- executeOnce được định nghĩa TRƯỚC executeCurrentCode
+-- ==================== HÀM THỰC THI (đã sửa thứ tự) ====================
 local function executeOnce(code, name)
 	if #name > 0 then
 		print("👤 Tên người dùng:", name)
@@ -575,14 +678,13 @@ local function executeCurrentCode()
 	end
 end
 
--- Kết nối nút Run
 runButton.MouseButton1Click:Connect(executeCurrentCode)
 
--- ==================== QUẢN LÝ DANH SÁCH SCRIPT ====================
+-- Quản lý danh sách script
 local function updateCanvasSize()
 	local count = #savedScripts
-	local height = 545 + count * 32 + 20
-	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 500))
+	local height = 568 + count * 32 + 20
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 620))
 end
 
 local function clearScriptListUI()
@@ -625,7 +727,6 @@ local function rebuildScriptList()
 		deleteButton.Parent = row
 		Instance.new("UICorner", deleteButton).CornerRadius = UDim.new(1, 0)
 
-		-- Nhấn vào tên script: điền tên + code, rồi chạy ngay
 		scriptButton.MouseButton1Click:Connect(function()
 			nameBox.Text = scriptData.name
 			codeBox.Text = scriptData.code
@@ -641,7 +742,6 @@ local function rebuildScriptList()
 	updateCanvasSize()
 end
 
--- Nút lưu script
 saveButton.MouseButton1Click:Connect(function()
 	local currentName = nameBox.Text
 	local currentCode = codeBox.Text
@@ -652,7 +752,6 @@ saveButton.MouseButton1Click:Connect(function()
 	if #currentName == 0 then
 		currentName = "Script " .. (#savedScripts + 1)
 	end
-	-- Tránh trùng tên
 	local baseName = currentName
 	local counter = 1
 	while true do
@@ -670,9 +769,53 @@ saveButton.MouseButton1Click:Connect(function()
 	table.insert(savedScripts, {name = currentName, code = currentCode})
 	rebuildScriptList()
 	statusLabel.Text = "✅ Đã lưu: " .. currentName
-	-- Tự động cuộn xuống cuối để thấy script vừa lưu
 	scrollFrame.CanvasPosition = Vector2.new(0, scrollFrame.CanvasSize.Y.Offset)
 end)
+
+-- ==================== CÁC HÀM MÔI TRƯỜNG ====================
+local function tweenLighting(properties, duration)
+	local tweenInfo = TweenInfo.new(duration or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+	local goals = {}
+	for prop, value in pairs(properties) do
+		goals[prop] = value
+	end
+	local tween = TweenService:Create(lighting, tweenInfo, goals)
+	tween:Play()
+	return tween
+end
+
+local function setDark()
+	animateButton(darkButton)
+	tweenLighting({ClockTime = 0, Brightness = 0.3, OutdoorAmbient = Color3.fromRGB(20, 20, 40)}, 1.5)
+end
+
+local function setLight()
+	animateButton(lightButton)
+	tweenLighting({ClockTime = 14, Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(180, 180, 180)}, 1.5)
+end
+
+local function toggleFog()
+	animateButton(fogButton)
+	isFogOn = not isFogOn
+	fogButton.Text = isFogOn and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
+	fogButton.BackgroundColor3 = isFogOn and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
+	if isFogOn then
+		tweenLighting({FogStart = 0, FogEnd = 80, FogColor = Color3.fromRGB(180, 180, 180)}, 1)
+	else
+		tweenLighting({FogStart = 0, FogEnd = 100000, FogColor = Color3.fromRGB(255, 255, 255)}, 1)
+	end
+end
+
+local function resetEnvironment()
+	animateButton(resetEnvButton)
+	setLight()
+	if isFogOn then toggleFog() end
+end
+
+darkButton.MouseButton1Click:Connect(setDark)
+lightButton.MouseButton1Click:Connect(setLight)
+fogButton.MouseButton1Click:Connect(toggleFog)
+resetEnvButton.MouseButton1Click:Connect(resetEnvironment)
 
 -- ==================== LOGIC ẨN/HIỆN MENU ====================
 local totalExecutions = 0
