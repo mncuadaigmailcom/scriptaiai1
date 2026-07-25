@@ -1,10 +1,12 @@
 -- ============================================
--- EXECUTOR MENU (Full: Lặp + Tốc độ + Ngày/Đêm + Sương mù)
+-- EXECUTOR MENU (Tách nút Trời tối / Trời sáng + Hiệu ứng động)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local lighting = game:GetService("Lighting")
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ExecutorMenu"
@@ -12,7 +14,7 @@ screenGui.Parent = playerGui
 
 print("✅ Script executor đã khởi động.")
 
--- Nút toggle
+-- Nút toggle chính (ẩn/hiện menu)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Size = UDim2.new(0, 45, 0, 45)
 toggleButton.Position = UDim2.new(1, -55, 1, -55)
@@ -32,7 +34,7 @@ toggleButton.MouseLeave:Connect(function()
 	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 end)
 
--- Khung chính (cố định 350px cao)
+-- Khung chính
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 340, 0, 350)
 mainFrame.Position = UDim2.new(0.5, -170, 0.5, -175)
@@ -50,7 +52,6 @@ borderFrame.BorderSizePixel = 0
 borderFrame.Parent = mainFrame
 Instance.new("UICorner", borderFrame).CornerRadius = UDim.new(0, 10)
 
--- Thanh tiêu đề
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 30)
 titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -98,9 +99,9 @@ scrollFrame.ScrollBarThickness = 8
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
 scrollFrame.ClipsDescendants = true
 scrollFrame.Parent = mainFrame
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)  -- sẽ cập nhật sau
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 550)  -- tăng cho nút mới
 
--- ===== TẤT CẢ CÁC THÀNH PHẦN TRONG SCROLL FRAME =====
+-- ===== CÁC THÀNH PHẦN TRONG SCROLL FRAME =====
 
 -- Ô nhập tên
 local nameLabel = Instance.new("TextLabel")
@@ -156,7 +157,7 @@ codeBox.BorderSizePixel = 0
 codeBox.Parent = scrollFrame
 Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
 
--- Label "Số lần lặp"
+-- Số lần lặp
 local loopLabel = Instance.new("TextLabel")
 loopLabel.Size = UDim2.new(1, -20, 0, 18)
 loopLabel.Position = UDim2.new(0, 10, 0, 195)
@@ -181,7 +182,7 @@ loopBox.BorderSizePixel = 0
 loopBox.Parent = scrollFrame
 Instance.new("UICorner", loopBox).CornerRadius = UDim.new(0, 5)
 
--- Label "Khoảng thời gian chờ"
+-- Khoảng thời gian chờ
 local delayLabel = Instance.new("TextLabel")
 delayLabel.Size = UDim2.new(1, -20, 0, 18)
 delayLabel.Position = UDim2.new(0, 10, 0, 250)
@@ -206,7 +207,7 @@ delayBox.BorderSizePixel = 0
 delayBox.Parent = scrollFrame
 Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 5)
 
--- Nút chọn đơn vị thời gian
+-- Chọn đơn vị thời gian
 local unitButton = Instance.new("TextButton")
 unitButton.Size = UDim2.new(0, 70, 0, 28)
 unitButton.Position = UDim2.new(0, 75, 0, 270)
@@ -219,7 +220,6 @@ unitButton.BorderSizePixel = 0
 unitButton.Parent = scrollFrame
 Instance.new("UICorner", unitButton).CornerRadius = UDim.new(0, 5)
 
--- Dropdown cho đơn vị
 local dropdownFrame = Instance.new("Frame")
 dropdownFrame.Size = UDim2.new(0, 70, 0, 56)
 dropdownFrame.Position = UDim2.new(0, 75, 0, 270 + 28)
@@ -328,11 +328,11 @@ countLabel.TextWrapped = true
 countLabel.Parent = scrollFrame
 
 -- ======================== HIỆU ỨNG MÔI TRƯỜNG ========================
--- Label phân cách
+
 local envLabel = Instance.new("TextLabel")
 envLabel.Size = UDim2.new(1, -20, 0, 18)
 envLabel.Position = UDim2.new(0, 10, 0, 390)
-envLabel.Text = "⚙️ Hiệu ứng môi trường"
+envLabel.Text = "⚙️ Điều khiển môi trường"
 envLabel.BackgroundTransparency = 1
 envLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 envLabel.Font = Enum.Font.SourceSansBold
@@ -340,25 +340,55 @@ envLabel.TextSize = 13
 envLabel.TextXAlignment = Enum.TextXAlignment.Left
 envLabel.Parent = scrollFrame
 
--- Nút chế độ tối (toggle)
-local darkModeButton = Instance.new("TextButton")
-darkModeButton.Size = UDim2.new(0, 130, 0, 28)
-darkModeButton.Position = UDim2.new(0, 10, 0, 412)
-darkModeButton.Text = "🌙 Chế độ tối: TẮT"
-darkModeButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-darkModeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-darkModeButton.Font = Enum.Font.SourceSansBold
-darkModeButton.TextSize = 13
-darkModeButton.BorderSizePixel = 0
-darkModeButton.Parent = scrollFrame
-Instance.new("UICorner", darkModeButton).CornerRadius = UDim.new(0, 5)
+-- Hàm tạo hiệu ứng động cho nút (phóng to + đổi màu tạm)
+local function animateButton(button)
+	local originalSize = button.Size
+	local originalColor = button.BackgroundColor3
+	local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tweenBig = TweenService:Create(button, tweenInfo, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset * 1.1, originalSize.Y.Scale, originalSize.Y.Offset * 1.1)})
+	local tweenSmall = TweenService:Create(button, tweenInfo, {Size = originalSize})
+	tweenBig:Play()
+	tweenBig.Completed:Connect(function()
+		tweenSmall:Play()
+	end)
+	-- Nhấp nháy màu
+	local blinkTween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = button.BackgroundColor3:Lerp(Color3.new(1,1,1), 0.5)})
+	blinkTween:Play()
+	blinkTween.Completed:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = originalColor}):Play()
+	end)
+end
 
-local isDarkMode = false   -- trạng thái hiện tại
+-- Nút Trời tối
+local darkButton = Instance.new("TextButton")
+darkButton.Size = UDim2.new(0, 150, 0, 28)
+darkButton.Position = UDim2.new(0, 10, 0, 415)
+darkButton.Text = "🌙 Trời tối"
+darkButton.BackgroundColor3 = Color3.fromRGB(60, 60, 100)
+darkButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+darkButton.Font = Enum.Font.SourceSansBold
+darkButton.TextSize = 13
+darkButton.BorderSizePixel = 0
+darkButton.Parent = scrollFrame
+Instance.new("UICorner", darkButton).CornerRadius = UDim.new(0, 5)
 
--- Nút sương mù (toggle)
+-- Nút Trời sáng
+local lightButton = Instance.new("TextButton")
+lightButton.Size = UDim2.new(0, 150, 0, 28)
+lightButton.Position = UDim2.new(0, 170, 0, 415)  -- bên phải darkButton
+lightButton.Text = "☀️ Trời sáng"
+lightButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+lightButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+lightButton.Font = Enum.Font.SourceSansBold
+lightButton.TextSize = 13
+lightButton.BorderSizePixel = 0
+lightButton.Parent = scrollFrame
+Instance.new("UICorner", lightButton).CornerRadius = UDim.new(0, 5)
+
+-- Nút Sương mù (toggle)
 local fogButton = Instance.new("TextButton")
-fogButton.Size = UDim2.new(0, 130, 0, 28)
-fogButton.Position = UDim2.new(0, 150, 0, 412)  -- bên cạnh nút chế độ tối
+fogButton.Size = UDim2.new(0, 150, 0, 28)
+fogButton.Position = UDim2.new(0, 10, 0, 448)  -- hàng dưới
 fogButton.Text = "🌫️ Sương mù: TẮT"
 fogButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 fogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -368,58 +398,94 @@ fogButton.BorderSizePixel = 0
 fogButton.Parent = scrollFrame
 Instance.new("UICorner", fogButton).CornerRadius = UDim.new(0, 5)
 
+-- Nút Reset môi trường
+local resetEnvButton = Instance.new("TextButton")
+resetEnvButton.Size = UDim2.new(0, 150, 0, 28)
+resetEnvButton.Position = UDim2.new(0, 170, 0, 448)  -- cạnh fogButton
+resetEnvButton.Text = "🔄 Reset mặc định"
+resetEnvButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+resetEnvButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetEnvButton.Font = Enum.Font.SourceSansBold
+resetEnvButton.TextSize = 13
+resetEnvButton.BorderSizePixel = 0
+resetEnvButton.Parent = scrollFrame
+Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
+
 local isFogOn = false
 
--- Hàm bật/tắt chế độ tối
-local function setDarkMode(enabled)
-	isDarkMode = enabled
-	darkModeButton.Text = enabled and "🌙 Chế độ tối: BẬT" or "🌙 Chế độ tối: TẮT"
-	darkModeButton.BackgroundColor3 = enabled and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
+-- Hàm tween lighting
+local function tweenLighting(properties, duration)
+	local tweenInfo = TweenInfo.new(duration or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+	local goals = {}
+	for prop, value in pairs(properties) do
+		goals[prop] = value
+	end
+	local tween = TweenService:Create(lighting, tweenInfo, goals)
+	tween:Play()
+	return tween
+end
 
-	local lighting = game:GetService("Lighting")
-	if enabled then
-		lighting.ClockTime = 0   -- nửa đêm
-		lighting.Brightness = 0.5
-		lighting.OutdoorAmbient = Color3.fromRGB(50, 50, 50)
+-- Bật chế độ tối (gọi từ nút Trời tối)
+local function setDark()
+	animateButton(darkButton)
+	tweenLighting({
+		ClockTime = 0,
+		Brightness = 0.3,
+		OutdoorAmbient = Color3.fromRGB(20, 20, 40)
+	}, 1.5)
+end
+
+-- Bật chế độ sáng (gọi từ nút Trời sáng)
+local function setLight()
+	animateButton(lightButton)
+	tweenLighting({
+		ClockTime = 14,
+		Brightness = 1.2,
+		OutdoorAmbient = Color3.fromRGB(180, 180, 180)
+	}, 1.5)
+end
+
+-- Bật/tắt sương mù
+local function toggleFog()
+	animateButton(fogButton)
+	isFogOn = not isFogOn
+	fogButton.Text = isFogOn and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
+	fogButton.BackgroundColor3 = isFogOn and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
+
+	if isFogOn then
+		tweenLighting({
+			FogStart = 0,
+			FogEnd = 80,
+			FogColor = Color3.fromRGB(180, 180, 180)
+		}, 1)
 	else
-		lighting.ClockTime = 12  -- trưa
-		lighting.Brightness = 1
-		lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+		tweenLighting({
+			FogStart = 0,
+			FogEnd = 100000,
+			FogColor = Color3.fromRGB(255, 255, 255)
+		}, 1)
 	end
 end
 
--- Hàm bật/tắt sương mù
-local function setFog(enabled)
-	isFogOn = enabled
-	fogButton.Text = enabled and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
-	fogButton.BackgroundColor3 = enabled and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
-
-	local lighting = game:GetService("Lighting")
-	if enabled then
-		lighting.FogStart = 0
-		lighting.FogEnd = 80
-		lighting.FogColor = Color3.fromRGB(180, 180, 180)
-	else
-		lighting.FogStart = 0
-		lighting.FogEnd = 100000  -- gần như không có sương mù
-		lighting.FogColor = Color3.fromRGB(255, 255, 255)  -- màu mặc định
+-- Reset về mặc định
+local function resetEnvironment()
+	animateButton(resetEnvButton)
+	setLight()  -- gọi luôn hàm sáng
+	if isFogOn then
+		toggleFog() -- tắt sương mù nếu đang bật
 	end
 end
 
--- Kết nối sự kiện cho nút tối
-darkModeButton.MouseButton1Click:Connect(function()
-	setDarkMode(not isDarkMode)
-end)
+-- Kết nối sự kiện
+darkButton.MouseButton1Click:Connect(setDark)
+lightButton.MouseButton1Click:Connect(setLight)
+fogButton.MouseButton1Click:Connect(toggleFog)
+resetEnvButton.MouseButton1Click:Connect(resetEnvironment)
 
--- Kết nối sự kiện cho nút sương mù
-fogButton.MouseButton1Click:Connect(function()
-	setFog(not isFogOn)
-end)
+-- Cập nhật CanvasSize cuối cùng
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)
 
--- Cập nhật CanvasSize cuối cùng (đủ để hiển thị hết nội dung)
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 460)
-
--- ==================== LOGIC XỬ LÝ CODE (giữ nguyên) ====================
+-- ==================== LOGIC XỬ LÝ CODE (không thay đổi) ====================
 local totalExecutions = 0
 local menuVisible = false
 
