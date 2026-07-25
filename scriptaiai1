@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Có thanh cuộn + Lặp code + Tốc độ)
+-- EXECUTOR MENU (Full: Lặp + Tốc độ + Ngày/Đêm + Sương mù)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -32,7 +32,7 @@ toggleButton.MouseLeave:Connect(function()
 	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 end)
 
--- Khung chính (giảm chiều cao, còn 350)
+-- Khung chính (cố định 350px cao)
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 340, 0, 350)
 mainFrame.Position = UDim2.new(0.5, -170, 0.5, -175)
@@ -42,7 +42,6 @@ mainFrame.Visible = false
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
--- Viền giả
 local borderFrame = Instance.new("Frame")
 borderFrame.Size = UDim2.new(1, 2, 1, 2)
 borderFrame.Position = UDim2.new(0, -1, 0, -1)
@@ -51,7 +50,7 @@ borderFrame.BorderSizePixel = 0
 borderFrame.Parent = mainFrame
 Instance.new("UICorner", borderFrame).CornerRadius = UDim.new(0, 10)
 
--- Thanh tiêu đề (cố định trên cùng)
+-- Thanh tiêu đề
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 30)
 titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -91,7 +90,7 @@ end)
 
 -- ==================== SCROLLING FRAME ====================
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(1, 0, 1, -30)   -- trừ đi 30px của thanh tiêu đề
+scrollFrame.Size = UDim2.new(1, 0, 1, -30)
 scrollFrame.Position = UDim2.new(0, 0, 0, 30)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
@@ -99,18 +98,14 @@ scrollFrame.ScrollBarThickness = 8
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
 scrollFrame.ClipsDescendants = true
 scrollFrame.Parent = mainFrame
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)  -- sẽ cập nhật sau
 
--- CanvasSize sẽ được cập nhật sau khi tạo hết các phần tử
--- Tạm thời gán giá trị lớn hơn nội dung
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 450)  -- sẽ điều chỉnh sau
-
--- ===== TẤT CẢ CÁC THÀNH PHẦN BÊN TRONG SCROLL FRAME =====
--- (từ nameLabel đến countLabel đều là con của scrollFrame, giữ nguyên vị trí Y)
+-- ===== TẤT CẢ CÁC THÀNH PHẦN TRONG SCROLL FRAME =====
 
 -- Ô nhập tên
 local nameLabel = Instance.new("TextLabel")
 nameLabel.Size = UDim2.new(1, -20, 0, 18)
-nameLabel.Position = UDim2.new(0, 10, 0, 5)  -- dịch lên một chút để gọn hơn
+nameLabel.Position = UDim2.new(0, 10, 0, 5)
 nameLabel.Text = "👤 Tên"
 nameLabel.BackgroundTransparency = 1
 nameLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -161,8 +156,6 @@ codeBox.BorderSizePixel = 0
 codeBox.Parent = scrollFrame
 Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
 
--- === Phần cấu hình lặp và tốc độ ===
-
 -- Label "Số lần lặp"
 local loopLabel = Instance.new("TextLabel")
 loopLabel.Size = UDim2.new(1, -20, 0, 18)
@@ -200,7 +193,6 @@ delayLabel.TextSize = 13
 delayLabel.TextXAlignment = Enum.TextXAlignment.Left
 delayLabel.Parent = scrollFrame
 
--- Ô nhập số thời gian (bên trái)
 local delayBox = Instance.new("TextBox")
 delayBox.Size = UDim2.new(0, 55, 0, 28)
 delayBox.Position = UDim2.new(0, 10, 0, 270)
@@ -214,7 +206,7 @@ delayBox.BorderSizePixel = 0
 delayBox.Parent = scrollFrame
 Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 5)
 
--- Nút chọn đơn vị (Giây/Phút)
+-- Nút chọn đơn vị thời gian
 local unitButton = Instance.new("TextButton")
 unitButton.Size = UDim2.new(0, 70, 0, 28)
 unitButton.Position = UDim2.new(0, 75, 0, 270)
@@ -227,7 +219,7 @@ unitButton.BorderSizePixel = 0
 unitButton.Parent = scrollFrame
 Instance.new("UICorner", unitButton).CornerRadius = UDim.new(0, 5)
 
--- Menu thả xuống giả
+-- Dropdown cho đơn vị
 local dropdownFrame = Instance.new("Frame")
 dropdownFrame.Size = UDim2.new(0, 70, 0, 56)
 dropdownFrame.Position = UDim2.new(0, 75, 0, 270 + 28)
@@ -260,7 +252,6 @@ minOption.BorderSizePixel = 0
 minOption.Parent = dropdownFrame
 Instance.new("UICorner", minOption).CornerRadius = UDim.new(0, 5)
 
--- Hành vi dropdown
 unitButton.MouseButton1Click:Connect(function()
 	dropdownFrame.Visible = not dropdownFrame.Visible
 end)
@@ -295,7 +286,7 @@ end)
 -- Nút chạy code
 local runButton = Instance.new("TextButton")
 runButton.Size = UDim2.new(0, 120, 0, 30)
-runButton.Position = UDim2.new(0.5, -60, 0, 310)  -- trong scroll frame
+runButton.Position = UDim2.new(0.5, -60, 0, 310)
 runButton.Text = "▶ Chạy Code"
 runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
 runButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -336,15 +327,102 @@ countLabel.TextSize = 12
 countLabel.TextWrapped = true
 countLabel.Parent = scrollFrame
 
--- Cập nhật CanvasSize dựa trên vị trí cuối cùng của thành phần
--- countLabel kết thúc ở Y = 363 + 18 = 381, ta đặt CanvasSize cao hơn một chút
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 400)
+-- ======================== HIỆU ỨNG MÔI TRƯỜNG ========================
+-- Label phân cách
+local envLabel = Instance.new("TextLabel")
+envLabel.Size = UDim2.new(1, -20, 0, 18)
+envLabel.Position = UDim2.new(0, 10, 0, 390)
+envLabel.Text = "⚙️ Hiệu ứng môi trường"
+envLabel.BackgroundTransparency = 1
+envLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+envLabel.Font = Enum.Font.SourceSansBold
+envLabel.TextSize = 13
+envLabel.TextXAlignment = Enum.TextXAlignment.Left
+envLabel.Parent = scrollFrame
 
--- Biến đếm tổng
+-- Nút chế độ tối (toggle)
+local darkModeButton = Instance.new("TextButton")
+darkModeButton.Size = UDim2.new(0, 130, 0, 28)
+darkModeButton.Position = UDim2.new(0, 10, 0, 412)
+darkModeButton.Text = "🌙 Chế độ tối: TẮT"
+darkModeButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+darkModeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+darkModeButton.Font = Enum.Font.SourceSansBold
+darkModeButton.TextSize = 13
+darkModeButton.BorderSizePixel = 0
+darkModeButton.Parent = scrollFrame
+Instance.new("UICorner", darkModeButton).CornerRadius = UDim.new(0, 5)
+
+local isDarkMode = false   -- trạng thái hiện tại
+
+-- Nút sương mù (toggle)
+local fogButton = Instance.new("TextButton")
+fogButton.Size = UDim2.new(0, 130, 0, 28)
+fogButton.Position = UDim2.new(0, 150, 0, 412)  -- bên cạnh nút chế độ tối
+fogButton.Text = "🌫️ Sương mù: TẮT"
+fogButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+fogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+fogButton.Font = Enum.Font.SourceSansBold
+fogButton.TextSize = 13
+fogButton.BorderSizePixel = 0
+fogButton.Parent = scrollFrame
+Instance.new("UICorner", fogButton).CornerRadius = UDim.new(0, 5)
+
+local isFogOn = false
+
+-- Hàm bật/tắt chế độ tối
+local function setDarkMode(enabled)
+	isDarkMode = enabled
+	darkModeButton.Text = enabled and "🌙 Chế độ tối: BẬT" or "🌙 Chế độ tối: TẮT"
+	darkModeButton.BackgroundColor3 = enabled and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
+
+	local lighting = game:GetService("Lighting")
+	if enabled then
+		lighting.ClockTime = 0   -- nửa đêm
+		lighting.Brightness = 0.5
+		lighting.OutdoorAmbient = Color3.fromRGB(50, 50, 50)
+	else
+		lighting.ClockTime = 12  -- trưa
+		lighting.Brightness = 1
+		lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+	end
+end
+
+-- Hàm bật/tắt sương mù
+local function setFog(enabled)
+	isFogOn = enabled
+	fogButton.Text = enabled and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
+	fogButton.BackgroundColor3 = enabled and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
+
+	local lighting = game:GetService("Lighting")
+	if enabled then
+		lighting.FogStart = 0
+		lighting.FogEnd = 80
+		lighting.FogColor = Color3.fromRGB(180, 180, 180)
+	else
+		lighting.FogStart = 0
+		lighting.FogEnd = 100000  -- gần như không có sương mù
+		lighting.FogColor = Color3.fromRGB(255, 255, 255)  -- màu mặc định
+	end
+end
+
+-- Kết nối sự kiện cho nút tối
+darkModeButton.MouseButton1Click:Connect(function()
+	setDarkMode(not isDarkMode)
+end)
+
+-- Kết nối sự kiện cho nút sương mù
+fogButton.MouseButton1Click:Connect(function()
+	setFog(not isFogOn)
+end)
+
+-- Cập nhật CanvasSize cuối cùng (đủ để hiển thị hết nội dung)
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 460)
+
+-- ==================== LOGIC XỬ LÝ CODE (giữ nguyên) ====================
 local totalExecutions = 0
-
--- Logic ẩn/hiện menu
 local menuVisible = false
+
 local function setMenuVisible(state)
 	menuVisible = state
 	mainFrame.Visible = state
@@ -358,7 +436,6 @@ closeButton.MouseButton1Click:Connect(function()
 	setMenuVisible(false)
 end)
 
--- Hàm thực thi code một lần
 local function executeOnce(code, name)
 	if #name > 0 then
 		print("👤 Tên người dùng:", name)
@@ -378,7 +455,6 @@ local function executeOnce(code, name)
 	end
 end
 
--- Nút chạy code với lặp và delay
 runButton.MouseButton1Click:Connect(function()
 	local code = codeBox.Text
 	local name = nameBox.Text
