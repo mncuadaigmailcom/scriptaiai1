@@ -1,5 +1,5 @@
 -- ============================================
--- EXECUTOR MENU (Tách nút Trời tối / Trời sáng + Hiệu ứng động)
+-- EXECUTOR MENU (Đầy đủ: Lặp, Tốc độ, Ngày/Đêm, Sương mù, Lưu script)
 -- Đặt trong StarterGui -> LocalScript
 -- ============================================
 
@@ -99,7 +99,6 @@ scrollFrame.ScrollBarThickness = 8
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
 scrollFrame.ClipsDescendants = true
 scrollFrame.Parent = mainFrame
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 550)  -- tăng cho nút mới
 
 -- ===== CÁC THÀNH PHẦN TRONG SCROLL FRAME =====
 
@@ -340,7 +339,7 @@ envLabel.TextSize = 13
 envLabel.TextXAlignment = Enum.TextXAlignment.Left
 envLabel.Parent = scrollFrame
 
--- Hàm tạo hiệu ứng động cho nút (phóng to + đổi màu tạm)
+-- Hàm tạo hiệu ứng động cho nút
 local function animateButton(button)
 	local originalSize = button.Size
 	local originalColor = button.BackgroundColor3
@@ -351,7 +350,6 @@ local function animateButton(button)
 	tweenBig.Completed:Connect(function()
 		tweenSmall:Play()
 	end)
-	-- Nhấp nháy màu
 	local blinkTween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = button.BackgroundColor3:Lerp(Color3.new(1,1,1), 0.5)})
 	blinkTween:Play()
 	blinkTween.Completed:Connect(function()
@@ -375,7 +373,7 @@ Instance.new("UICorner", darkButton).CornerRadius = UDim.new(0, 5)
 -- Nút Trời sáng
 local lightButton = Instance.new("TextButton")
 lightButton.Size = UDim2.new(0, 150, 0, 28)
-lightButton.Position = UDim2.new(0, 170, 0, 415)  -- bên phải darkButton
+lightButton.Position = UDim2.new(0, 170, 0, 415)
 lightButton.Text = "☀️ Trời sáng"
 lightButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
 lightButton.TextColor3 = Color3.fromRGB(0, 0, 0)
@@ -388,7 +386,7 @@ Instance.new("UICorner", lightButton).CornerRadius = UDim.new(0, 5)
 -- Nút Sương mù (toggle)
 local fogButton = Instance.new("TextButton")
 fogButton.Size = UDim2.new(0, 150, 0, 28)
-fogButton.Position = UDim2.new(0, 10, 0, 448)  -- hàng dưới
+fogButton.Position = UDim2.new(0, 10, 0, 448)
 fogButton.Text = "🌫️ Sương mù: TẮT"
 fogButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 fogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -401,7 +399,7 @@ Instance.new("UICorner", fogButton).CornerRadius = UDim.new(0, 5)
 -- Nút Reset môi trường
 local resetEnvButton = Instance.new("TextButton")
 resetEnvButton.Size = UDim2.new(0, 150, 0, 28)
-resetEnvButton.Position = UDim2.new(0, 170, 0, 448)  -- cạnh fogButton
+resetEnvButton.Position = UDim2.new(0, 170, 0, 448)
 resetEnvButton.Text = "🔄 Reset mặc định"
 resetEnvButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 resetEnvButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -425,7 +423,6 @@ local function tweenLighting(properties, duration)
 	return tween
 end
 
--- Bật chế độ tối (gọi từ nút Trời tối)
 local function setDark()
 	animateButton(darkButton)
 	tweenLighting({
@@ -435,7 +432,6 @@ local function setDark()
 	}, 1.5)
 end
 
--- Bật chế độ sáng (gọi từ nút Trời sáng)
 local function setLight()
 	animateButton(lightButton)
 	tweenLighting({
@@ -445,7 +441,6 @@ local function setLight()
 	}, 1.5)
 end
 
--- Bật/tắt sương mù
 local function toggleFog()
 	animateButton(fogButton)
 	isFogOn = not isFogOn
@@ -467,61 +462,130 @@ local function toggleFog()
 	end
 end
 
--- Reset về mặc định
 local function resetEnvironment()
 	animateButton(resetEnvButton)
-	setLight()  -- gọi luôn hàm sáng
+	setLight()
 	if isFogOn then
-		toggleFog() -- tắt sương mù nếu đang bật
+		toggleFog()
 	end
 end
 
--- Kết nối sự kiện
 darkButton.MouseButton1Click:Connect(setDark)
 lightButton.MouseButton1Click:Connect(setLight)
 fogButton.MouseButton1Click:Connect(toggleFog)
 resetEnvButton.MouseButton1Click:Connect(resetEnvironment)
 
--- Cập nhật CanvasSize cuối cùng
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)
+-- ======================== LƯU & DANH SÁCH SCRIPT ========================
 
--- ==================== LOGIC XỬ LÝ CODE (không thay đổi) ====================
-local totalExecutions = 0
-local menuVisible = false
+local savedScripts = {}  -- {name, code}
 
-local function setMenuVisible(state)
-	menuVisible = state
-	mainFrame.Visible = state
-	toggleButton.Text = state and "✕" or "⚙"
+-- Frame chứa danh sách script (bắt đầu từ Y=490)
+local scriptListLabel = Instance.new("TextLabel")
+scriptListLabel.Size = UDim2.new(1, -20, 0, 18)
+scriptListLabel.Position = UDim2.new(0, 10, 0, 490)
+scriptListLabel.Text = "💾 Script đã lưu (nhấn để chạy ngay)"
+scriptListLabel.BackgroundTransparency = 1
+scriptListLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+scriptListLabel.Font = Enum.Font.SourceSansBold
+scriptListLabel.TextSize = 13
+scriptListLabel.TextXAlignment = Enum.TextXAlignment.Left
+scriptListLabel.Parent = scrollFrame
+
+local saveButton = Instance.new("TextButton")
+saveButton.Size = UDim2.new(0, 150, 0, 28)
+saveButton.Position = UDim2.new(0, 10, 0, 510)
+saveButton.Text = "➕ Lưu script hiện tại"
+saveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveButton.Font = Enum.Font.SourceSansBold
+saveButton.TextSize = 13
+saveButton.BorderSizePixel = 0
+saveButton.Parent = scrollFrame
+Instance.new("UICorner", saveButton).CornerRadius = UDim.new(0, 5)
+
+local scriptListFrame = Instance.new("Frame")
+scriptListFrame.Size = UDim2.new(1, -20, 0, 0)  -- chiều cao tự động cập nhật
+scriptListFrame.Position = UDim2.new(0, 10, 0, 545)
+scriptListFrame.BackgroundTransparency = 1
+scriptListFrame.BorderSizePixel = 0
+scriptListFrame.Parent = scrollFrame
+
+local scriptListLayout = Instance.new("UIListLayout")
+scriptListLayout.Parent = scriptListFrame
+scriptListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+scriptListLayout.Padding = UDim.new(0, 4)
+
+-- Hàm cập nhật CanvasSize của scrollFrame dựa trên số script
+local function updateCanvasSize()
+	local count = #savedScripts
+	local height = 545 + count * 32 + 20  -- mỗi script row cao 32px (30 + padding 2)
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 500))
 end
 
-toggleButton.MouseButton1Click:Connect(function()
-	setMenuVisible(not menuVisible)
-end)
-closeButton.MouseButton1Click:Connect(function()
-	setMenuVisible(false)
-end)
-
-local function executeOnce(code, name)
-	if #name > 0 then
-		print("👤 Tên người dùng:", name)
-	end
-	local success, result = pcall(function()
-		local executor = loadstring or function(c) return loadstring(c) end
-		local fn, err = executor(code)
-		if not fn then
-			error("Lỗi biên dịch: " .. tostring(err))
+-- Hàm xóa tất cả UI trong scriptListFrame
+local function clearScriptListUI()
+	for _, child in ipairs(scriptListFrame:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
 		end
-		fn()
-	end)
-	if success then
-		return true
-	else
-		return false, result
 	end
 end
 
-runButton.MouseButton1Click:Connect(function()
+-- Hàm vẽ lại danh sách script
+local function rebuildScriptList()
+	clearScriptListUI()
+	for i, scriptData in ipairs(savedScripts) do
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, 0, 0, 30)
+		row.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		row.BorderSizePixel = 0
+		row.Parent = scriptListFrame
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 5)
+
+		local scriptButton = Instance.new("TextButton")
+		scriptButton.Size = UDim2.new(1, -30, 1, 0)
+		scriptButton.Position = UDim2.new(0, 0, 0, 0)
+		scriptButton.Text = scriptData.name
+		scriptButton.BackgroundTransparency = 1
+		scriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		scriptButton.Font = Enum.Font.SourceSans
+		scriptButton.TextSize = 13
+		scriptButton.TextXAlignment = Enum.TextXAlignment.Left
+		scriptButton.BorderSizePixel = 0
+		scriptButton.Parent = row
+
+		-- Nút xóa (X)
+		local deleteButton = Instance.new("TextButton")
+		deleteButton.Size = UDim2.new(0, 24, 0, 24)
+		deleteButton.Position = UDim2.new(1, -28, 0.5, -12)
+		deleteButton.Text = "✕"
+		deleteButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+		deleteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		deleteButton.Font = Enum.Font.SourceSansBold
+		deleteButton.TextSize = 14
+		deleteButton.BorderSizePixel = 0
+		deleteButton.Parent = row
+		Instance.new("UICorner", deleteButton).CornerRadius = UDim.new(1, 0)
+
+		-- Sự kiện nhấn vào tên script -> điền tên, code và chạy
+		scriptButton.MouseButton1Click:Connect(function()
+			nameBox.Text = scriptData.name
+			codeBox.Text = scriptData.code
+			-- Gọi luôn hàm chạy code (dùng hàm thực thi chung)
+			executeCurrentCode()
+		end)
+
+		deleteButton.MouseButton1Click:Connect(function()
+			table.remove(savedScripts, i)
+			rebuildScriptList()
+			updateCanvasSize()
+		end)
+	end
+	updateCanvasSize()
+end
+
+-- Hàm thực thi code hiện tại (dùng chung cho nút Run và script lưu)
+local function executeCurrentCode()
 	local code = codeBox.Text
 	local name = nameBox.Text
 	local loopStr = loopBox.Text
@@ -584,4 +648,80 @@ runButton.MouseButton1Click:Connect(function()
 	else
 		statusLabel.Text = string.format("⚠️ Hoàn tất %d lần: %d thành công, %d thất bại.", loopCount, successCount, failCount)
 	end
+end
+
+-- Hàm thực thi một lần (giữ nguyên)
+local function executeOnce(code, name)
+	if #name > 0 then
+		print("👤 Tên người dùng:", name)
+	end
+	local success, result = pcall(function()
+		local executor = loadstring or function(c) return loadstring(c) end
+		local fn, err = executor(code)
+		if not fn then
+			error("Lỗi biên dịch: " .. tostring(err))
+		end
+		fn()
+	end)
+	if success then
+		return true
+	else
+		return false, result
+	end
+end
+
+-- Nút lưu script
+saveButton.MouseButton1Click:Connect(function()
+	local currentName = nameBox.Text
+	local currentCode = codeBox.Text
+	if #currentCode == 0 then
+		statusLabel.Text = "⚠️ Không có code để lưu!"
+		return
+	end
+	if #currentName == 0 then
+		currentName = "Script " .. (#savedScripts + 1)
+	end
+
+	-- Kiểm tra trùng tên (có thể ghi đè hoặc đánh số)
+	local baseName = currentName
+	local counter = 1
+	while true do
+		local exists = false
+		for _, s in ipairs(savedScripts) do
+			if s.name == currentName then
+				exists = true
+				break
+			end
+		end
+		if not exists then break end
+		counter = counter + 1
+		currentName = baseName .. " (" .. counter .. ")"
+	end
+
+	table.insert(savedScripts, {name = currentName, code = currentCode})
+	rebuildScriptList()
+	statusLabel.Text = "✅ Đã lưu: " .. currentName
 end)
+
+-- Kết nối nút Run với executeCurrentCode
+runButton.MouseButton1Click:Connect(executeCurrentCode)
+
+-- ==================== LOGIC ẨN/HIỆN MENU ====================
+local totalExecutions = 0
+local menuVisible = false
+
+local function setMenuVisible(state)
+	menuVisible = state
+	mainFrame.Visible = state
+	toggleButton.Text = state and "✕" or "⚙"
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+	setMenuVisible(not menuVisible)
+end)
+closeButton.MouseButton1Click:Connect(function()
+	setMenuVisible(false)
+end)
+
+-- Khởi tạo CanvasSize ban đầu
+updateCanvasSize()
