@@ -1,10 +1,9 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (EXPLICIT BUTTONS VERSION)
-    - THEME: WHITE-GREY TRANSLUCENT (SỌC XEN KẼ TRẮNG XÁM TRONG SUỐT)
-    - NÚT BAY TÁCH BIỆT RÕ RÀNG CHO NGƯỜI CHƠI VÀ TỌA ĐỘ LƯU
-    - NÚT "🚀 BAY NGAY" TRỰC TIẾP TẠI MỖI TỌA ĐỘ
-    - CHO PHÉP ĐẶT TÊN CHO TỌA ĐỘ KHI LƯU
-    - CƠ CHẾ BAY 3 BƯỚC AN TOÀN (LÊN CAO -> SANG NGANG -> HẠ CÁNH)
+    FLY TO PLAYER & SAVED LOCATIONS (BANANA CAT STYLE GUI)
+    - KÍCH THƯỚC: 550x350px (DẠNG NGANG BANANA CAT)
+    - BỐ CỤC: 2 CỘT (CỘT TRÁI: PLAYER - CỘT PHẢI: TỌA ĐỘ)
+    - THEME: WHITE-GREY TRANSLUCENT ZEBRA
+    - ĐẦY ĐỦ TÍNH NĂNG: LƯU TỌA ĐỘ, BAY NGAY, BAY TỚI XÁC/NGƯỜI GỤC
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -17,7 +16,7 @@ local CoreGui = game:GetService("CoreGui")
 -- Variables
 local selectedPlayer = nil
 local selectedLocation = nil
-local savedLocations = {} -- { {name = "...", pos = Vector3} }
+local savedLocations = {}
 
 local isFlying = false
 local stopRequested = false
@@ -29,28 +28,28 @@ local heightVisualPart = nil
 local heightVisualConn = nil
 local showHeightVisual = false
 
--- Color Theme (White - Grey Translucent Zebra)
+-- Theme Colors
 local COLOR_MAIN_BG = Color3.fromRGB(30, 33, 40)
 local COLOR_TITLE_BG = Color3.fromRGB(50, 55, 65)
-local COLOR_STRIPE_EVEN = Color3.fromRGB(240, 242, 245) -- Trắng xám sáng
-local COLOR_STRIPE_ODD = Color3.fromRGB(180, 185, 195)  -- Xám vừa
-local WATER_BLUE = Color3.fromRGB(0, 140, 240)           -- Chọn người
-local COLOR_GREEN = Color3.fromRGB(45, 160, 85)          -- Chọn tọa độ
-local COLOR_DEAD = Color3.fromRGB(220, 40, 40)           -- Màu đỏ khi gục
+local COLOR_STRIPE_EVEN = Color3.fromRGB(240, 242, 245)
+local COLOR_STRIPE_ODD = Color3.fromRGB(180, 185, 195)
+local WATER_BLUE = Color3.fromRGB(0, 140, 240)
+local COLOR_GREEN = Color3.fromRGB(45, 160, 85)
+local COLOR_DEAD = Color3.fromRGB(220, 40, 40)
 local TEXT_DARK = Color3.fromRGB(20, 20, 25)
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FlyToPlayerGlassExplicit"
+ScreenGui.Name = "FlyBananaCatStyle"
 ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- Main Frame
+-- Main Frame (Banana Cat Size: 550 x 350)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 360, 0, 560)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -280)
+MainFrame.Size = UDim2.new(0, 550, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
 MainFrame.BackgroundTransparency = 0.2
 MainFrame.BorderColor3 = Color3.fromRGB(220, 225, 235)
@@ -60,58 +59,58 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
 -- Title Bar
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -60, 0, 38)
+Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.2
-Title.Text = "  ✈️ FLY TO PLAYER & POSITIONS"
+Title.Text = "  🍌 BANANA FLY - PLAYER & POSITIONS"
 Title.TextColor3 = TEXT_LIGHT
-Title.TextSize = 14
+Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
 
 -- Minimize Button (-)
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 28, 0, 28)
-MinimizeBtn.Position = UDim2.new(1, -56, 0, 5)
+MinimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+MinimizeBtn.Position = UDim2.new(1, -54, 0, 5)
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
 MinimizeBtn.BackgroundTransparency = 0.3
 MinimizeBtn.Text = "-"
 MinimizeBtn.TextColor3 = TEXT_DARK
 MinimizeBtn.Font = Enum.Font.SourceSansBold
-MinimizeBtn.TextSize = 18
+MinimizeBtn.TextSize = 16
 MinimizeBtn.Parent = MainFrame
 
 -- Close Button (X)
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 28, 0, 28)
-CloseBtn.Position = UDim2.new(1, -32, 0, 5)
+CloseBtn.Size = UDim2.new(0, 24, 0, 24)
+CloseBtn.Position = UDim2.new(1, -28, 0, 5)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 60, 60)
 CloseBtn.BackgroundTransparency = 0.2
 CloseBtn.Text = "X"
 CloseBtn.TextColor3 = TEXT_LIGHT
 CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.TextSize = 14
+CloseBtn.TextSize = 13
 CloseBtn.Parent = MainFrame
 
 -- Open Button
 local OpenBtn = Instance.new("TextButton")
-OpenBtn.Size = UDim2.new(0, 110, 0, 32)
+OpenBtn.Size = UDim2.new(0, 120, 0, 30)
 OpenBtn.Position = UDim2.new(0.01, 0, 0.4, 0)
 OpenBtn.BackgroundColor3 = COLOR_MAIN_BG
 OpenBtn.BackgroundTransparency = 0.2
 OpenBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
-OpenBtn.Text = "📖 Mở Menu Fly"
+OpenBtn.Text = "🍌 Open Banana Fly"
 OpenBtn.TextColor3 = TEXT_LIGHT
 OpenBtn.Font = Enum.Font.SourceSansBold
 OpenBtn.TextSize = 13
@@ -120,11 +119,22 @@ OpenBtn.Draggable = true
 OpenBtn.Parent = ScreenGui
 
 ---------------------------------------------------------
--- SECTION 1: DANH SÁCH NGƯỜI CHƠI
+-- CỘT TRÁI: NGƯỜI CHƠI (WIDTH: 255px)
 ---------------------------------------------------------
+local LeftHeader = Instance.new("TextLabel")
+LeftHeader.Size = UDim2.new(0, 255, 0, 20)
+LeftHeader.Position = UDim2.new(0, 15, 0, 40)
+LeftHeader.BackgroundTransparency = 1
+LeftHeader.Text = "👤 DANH SÁCH PLAYERS"
+LeftHeader.TextColor3 = Color3.fromRGB(200, 210, 230)
+LeftHeader.Font = Enum.Font.SourceSansBold
+LeftHeader.TextSize = 13
+LeftHeader.TextXAlignment = Enum.TextXAlignment.Left
+LeftHeader.Parent = MainFrame
+
 local SearchBox = Instance.new("TextBox")
-SearchBox.Size = UDim2.new(0.62, 0, 0, 26)
-SearchBox.Position = UDim2.new(0.04, 0, 0, 44)
+SearchBox.Size = UDim2.new(0, 180, 0, 24)
+SearchBox.Position = UDim2.new(0, 15, 0, 62)
 SearchBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
 SearchBox.BackgroundTransparency = 0.2
 SearchBox.PlaceholderText = "🔍 Tìm tên..."
@@ -132,42 +142,98 @@ SearchBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
 SearchBox.Text = ""
 SearchBox.TextColor3 = TEXT_DARK
 SearchBox.Font = Enum.Font.SourceSans
-SearchBox.TextSize = 13
+SearchBox.TextSize = 12
 SearchBox.Parent = MainFrame
 
 local RefreshBtn = Instance.new("TextButton")
-RefreshBtn.Size = UDim2.new(0.28, 0, 0, 26)
-RefreshBtn.Position = UDim2.new(0.68, 0, 0, 44)
+RefreshBtn.Size = UDim2.new(0, 70, 0, 24)
+RefreshBtn.Position = UDim2.new(0, 200, 0, 62)
 RefreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 RefreshBtn.BackgroundTransparency = 0.2
 RefreshBtn.Text = "🔄 Tải Lại"
 RefreshBtn.TextColor3 = TEXT_DARK
 RefreshBtn.Font = Enum.Font.SourceSansBold
-RefreshBtn.TextSize = 12
+RefreshBtn.TextSize = 11
 RefreshBtn.Parent = MainFrame
 
 local PlayerList = Instance.new("ScrollingFrame")
-PlayerList.Size = UDim2.new(0.92, 0, 0, 110)
-PlayerList.Position = UDim2.new(0.04, 0, 0, 74)
+PlayerList.Size = UDim2.new(0, 255, 0, 115)
+PlayerList.Position = UDim2.new(0, 15, 0, 90)
 PlayerList.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 PlayerList.BackgroundTransparency = 0.5
 PlayerList.BorderColor3 = Color3.fromRGB(200, 200, 210)
-PlayerList.ScrollBarThickness = 5
+PlayerList.ScrollBarThickness = 4
 PlayerList.Parent = MainFrame
 
 local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
+-- Inputs (Cột trái phía dưới)
+local HeightLabel = Instance.new("TextLabel")
+HeightLabel.Size = UDim2.new(0, 110, 0, 22)
+HeightLabel.Position = UDim2.new(0, 15, 0, 210)
+HeightLabel.BackgroundTransparency = 1
+HeightLabel.Text = "Chiều cao (Height):"
+HeightLabel.TextColor3 = TEXT_LIGHT
+HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
+HeightLabel.Font = Enum.Font.SourceSans
+HeightLabel.TextSize = 13
+HeightLabel.Parent = MainFrame
+
+local HeightBox = Instance.new("TextBox")
+HeightBox.Size = UDim2.new(0, 140, 0, 22)
+HeightBox.Position = UDim2.new(0, 130, 0, 210)
+HeightBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
+HeightBox.BackgroundTransparency = 0.2
+HeightBox.Text = "150"
+HeightBox.TextColor3 = TEXT_DARK
+HeightBox.Font = Enum.Font.SourceSansBold
+HeightBox.TextSize = 13
+HeightBox.Parent = MainFrame
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0, 110, 0, 22)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 236)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Tốc độ (Speed):"
+SpeedLabel.TextColor3 = TEXT_LIGHT
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Font = Enum.Font.SourceSans
+SpeedLabel.TextSize = 13
+SpeedLabel.Parent = MainFrame
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Size = UDim2.new(0, 140, 0, 22)
+SpeedBox.Position = UDim2.new(0, 130, 0, 236)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
+SpeedBox.BackgroundTransparency = 0.2
+SpeedBox.Text = "100"
+SpeedBox.TextColor3 = TEXT_DARK
+SpeedBox.Font = Enum.Font.SourceSansBold
+SpeedBox.TextSize = 13
+SpeedBox.Parent = MainFrame
+
 ---------------------------------------------------------
--- SECTION 2: QUẢN LÝ TỌA ĐỘ ĐÃ LƯU
+-- CỘT PHẢI: QUẢN LÝ TỌA ĐỘ (WIDTH: 255px)
 ---------------------------------------------------------
+local RightHeader = Instance.new("TextLabel")
+RightHeader.Size = UDim2.new(0, 255, 0, 20)
+RightHeader.Position = UDim2.new(0, 280, 0, 40)
+RightHeader.BackgroundTransparency = 1
+RightHeader.Text = "📍 TỌA ĐỘ ĐÃ LƯU"
+RightHeader.TextColor3 = Color3.fromRGB(200, 210, 230)
+RightHeader.Font = Enum.Font.SourceSansBold
+RightHeader.TextSize = 13
+RightHeader.TextXAlignment = Enum.TextXAlignment.Left
+RightHeader.Parent = MainFrame
+
 local PosNameBox = Instance.new("TextBox")
-PosNameBox.Size = UDim2.new(0.58, 0, 0, 26)
-PosNameBox.Position = UDim2.new(0.04, 0, 0, 190)
+PosNameBox.Size = UDim2.new(0, 160, 0, 24)
+PosNameBox.Position = UDim2.new(0, 280, 0, 62)
 PosNameBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
 PosNameBox.BackgroundTransparency = 0.2
-PosNameBox.PlaceholderText = "Tên tọa độ (Ví dụ: Nhà, Rương...)"
+PosNameBox.PlaceholderText = "Tên tọa độ..."
 PosNameBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
 PosNameBox.Text = ""
 PosNameBox.TextColor3 = TEXT_DARK
@@ -176,93 +242,50 @@ PosNameBox.TextSize = 12
 PosNameBox.Parent = MainFrame
 
 local SavePosBtn = Instance.new("TextButton")
-SavePosBtn.Size = UDim2.new(0.32, 0, 0, 26)
-SavePosBtn.Position = UDim2.new(0.64, 0, 0, 190)
+SavePosBtn.Size = UDim2.new(0, 90, 0, 24)
+SavePosBtn.Position = UDim2.new(0, 445, 0, 62)
 SavePosBtn.BackgroundColor3 = COLOR_GREEN
 SavePosBtn.BackgroundTransparency = 0.1
 SavePosBtn.Text = "📌 LƯU VỊ TRÍ"
 SavePosBtn.TextColor3 = TEXT_LIGHT
 SavePosBtn.Font = Enum.Font.SourceSansBold
-SavePosBtn.TextSize = 12
+SavePosBtn.TextSize = 11
 SavePosBtn.Parent = MainFrame
 
 local SavedList = Instance.new("ScrollingFrame")
-SavedList.Size = UDim2.new(0.92, 0, 0, 110)
-SavedList.Position = UDim2.new(0.04, 0, 0, 222)
+SavedList.Size = UDim2.new(0, 255, 0, 115)
+SavedList.Position = UDim2.new(0, 280, 0, 90)
 SavedList.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 SavedList.BackgroundTransparency = 0.5
 SavedList.BorderColor3 = Color3.fromRGB(200, 200, 210)
-SavedList.ScrollBarThickness = 5
+SavedList.ScrollBarThickness = 4
 SavedList.Parent = MainFrame
 
 local UIListLayout2 = Instance.new("UIListLayout")
 UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
----------------------------------------------------------
--- SECTION 3: CÀI ĐẶT THÔNG SỐ BAY (HEIGHT & SPEED)
----------------------------------------------------------
-local HeightLabel = Instance.new("TextLabel")
-HeightLabel.Size = UDim2.new(0, 120, 0, 24)
-HeightLabel.Position = UDim2.new(0.04, 0, 0, 340)
-HeightLabel.BackgroundTransparency = 1
-HeightLabel.Text = "Chiều cao (Height):"
-HeightLabel.TextColor3 = TEXT_LIGHT
-HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
-HeightLabel.Font = Enum.Font.SourceSans
-HeightLabel.TextSize = 14
-HeightLabel.Parent = MainFrame
-
-local HeightBox = Instance.new("TextBox")
-HeightBox.Size = UDim2.new(0.28, 0, 0, 24)
-HeightBox.Position = UDim2.new(0.40, 0, 0, 340)
-HeightBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
-HeightBox.BackgroundTransparency = 0.2
-HeightBox.Text = "150"
-HeightBox.TextColor3 = TEXT_DARK
-HeightBox.Font = Enum.Font.SourceSansBold
-HeightBox.TextSize = 14
-HeightBox.Parent = MainFrame
-
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(0.24, 0, 0, 24)
-HeightVisualBtn.Position = UDim2.new(0.72, 0, 0, 340)
+HeightVisualBtn.Size = UDim2.new(0, 255, 0, 48)
+HeightVisualBtn.Position = UDim2.new(0, 280, 0, 210)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
 HeightVisualBtn.BackgroundTransparency = 0.2
-HeightVisualBtn.Text = "Trụ: OFF"
+HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: OFF"
 HeightVisualBtn.TextColor3 = TEXT_DARK
 HeightVisualBtn.Font = Enum.Font.SourceSansBold
-HeightVisualBtn.TextSize = 12
+HeightVisualBtn.TextSize = 13
 HeightVisualBtn.Parent = MainFrame
 
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(0, 120, 0, 24)
-SpeedLabel.Position = UDim2.new(0.04, 0, 0, 370)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "Tốc độ (Speed):"
-SpeedLabel.TextColor3 = TEXT_LIGHT
-SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpeedLabel.Font = Enum.Font.SourceSans
-SpeedLabel.TextSize = 14
-SpeedLabel.Parent = MainFrame
-
-local SpeedBox = Instance.new("TextBox")
-SpeedBox.Size = UDim2.new(0.56, 0, 0, 24)
-SpeedBox.Position = UDim2.new(0.40, 0, 0, 370)
-SpeedBox.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
-SpeedBox.BackgroundTransparency = 0.2
-SpeedBox.Text = "100"
-SpeedBox.TextColor3 = TEXT_DARK
-SpeedBox.Font = Enum.Font.SourceSansBold
-SpeedBox.TextSize = 14
-SpeedBox.Parent = MainFrame
+local VisualCorner = Instance.new("UICorner")
+VisualCorner.CornerRadius = UDim.new(0, 4)
+VisualCorner.Parent = HeightVisualBtn
 
 ---------------------------------------------------------
--- SECTION 4: BẢNG TRẠNG THÁI & NÚT BẮT ĐẦU BAY CHÍNH
+-- PHẦN ĐÁY: TRẠNG THÁI & NÚT BAY CHÍNH
 ---------------------------------------------------------
 local StatusFrame = Instance.new("Frame")
-StatusFrame.Size = UDim2.new(0.92, 0, 0, 36)
-StatusFrame.Position = UDim2.new(0.04, 0, 0, 405)
+StatusFrame.Size = UDim2.new(0, 520, 0, 26)
+StatusFrame.Position = UDim2.new(0, 15, 0, 266)
 StatusFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 30)
 StatusFrame.BackgroundTransparency = 0.4
 StatusFrame.BorderColor3 = Color3.fromRGB(150, 155, 165)
@@ -275,14 +298,13 @@ StatusLabel.BackgroundTransparency = 1
 StatusLabel.Text = "Chưa chọn Player hoặc Tọa độ nào"
 StatusLabel.TextColor3 = Color3.fromRGB(255, 230, 100)
 StatusLabel.Font = Enum.Font.SourceSansBold
-StatusLabel.TextSize = 13
+StatusLabel.TextSize = 12
 StatusLabel.TextWrapped = true
 StatusLabel.Parent = StatusFrame
 
--- Nút Bắt Đầu Bay Linh Hoạt
 local StartBtn = Instance.new("TextButton")
-StartBtn.Size = UDim2.new(0.92, 0, 0, 46)
-StartBtn.Position = UDim2.new(0.04, 0, 0, 450)
+StartBtn.Size = UDim2.new(0, 520, 0, 42)
+StartBtn.Position = UDim2.new(0, 15, 0, 298)
 StartBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 StartBtn.BackgroundTransparency = 0.1
 StartBtn.Text = "⚠️ CHƯA CHỌN MỤC TIÊU"
@@ -296,11 +318,10 @@ StartCorner.CornerRadius = UDim.new(0, 6)
 StartCorner.Parent = StartBtn
 
 ---------------------------------------------------------
--- LOGIC & CÁC HÀM XỬ LÝ (CORE LOGIC)
+-- LOGIC & CÁC HÀM XỬ LÝ
 ---------------------------------------------------------
-local startFly -- Khai báo trước hàm bay
+local startFly
 
--- Cập nhật giao diện Nút Bay Chính
 local function updateMainStartButton()
     if isFlying then
         StartBtn.Text = "🛑 DỪNG BAY (STOP)"
@@ -371,7 +392,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Render Danh Sách Người Chơi
+-- Update Danh Sách Người Chơi
 local function updatePlayerList()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -391,17 +412,17 @@ local function updatePlayerList()
                 local isDead = isPlayerDeadOrKnocked(plr)
 
                 local Btn = Instance.new("TextButton")
-                Btn.Size = UDim2.new(1, 0, 0, 25)
+                Btn.Size = UDim2.new(1, 0, 0, 23)
                 Btn.BorderSizePixel = 0
                 Btn.Font = Enum.Font.SourceSans
-                Btn.TextSize = 13
+                Btn.TextSize = 12
                 Btn.Parent = PlayerList
 
                 if isDead then
-                    Btn.Text = "🔴 [GỤC/CHẾT] " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.Text = "🔴 [GỤC] " .. plr.DisplayName
                     Btn.TextColor3 = COLOR_DEAD
                 else
-                    Btn.Text = "  👤 " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.Text = "  👤 " .. plr.DisplayName
                     Btn.TextColor3 = TEXT_DARK
                     Btn.TextXAlignment = Enum.TextXAlignment.Left
                 end
@@ -418,17 +439,17 @@ local function updatePlayerList()
                 Btn.MouseButton1Click:Connect(function()
                     selectedPlayer = plr
                     selectedLocation = nil
-                    StatusLabel.Text = "Đã chọn Player: " .. plr.DisplayName .. (isDead and " (ĐANG GỤC)" or "")
+                    StatusLabel.Text = "Đã chọn Player: " .. plr.DisplayName
                     updatePlayerList()
                     updateMainStartButton()
                 end)
             end
         end
     end
-    PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 25)
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 23)
 end
 
--- Render Danh Sách Tọa Độ Đã Lưu (Có nút BAY NGAY)
+-- Update Danh Sách Tọa Độ
 local function updateSavedList()
     for _, child in pairs(SavedList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -438,45 +459,42 @@ local function updateSavedList()
         local isEven = (idx % 2 == 0)
         
         local Container = Instance.new("Frame")
-        Container.Size = UDim2.new(1, 0, 0, 26)
+        Container.Size = UDim2.new(1, 0, 0, 24)
         Container.BackgroundColor3 = (selectedLocation == item) and COLOR_GREEN or (isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD)
         Container.BackgroundTransparency = (selectedLocation == item) and 0.1 or 0.35
         Container.BorderSizePixel = 0
         Container.Parent = SavedList
 
-        -- Tên Tọa Độ
         local SelectBtn = Instance.new("TextButton")
-        SelectBtn.Size = UDim2.new(0.50, 0, 1, 0)
+        SelectBtn.Size = UDim2.new(0.48, 0, 1, 0)
         SelectBtn.BackgroundTransparency = 1
         SelectBtn.Text = string.format(" 📍 %s", item.name)
         SelectBtn.TextColor3 = (selectedLocation == item) and TEXT_LIGHT or TEXT_DARK
         SelectBtn.Font = Enum.Font.SourceSansBold
-        SelectBtn.TextSize = 12
+        SelectBtn.TextSize = 11
         SelectBtn.TextXAlignment = Enum.TextXAlignment.Left
         SelectBtn.Parent = Container
 
-        -- NÚT BAY NGAY TRỰC TIẾP
         local FlyDirectBtn = Instance.new("TextButton")
-        FlyDirectBtn.Size = UDim2.new(0.26, 0, 0.8, 0)
-        FlyDirectBtn.Position = UDim2.new(0.51, 0, 0.1, 0)
+        FlyDirectBtn.Size = UDim2.new(0.30, 0, 0.8, 0)
+        FlyDirectBtn.Position = UDim2.new(0.49, 0, 0.1, 0)
         FlyDirectBtn.BackgroundColor3 = COLOR_GREEN
         FlyDirectBtn.BackgroundTransparency = 0.1
         FlyDirectBtn.Text = "🚀 Bay Ngay"
         FlyDirectBtn.TextColor3 = TEXT_LIGHT
         FlyDirectBtn.Font = Enum.Font.SourceSansBold
-        FlyDirectBtn.TextSize = 11
+        FlyDirectBtn.TextSize = 10
         FlyDirectBtn.Parent = Container
 
-        -- NÚT XÓA TỌA ĐỘ
         local DeleteBtn = Instance.new("TextButton")
-        DeleteBtn.Size = UDim2.new(0.20, -2, 0.8, 0)
-        DeleteBtn.Position = UDim2.new(0.78, 0, 0.1, 0)
+        DeleteBtn.Size = UDim2.new(0.18, -2, 0.8, 0)
+        DeleteBtn.Position = UDim2.new(0.80, 0, 0.1, 0)
         DeleteBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
         DeleteBtn.BackgroundTransparency = 0.2
         DeleteBtn.Text = "Xóa"
         DeleteBtn.TextColor3 = TEXT_LIGHT
         DeleteBtn.Font = Enum.Font.SourceSansBold
-        DeleteBtn.TextSize = 11
+        DeleteBtn.TextSize = 10
         DeleteBtn.Parent = Container
 
         SelectBtn.MouseButton1Click:Connect(function()
@@ -488,7 +506,6 @@ local function updateSavedList()
             updateMainStartButton()
         end)
 
-        -- Bấm "Bay Ngay" -> Bay luôn không cần chọn
         FlyDirectBtn.MouseButton1Click:Connect(function()
             selectedLocation = item
             selectedPlayer = nil
@@ -505,10 +522,10 @@ local function updateSavedList()
             updateMainStartButton()
         end)
     end
-    SavedList.CanvasSize = UDim2.new(0, 0, 0, #savedLocations * 26)
+    SavedList.CanvasSize = UDim2.new(0, 0, 0, #savedLocations * 24)
 end
 
--- Lưu Tọa Độ Hiện Tại
+-- Lưu Tọa Độ
 SavePosBtn.MouseButton1Click:Connect(function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -536,7 +553,7 @@ Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
 updatePlayerList()
 
---- Visual Pillar ---
+-- Trụ Visual
 local function updateHeightVisual()
     if not showHeightVisual then clearHeightVisual() return end
 
@@ -568,17 +585,17 @@ end
 HeightVisualBtn.MouseButton1Click:Connect(function()
     showHeightVisual = not showHeightVisual
     if showHeightVisual then
-        HeightVisualBtn.Text = "Trụ: ON"
+        HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: ON"
         HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         updateHeightVisual()
     else
-        HeightVisualBtn.Text = "Trụ: OFF"
+        HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: OFF"
         HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
         clearHeightVisual()
     end
 end)
 
---- Safe Physics Reset ---
+-- Safe Physics Reset
 local function resetCharacterPhysics()
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
     local char = LocalPlayer.Character
@@ -650,7 +667,7 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
     return true
 end
 
---- Core Flying Routine ---
+-- Core Fly Logic
 startFly = function()
     if isFlying then return end
 
@@ -693,12 +710,12 @@ startFly = function()
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
-    -- Phase 1: Bay lên
+    -- Phase 1
     StatusLabel.Text = "Đang bay lên cao..."
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
     local ok1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
 
-    -- Phase 2: Bay ngang
+    -- Phase 2
     if ok1 and not stopRequested then
         StatusLabel.Text = "Đang di chuyển tới: " .. targetName
         local dest = getTargetPos()
@@ -706,7 +723,7 @@ startFly = function()
             local overhead = dest + Vector3.new(0, flyHeight, 0)
             local ok2 = tweenToTarget(hrp, CFrame.new(overhead), flySpeed)
 
-            -- Phase 3: Hạ cánh
+            -- Phase 3
             if ok2 and not stopRequested then
                 StatusLabel.Text = "Đang hạ cánh..."
                 dest = getTargetPos()
@@ -730,7 +747,6 @@ startFly = function()
     end
 end
 
--- Xử lý nút Bắt Đầu / Dừng Bay
 StartBtn.MouseButton1Click:Connect(function()
     if isFlying then
         stopRequested = true
