@@ -1,5 +1,8 @@
 --[[
     FLY TO PLAYER SCRIPT (BLACK & WHITE THEME) 
+    - WITH REFRESH PLAYER LIST BUTTON
+    - WITH WATER-BLUE HIGHLIGHT FOR SELECTED PLAYER
+    - FULL INTERACTION SUPPORT WHILE FLYING
     - FIXED: NO-CLIP / WALL CLIPPING BUG ON STOP
     - WITH CLOSE, MINIMIZE, STOP FUNCTION & HEIGHT VISUALIZER PILLAR
 --]]
@@ -23,6 +26,10 @@ local heightVisualPart = nil
 local heightVisualConn = nil
 local showHeightVisual = false
 
+-- Colors
+local WATER_BLUE = Color3.fromRGB(0, 170, 255) -- Màu xanh nước biển khi chọn
+local DEFAULT_BTN_COLOR = Color3.fromRGB(20, 20, 20)
+
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FlyToPlayerBW"
@@ -32,8 +39,8 @@ ScreenGui.ResetOnSpawn = false
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -210)
+MainFrame.Size = UDim2.new(0, 350, 0, 430)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -215)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 2
@@ -93,10 +100,38 @@ OpenBtn.Visible = false
 OpenBtn.Draggable = true
 OpenBtn.Parent = ScreenGui
 
+-- Search Box (Ô tìm kiếm người chơi)
+local SearchBox = Instance.new("TextBox")
+SearchBox.Name = "SearchBox"
+SearchBox.Size = UDim2.new(0.65, 0, 0, 25)
+SearchBox.Position = UDim2.new(0.05, 0, 0.11, 0)
+SearchBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SearchBox.BorderColor3 = Color3.fromRGB(200, 200, 200)
+SearchBox.PlaceholderText = "🔍 Tìm tên..."
+SearchBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
+SearchBox.Text = ""
+SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchBox.Font = Enum.Font.SourceSans
+SearchBox.TextSize = 14
+SearchBox.Parent = MainFrame
+
+-- [TÍNH NĂNG MỚI] Refresh Button (Nút Tải Lại Tên Người Chơi)
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Name = "RefreshBtn"
+RefreshBtn.Size = UDim2.new(0.22, 0, 0, 25)
+RefreshBtn.Position = UDim2.new(0.73, 0, 0.11, 0)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+RefreshBtn.BorderColor3 = Color3.fromRGB(200, 200, 200)
+RefreshBtn.Text = "🔄 Tải Lại"
+RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshBtn.Font = Enum.Font.SourceSansBold
+RefreshBtn.TextSize = 13
+RefreshBtn.Parent = MainFrame
+
 -- Player List Frame
 local PlayerList = Instance.new("ScrollingFrame")
-PlayerList.Size = UDim2.new(0.9, 0, 0, 150)
-PlayerList.Position = UDim2.new(0.05, 0, 0.12, 0)
+PlayerList.Size = UDim2.new(0.9, 0, 0, 125)
+PlayerList.Position = UDim2.new(0.05, 0, 0.18, 0)
 PlayerList.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 PlayerList.BorderColor3 = Color3.fromRGB(200, 200, 200)
 PlayerList.ScrollBarThickness = 6
@@ -110,7 +145,7 @@ UIListLayout.Padding = UDim.new(0, 2)
 -- Height Input Label
 local HeightLabel = Instance.new("TextLabel")
 HeightLabel.Size = UDim2.new(0, 120, 0, 30)
-HeightLabel.Position = UDim2.new(0.05, 0, 0.52, 0)
+HeightLabel.Position = UDim2.new(0.05, 0, 0.50, 0)
 HeightLabel.BackgroundTransparency = 1
 HeightLabel.Text = "Chiều cao (Height):"
 HeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -122,7 +157,7 @@ HeightLabel.Parent = MainFrame
 -- Height Input Box
 local HeightBox = Instance.new("TextBox")
 HeightBox.Size = UDim2.new(0.28, 0, 0, 30)
-HeightBox.Position = UDim2.new(0.42, 0, 0.52, 0)
+HeightBox.Position = UDim2.new(0.42, 0, 0.50, 0)
 HeightBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 HeightBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
 HeightBox.Text = "150"
@@ -134,7 +169,7 @@ HeightBox.Parent = MainFrame
 -- Height Visualizer Button
 local HeightVisualBtn = Instance.new("TextButton")
 HeightVisualBtn.Size = UDim2.new(0.22, 0, 0, 30)
-HeightVisualBtn.Position = UDim2.new(0.73, 0, 0.52, 0)
+HeightVisualBtn.Position = UDim2.new(0.73, 0, 0.50, 0)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 HeightVisualBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
 HeightVisualBtn.Text = "Trụ: OFF"
@@ -146,7 +181,7 @@ HeightVisualBtn.Parent = MainFrame
 -- Speed Input Label
 local SpeedLabel = Instance.new("TextLabel")
 SpeedLabel.Size = UDim2.new(0, 130, 0, 30)
-SpeedLabel.Position = UDim2.new(0.05, 0, 0.62, 0)
+SpeedLabel.Position = UDim2.new(0.05, 0, 0.60, 0)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Tốc độ (Speed):"
 SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -158,7 +193,7 @@ SpeedLabel.Parent = MainFrame
 -- Speed Input Box
 local SpeedBox = Instance.new("TextBox")
 SpeedBox.Size = UDim2.new(0.53, 0, 0, 30)
-SpeedBox.Position = UDim2.new(0.42, 0, 0.62, 0)
+SpeedBox.Position = UDim2.new(0.42, 0, 0.60, 0)
 SpeedBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 SpeedBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Text = "100"
@@ -170,7 +205,7 @@ SpeedBox.Parent = MainFrame
 -- Target Status
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
-StatusLabel.Position = UDim2.new(0.05, 0, 0.72, 0)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.70, 0)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Text = "Đã chọn: Chưa chọn ai"
 StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -181,7 +216,7 @@ StatusLabel.Parent = MainFrame
 -- Start / Stop Button
 local StartBtn = Instance.new("TextButton")
 StartBtn.Size = UDim2.new(0.9, 0, 0, 40)
-StartBtn.Position = UDim2.new(0.05, 0, 0.82, 0)
+StartBtn.Position = UDim2.new(0.05, 0, 0.81, 0)
 StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 StartBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
 StartBtn.Text = "BẮT ĐẦU BAY"
@@ -225,7 +260,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
---- Player Listing System ---
+--- [CẬP NHẬT TÍNH NĂNG] Player Listing, Search, Refresh & Water-Blue Highlight ---
 local function updatePlayerList()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("TextButton") then
@@ -233,27 +268,58 @@ local function updatePlayerList()
         end
     end
 
+    local filterText = string.lower(SearchBox.Text)
+    local visibleCount = 0
+
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
-            local Btn = Instance.new("TextButton")
-            Btn.Size = UDim2.new(1, 0, 0, 25)
-            Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-            Btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
-            Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
-            Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            Btn.Font = Enum.Font.SourceSans
-            Btn.TextSize = 14
-            Btn.Parent = PlayerList
+            local nameMatch = string.find(string.lower(plr.Name), filterText, 1, true)
+            local displayMatch = string.find(string.lower(plr.DisplayName), filterText, 1, true)
 
-            Btn.MouseButton1Click:Connect(function()
-                selectedPlayer = plr
-                StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
-            end)
+            if filterText == "" or nameMatch or displayMatch then
+                visibleCount = visibleCount + 1
+                
+                local Btn = Instance.new("TextButton")
+                Btn.Size = UDim2.new(1, 0, 0, 25)
+                Btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+                Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+                Btn.Font = Enum.Font.SourceSans
+                Btn.TextSize = 14
+                Btn.Parent = PlayerList
+
+                -- Kiêm tra người chơi đang chọn để giữ màu Xanh Nước khi Tải Lại
+                if selectedPlayer == plr then
+                    Btn.BackgroundColor3 = WATER_BLUE
+                    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                else
+                    Btn.BackgroundColor3 = DEFAULT_BTN_COLOR
+                    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+
+                -- Sự kiện Bấm Chọn Người Chơi -> Hiện màu Xanh Nước
+                Btn.MouseButton1Click:Connect(function()
+                    selectedPlayer = plr
+                    StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
+
+                    -- Re-set tất cả các nút về màu mặc định
+                    for _, child in pairs(PlayerList:GetChildren()) do
+                        if child:IsA("TextButton") then
+                            child.BackgroundColor3 = DEFAULT_BTN_COLOR
+                        end
+                    end
+
+                    -- Đổi nút được bấm sang MÀU XANH NƯỚC
+                    Btn.BackgroundColor3 = WATER_BLUE
+                end)
+            end
         end
     end
-    PlayerList.CanvasSize = UDim2.new(0, 0, 0, #PlayerList:GetChildren() * 27)
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, visibleCount * 27)
 end
 
+-- Sự kiện Tải Lại & Tìm Kiếm (Hoạt động cả khi đang bay)
+RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
+SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
 updatePlayerList()
@@ -311,9 +377,8 @@ HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
---- [CẢI TIẾN] Safe Collision & Anti-Stuck System ---
+--- Safe Collision & Anti-Stuck System ---
 local function resetCharacterPhysics()
-    -- Disconnect noclip
     if noclipConnection then
         noclipConnection:Disconnect()
         noclipConnection = nil
@@ -324,11 +389,9 @@ local function resetCharacterPhysics()
 
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if hrp then
-        -- Triệt tiêu hoàn toàn vận tốc rơi/di chuyển cũ (Chống xuyên sàn)
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
 
-        -- Kiểm tra nếu đang bị kẹt trong vật thể -> Đẩy nhẹ lên trên vùng trống
         local overlapParams = OverlapParams.new()
         overlapParams.FilterDescendantsInstances = {char}
         overlapParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -344,7 +407,6 @@ local function resetCharacterPhysics()
         end
     end
 
-    -- Khôi phục CanCollide chuẩn cho nhân vật
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             if part.Name == "HumanoidRootPart" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" then
@@ -420,7 +482,6 @@ local function startFly()
     isFlying = true
     stopRequested = false
 
-    -- Nút DỪNG BAY
     StartBtn.Text = "DỪNG BAY (STOP)"
     StartBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
     StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -437,7 +498,7 @@ local function startFly()
 
     -- Phase 2: Fly to Target Overhead
     if success1 and not stopRequested then
-        StatusLabel.Text = "Đang di chuyển tới mục tiêu..."
+        StatusLabel.Text = "Đang di chuyển tới..."
         local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
         local success2 = tweenToTarget(hrp, CFrame.new(targetOverhead), flySpeed)
 
