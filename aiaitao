@@ -1,12 +1,12 @@
 --[[
-    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME)
-    Features: Sky-Fly approach, Speed & Height control, Noclip while flying.
+    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME) - WITH CLOSE & MINIMIZE
 --]]
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
 -- Variables
@@ -25,26 +25,66 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 350, 0, 420)
 MainFrame.Position = UDim2.new(0.5, -175, 0.5, -210)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- Black background
-MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255) -- White border
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 2
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
--- Title
+-- Title Bar
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Size = UDim2.new(1, -60, 0, 40)
+Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 Title.BorderColor3 = Color3.fromRGB(255, 255, 255)
 Title.BorderSizePixel = 1
-Title.Text = "FLY TO PLAYER"
+Title.Text = " FLY TO PLAYER"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 18
+Title.TextSize = 16
 Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
 
--- Player List (ScrollingFrame)
+-- Minimize Button (-)
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 40)
+MinimizeBtn.Position = UDim2.new(1, -60, 0, 0)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MinimizeBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Font = Enum.Font.SourceSansBold
+MinimizeBtn.TextSize = 20
+MinimizeBtn.Parent = MainFrame
+
+-- Close Button (X)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 40)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(50, 0, 0)
+CloseBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = MainFrame
+
+-- Open Button (Hiển thị khi thu nhỏ menu)
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 100, 0, 30)
+OpenBtn.Position = UDim2.new(0.01, 0, 0.4, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+OpenBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Text = " Mở Menu"
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.TextSize = 14
+OpenBtn.Visible = false
+OpenBtn.Draggable = true
+OpenBtn.Parent = ScreenGui
+
+-- Player List Frame
 local PlayerList = Instance.new("ScrollingFrame")
 PlayerList.Size = UDim2.new(0.9, 0, 0, 150)
 PlayerList.Position = UDim2.new(0.05, 0, 0.12, 0)
@@ -58,9 +98,9 @@ UIListLayout.Parent = PlayerList
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 2)
 
--- Height Input Label & Box
+-- Height Input
 local HeightLabel = Instance.new("TextLabel")
-HeightLabel.Size = UDim2.new(0.4, 0, 0, 30)
+HeightLabel.Size = UDim2.new(0, 130, 0, 30)
 HeightLabel.Position = UDim2.new(0.05, 0, 0.52, 0)
 HeightLabel.BackgroundTransparency = 1
 HeightLabel.Text = "Chiều cao (Height):"
@@ -75,15 +115,15 @@ HeightBox.Size = UDim2.new(0.45, 0, 0, 30)
 HeightBox.Position = UDim2.new(0.5, 0, 0.52, 0)
 HeightBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 HeightBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
-HeightBox.Text = "150" -- Default height
+HeightBox.Text = "150"
 HeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 HeightBox.Font = Enum.Font.SourceSans
 HeightBox.TextSize = 14
 HeightBox.Parent = MainFrame
 
--- Speed Input Label & Box
+-- Speed Input
 local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(0.4, 0, 0, 30)
+SpeedLabel.Size = UDim2.new(0, 130, 0, 30)
 SpeedLabel.Position = UDim2.new(0.05, 0, 0.62, 0)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Tốc độ (Speed):"
@@ -98,7 +138,7 @@ SpeedBox.Size = UDim2.new(0.45, 0, 0, 30)
 SpeedBox.Position = UDim2.new(0.5, 0, 0.62, 0)
 SpeedBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 SpeedBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
-SpeedBox.Text = "100" -- Default speed
+SpeedBox.Text = "100"
 SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Font = Enum.Font.SourceSans
 SpeedBox.TextSize = 14
@@ -127,7 +167,38 @@ StartBtn.Font = Enum.Font.SourceSansBold
 StartBtn.TextSize = 16
 StartBtn.Parent = MainFrame
 
--- Function to Update Player List
+--- GUI Event Controls (Close / Minimize / Keybind) ---
+
+-- Tắt hẳn Menu
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Thu nhỏ Menu
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+-- Mở lại Menu khi nhấn nút "Mở Menu"
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+-- Nhấn phím RightControl để Ẩn / Hiện Menu nhanh
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
+        MainFrame.Visible = not MainFrame.Visible
+        if not MainFrame.Visible then
+            OpenBtn.Visible = true
+        else
+            OpenBtn.Visible = false
+        end
+    end
+end)
+
+--- Player Listing System ---
 local function updatePlayerList()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("TextButton") then
@@ -160,7 +231,7 @@ Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
 updatePlayerList()
 
--- Enable/Disable Noclip
+--- Noclip Function ---
 local function setNoclip(state)
     if state then
         noclipConnection = RunService.Stepped:Connect(function()
@@ -180,7 +251,7 @@ local function setNoclip(state)
     end
 end
 
--- Flying Function
+--- Flying Logic ---
 local function startFly()
     if isFlying then return end
     if not selectedPlayer or not selectedPlayer.Character or not selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -202,38 +273,31 @@ local function startFly()
     StartBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     setNoclip(true)
 
-    -- Lock Physics
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
-    -- Phase 1: Fly Straight Up
+    -- Phase 1: Fly Up
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
     local dist1 = (skyPos - hrp.Position).Magnitude
-    local time1 = dist1 / flySpeed
-    local tween1 = TweenService:Create(hrp, TweenInfo.new(time1, Enum.EasingStyle.Linear), {CFrame = CFrame.new(skyPos)})
-    
+    local tween1 = TweenService:Create(hrp, TweenInfo.new(dist1 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(skyPos)})
     tween1:Play()
     tween1.Completed:Wait()
 
-    -- Phase 2: Fly Horizontally to Target Overhead
+    -- Phase 2: Fly to Target Overhead
     local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
     local dist2 = (targetOverhead - hrp.Position).Magnitude
-    local time2 = dist2 / flySpeed
-    local tween2 = TweenService:Create(hrp, TweenInfo.new(time2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetOverhead)})
-    
+    local tween2 = TweenService:Create(hrp, TweenInfo.new(dist2 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetOverhead)})
     tween2:Play()
     tween2.Completed:Wait()
 
-    -- Phase 3: Fly Down to Target Position
+    -- Phase 3: Land on Target
     local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
     local dist3 = (targetLandPos - hrp.Position).Magnitude
-    local time3 = dist3 / flySpeed
-    local tween3 = TweenService:Create(hrp, TweenInfo.new(time3, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetLandPos)})
-    
+    local tween3 = TweenService:Create(hrp, TweenInfo.new(dist3 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetLandPos)})
     tween3:Play()
     tween3.Completed:Wait()
 
-    -- Reset State
+    -- Reset
     workspace.Gravity = oldGravity
     setNoclip(false)
     isFlying = false
