@@ -1,9 +1,9 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (INLINE ACTION BUTTON EDITION)
-    - XÓA BỎ BẢNG VÀ NÚT BẤM ĐÁY Ở CẢ 2 TAB
-    - DANH SÁCH PLAYER/TỌA ĐỘ TỰ ĐỘNG MỞ RỘNG XUỐNG ĐÁY
-    - NHẤN LẦN 1 VÀO PLAYER: HIỆN NÚT "🚀 BAY TỚI" BÊN PHẢI TÊN
-    - NHẤN LẦN 2 (HOẶC BẤM NÚT BAY): BẮT ĐẦU BAY / BẤM LẠI ĐỂ DỪNG
+    FLY TO PLAYER & SAVED LOCATIONS (LOCATION TRACKER / ESP EDITION)
+    - THÊM NÚT "📡 ĐỊNH VỊ" NẰM GIỮA Ô NHẬP TÊN VÀ NÚT LƯU TỌA ĐỘ
+    - BẤM LẦN 1: HIỆN BẢNG TÊN & KHỎANG CÁCH TẤT CẢ VỊ TRÍ ĐÃ LƯU TRONG KHÔNG GIAN 3D
+    - BẤM LẦN 2: TẮT ĐỊNH VỊ
+    - BẤM VÀO TỌA ĐỘ BẤT KỲ TRONG DANH SÁCH: HIỆN ĐỊNH VỊ + KHỎANG CÁCH CỦA ĐIỂM ĐÓ
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -24,7 +24,7 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
--- Inner Split Ratio for Players Tab (Mặc định 60% trái - 40% phải)
+-- Splitter Ratio
 local splitRatio = 0.60 
 local minSplit = 0.30
 local maxSplit = 0.80
@@ -34,17 +34,22 @@ local heightVisualPart = nil
 local heightVisualConn = nil
 local showHeightVisual = false
 
+-- Tracking / ESP Location Variables
+local isTrackingAll = false
+local singleTrackedLocation = nil
+local trackRenderConnection = nil
+
 -- Theme Colors
-local COLOR_MAIN_BG = Color3.fromRGB(245, 247, 252)     -- Trắng xám tuyết
-local COLOR_TITLE_BG = Color3.fromRGB(215, 220, 230)    -- Xám mờ nhạt
-local COLOR_TAB_ACTIVE = Color3.fromRGB(255, 255, 255)  -- Trắng tinh khi chọn
-local COLOR_TAB_INACTIVE = Color3.fromRGB(200, 205, 215)-- Xám dịu
-local COLOR_STRIPE_EVEN = Color3.fromRGB(255, 255, 255)  -- Sọc Trắng
-local COLOR_STRIPE_ODD = Color3.fromRGB(215, 220, 230)   -- Sọc Xám
-local WATER_BLUE = Color3.fromRGB(0, 140, 240)           -- Xanh biển
-local COLOR_GREEN = Color3.fromRGB(40, 170, 90)          -- Xanh lá
-local COLOR_DEAD = Color3.fromRGB(220, 40, 40)           -- Đỏ khi gục
-local TEXT_DARK = Color3.fromRGB(15, 15, 25)             -- Chữ tối đậm nét
+local COLOR_MAIN_BG = Color3.fromRGB(245, 247, 252)
+local COLOR_TITLE_BG = Color3.fromRGB(215, 220, 230)
+local COLOR_TAB_ACTIVE = Color3.fromRGB(255, 255, 255)
+local COLOR_TAB_INACTIVE = Color3.fromRGB(200, 205, 215)
+local COLOR_STRIPE_EVEN = Color3.fromRGB(255, 255, 255)
+local COLOR_STRIPE_ODD = Color3.fromRGB(215, 220, 230)
+local WATER_BLUE = Color3.fromRGB(0, 140, 240)
+local COLOR_GREEN = Color3.fromRGB(40, 170, 90)
+local COLOR_DEAD = Color3.fromRGB(220, 40, 40)
+local TEXT_DARK = Color3.fromRGB(15, 15, 25)
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
 -- UI Construction
@@ -286,7 +291,7 @@ LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
 ---------------------------------------------------------
--- TAB 1: NGƯỜI CHƠI (PAGES & DRAGGABLE SPLITTER)
+-- TAB 1: NGƯỜI CHƠI (PLAYERS PAGE)
 ---------------------------------------------------------
 local PlayersPage = Instance.new("Frame")
 PlayersPage.Size = UDim2.new(1, -24, 1, -80)
@@ -295,7 +300,6 @@ PlayersPage.BackgroundTransparency = 1
 PlayersPage.Visible = true
 PlayersPage.Parent = MainFrame
 
--- [BÊN TRÁI]: TÌM KIẾM & DANH SÁCH PLAYER
 local SearchBox = Instance.new("TextBox")
 SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SearchBox.BackgroundTransparency = 0.4
@@ -327,7 +331,6 @@ local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
--- THANH KÉO NẮM GIỮA HAI CỘT
 local SplitDivider = Instance.new("TextButton")
 SplitDivider.Name = "SplitDivider"
 SplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
@@ -345,7 +348,6 @@ local SplitterCorner = Instance.new("UICorner")
 SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
--- [BÊN PHẢI]: BẢNG ĐIỀU CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL
 local P_RightPanel = Instance.new("Frame")
 P_RightPanel.Name = "P_RightPanel"
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -416,7 +418,6 @@ local VisualCorner = Instance.new("UICorner")
 VisualCorner.CornerRadius = UDim.new(0, 4)
 VisualCorner.Parent = HeightVisualBtn
 
---- [CẬP NHẬT KÍCH THƯỚC VÙNG TRỘNG TOÀN DIỆN] ---
 local function updatePlayersLayout()
     local leftRatio = math.clamp(splitRatio, minSplit, maxSplit)
     local rightRatio = 1 - leftRatio - 0.02
@@ -427,7 +428,6 @@ local function updatePlayersLayout()
     RefreshBtn.Size = UDim2.new(leftRatio * 0.28, 0, 0, 26)
     RefreshBtn.Position = UDim2.new(leftRatio * 0.70, 0, 0, 0)
 
-    -- Mở rộng danh sách xuống tận đáy (trừ 32px đầu cho thanh search)
     PlayerList.Size = UDim2.new(leftRatio, 0, 1, -32)
     PlayerList.Position = UDim2.new(0, 0, 0, 32)
 
@@ -438,7 +438,6 @@ local function updatePlayersLayout()
     P_RightPanel.Size = UDim2.new(rightRatio, 0, 1, -32)
 end
 
--- Logic kéo giữ thanh Divider
 local isDraggingSplit = false
 
 SplitDivider.InputBegan:Connect(function(input)
@@ -470,7 +469,7 @@ MainFrame:GetPropertyChangedSignal("Size"):Connect(updatePlayersLayout)
 updatePlayersLayout()
 
 ---------------------------------------------------------
--- TAB 2: TỌA ĐỘ ĐÃ LƯU (LOCATIONS PAGE)
+-- TAB 2: TỌA ĐỘ ĐÃ LƯU (CÓ THÊM NÚT "📡 ĐỊNH VỊ")
 ---------------------------------------------------------
 local LocationsPage = Instance.new("Frame")
 LocationsPage.Size = UDim2.new(1, -24, 1, -80)
@@ -479,31 +478,52 @@ LocationsPage.BackgroundTransparency = 1
 LocationsPage.Visible = false
 LocationsPage.Parent = MainFrame
 
+-- 1. Ô Nhập Tên
 local PosNameBox = Instance.new("TextBox")
-PosNameBox.Size = UDim2.new(0.68, 0, 0, 26)
+PosNameBox.Size = UDim2.new(0.43, 0, 0, 26)
 PosNameBox.Position = UDim2.new(0, 0, 0, 0)
 PosNameBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 PosNameBox.BackgroundTransparency = 0.4
-PosNameBox.PlaceholderText = "Nhập tên tọa độ..."
+PosNameBox.PlaceholderText = "Nhập tên..."
 PosNameBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 PosNameBox.Text = ""
 PosNameBox.TextColor3 = TEXT_DARK
 PosNameBox.Font = Enum.Font.SourceSans
-PosNameBox.TextSize = 13
+PosNameBox.TextSize = 12
 PosNameBox.Parent = LocationsPage
 
+-- 2. [MỚI]: Nút Định Vị Nằm Ở Giữa
+local TrackAllBtn = Instance.new("TextButton")
+TrackAllBtn.Size = UDim2.new(0.26, 0, 0, 26)
+TrackAllBtn.Position = UDim2.new(0.44, 0, 0, 0)
+TrackAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+TrackAllBtn.BackgroundTransparency = 0.25
+TrackAllBtn.Text = "📡 Định Vị: OFF"
+TrackAllBtn.TextColor3 = TEXT_DARK
+TrackAllBtn.Font = Enum.Font.SourceSansBold
+TrackAllBtn.TextSize = 11
+TrackAllBtn.Parent = LocationsPage
+
+local TrackCorner = Instance.new("UICorner")
+TrackCorner.CornerRadius = UDim.new(0, 4)
+TrackCorner.Parent = TrackAllBtn
+
+-- 3. Nút Lưu Vị Trí
 local SavePosBtn = Instance.new("TextButton")
-SavePosBtn.Size = UDim2.new(0.30, 0, 0, 26)
-SavePosBtn.Position = UDim2.new(0.70, 0, 0, 0)
+SavePosBtn.Size = UDim2.new(0.28, 0, 0, 26)
+SavePosBtn.Position = UDim2.new(0.72, 0, 0, 0)
 SavePosBtn.BackgroundColor3 = COLOR_GREEN
 SavePosBtn.BackgroundTransparency = 0.2
 SavePosBtn.Text = "📌 LƯU VỊ TRÍ"
 SavePosBtn.TextColor3 = TEXT_LIGHT
 SavePosBtn.Font = Enum.Font.SourceSansBold
-SavePosBtn.TextSize = 12
-SavePosBtn.Parent = LocationsPage
+SavePosBtn.TextSize = 11
+SavePosBtn.Parent = SavePosBtn and LocationsPage
 
--- Mở rộng danh sách tọa độ xuống tận đáy
+local SaveCorner = Instance.new("UICorner")
+SaveCorner.CornerRadius = UDim.new(0, 4)
+SaveCorner.Parent = SavePosBtn
+
 local SavedList = Instance.new("ScrollingFrame")
 SavedList.Size = UDim2.new(1, 0, 1, -32)
 SavedList.Position = UDim2.new(0, 0, 0, 32)
@@ -518,11 +538,113 @@ UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
+-- CƠ CHẾ ĐỊNH VỊ 3D KHÔNG GIAN (ESP MARKERS SYSTEM)
+---------------------------------------------------------
+local function clearLocationMarkers()
+    if trackRenderConnection then
+        trackRenderConnection:Disconnect()
+        trackRenderConnection = nil
+    end
+    for _, child in pairs(workspace:GetChildren()) do
+        if child.Name == "BananaFlyLocationMarkers" then
+            child:Destroy()
+        end
+    end
+end
+
+local function refreshLocationMarkers()
+    clearLocationMarkers()
+
+    -- Nếu tắt cả 2 chế độ định vị thì thoát
+    if not isTrackingAll and not singleTrackedLocation then
+        TrackAllBtn.Text = "📡 Định Vị: OFF"
+        TrackAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        TrackAllBtn.TextColor3 = TEXT_DARK
+        return
+    end
+
+    if isTrackingAll then
+        TrackAllBtn.Text = "📡 Định Vị: ON"
+        TrackAllBtn.BackgroundColor3 = WATER_BLUE
+        TrackAllBtn.TextColor3 = TEXT_LIGHT
+    else
+        TrackAllBtn.Text = "📡 Định Vị: LẺ"
+        TrackAllBtn.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+        TrackAllBtn.TextColor3 = TEXT_LIGHT
+    end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "BananaFlyLocationMarkers"
+    folder.Parent = workspace
+
+    local activeItems = {}
+    if isTrackingAll then
+        activeItems = savedLocations
+    elseif singleTrackedLocation then
+        activeItems = {singleTrackedLocation}
+    end
+
+    local createdMarkers = {}
+
+    for _, item in ipairs(activeItems) do
+        local part = Instance.new("Part")
+        part.Name = "Marker_" .. item.name
+        part.Size = Vector3.new(1, 1, 1)
+        part.Transparency = 1
+        part.CanCollide = false
+        part.Anchored = true
+        part.Position = item.pos
+        part.Parent = folder
+
+        local bgui = Instance.new("BillboardGui")
+        bgui.Size = UDim2.new(0, 150, 0, 42)
+        bgui.AlwaysOnTop = true
+        bgui.ExtentsOffset = Vector3.new(0, 2.5, 0)
+        bgui.Parent = part
+
+        local txt = Instance.new("TextLabel")
+        txt.Size = UDim2.new(1, 0, 1, 0)
+        txt.BackgroundColor3 = Color3.fromRGB(15, 20, 30)
+        txt.BackgroundTransparency = 0.3
+        txt.TextColor3 = COLOR_GREEN
+        txt.Font = Enum.Font.SourceSansBold
+        txt.TextSize = 12
+        txt.Parent = bgui
+
+        local txtCorner = Instance.new("UICorner")
+        txtCorner.CornerRadius = UDim.new(0, 6)
+        txtCorner.Parent = txt
+
+        table.insert(createdMarkers, {item = item, textLabel = txt})
+    end
+
+    -- Cập nhật khoảng cách thực tế thời gian thực
+    trackRenderConnection = RunService.RenderStepped:Connect(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local myPos = hrp and hrp.Position or Vector3.zero
+
+        for _, mData in ipairs(createdMarkers) do
+            local dist = math.floor((mData.item.pos - myPos).Magnitude)
+            mData.textLabel.Text = string.format("📍 %s\n📏 %d m", mData.item.name, dist)
+        end
+    end)
+end
+
+-- Bấm nút Định Vị ở trên
+TrackAllBtn.MouseButton1Click:Connect(function()
+    isTrackingAll = not isTrackingAll
+    singleTrackedLocation = nil -- Reset định vị lẻ khi bật/tắt tổng
+    refreshLocationMarkers()
+end)
+
+---------------------------------------------------------
 -- EVENT XÓA MENU & PHÍM TẮT
 ---------------------------------------------------------
 CloseBtn.MouseButton1Click:Connect(function()
     if heightVisualPart then heightVisualPart:Destroy() end
     if heightVisualConn then heightVisualConn:Disconnect() end
+    clearLocationMarkers()
     ScreenGui:Destroy()
 end)
 
@@ -596,7 +718,7 @@ local function isPlayerDeadOrKnocked(plr)
     return false
 end
 
--- Render Danh Sách Người Chơi (Click lần 1 hiện nút Bay, Click lần 2 hoặc Nút Bay sẽ khởi chạy/dừng)
+-- Render Danh Sách Người Chơi
 updatePlayerList = function()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -639,23 +761,19 @@ updatePlayerList = function()
                     NameBtn.TextColor3 = isSelected and TEXT_LIGHT or TEXT_DARK
                 end
 
-                -- Sự kiện Click vào dòng Tên Player
                 NameBtn.MouseButton1Click:Connect(function()
                     if selectedPlayer == plr then
-                        -- Click lần 2 vào người đã chọn -> Khởi chạy hoặc Dừng Bay
                         if isFlying then
                             stopFly()
                         else
                             startFly("Player", plr)
                         end
                     else
-                        -- Click lần 1: Chọn người chơi để hiện nút Bay bên phải
                         selectedPlayer = plr
                         updatePlayerList()
                     end
                 end)
 
-                -- Nếu người chơi này đang được chọn -> Hiện nút "Bay Tới" / "Dừng Bay" bên phải
                 if isSelected then
                     local FlyBtn = Instance.new("TextButton")
                     FlyBtn.Size = UDim2.new(0.35, -4, 0.8, 0)
@@ -691,7 +809,7 @@ updatePlayerList = function()
     PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 28)
 end
 
--- Render Danh Sách Tọa Độ Sọc Xen Kẽ
+-- Render Danh Sách Tọa Độ (Nhấn vào vị trí bất kỳ sẽ Bật Định Vị ĐIỂM ĐÓ)
 updateSavedList = function()
     for _, child in pairs(SavedList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -753,8 +871,17 @@ updateSavedList = function()
         DelCorner.CornerRadius = UDim.new(0, 4)
         DelCorner.Parent = DeleteBtn
 
+        -- SỰ KIỆN NÀY: Click vào tên vị trí bất kỳ sẽ bật định vị 3D của vị trí đó
         SelectBtn.MouseButton1Click:Connect(function()
             selectedLocation = item
+            if not isTrackingAll then
+                if singleTrackedLocation == item then
+                    singleTrackedLocation = nil -- Click lại lần nữa sẽ tắt
+                else
+                    singleTrackedLocation = item -- Chọn định vị điểm này
+                end
+                refreshLocationMarkers()
+            end
             updateSavedList()
         end)
 
@@ -769,7 +896,9 @@ updateSavedList = function()
 
         DeleteBtn.MouseButton1Click:Connect(function()
             if selectedLocation == item then selectedLocation = nil end
+            if singleTrackedLocation == item then singleTrackedLocation = nil end
             table.remove(savedLocations, idx)
+            refreshLocationMarkers()
             updateSavedList()
         end)
     end
@@ -785,11 +914,16 @@ SavePosBtn.MouseButton1Click:Connect(function()
             customName = "Điểm " .. (#savedLocations + 1)
         end
 
-        table.insert(savedLocations, {
+        local newPosItem = {
             name = customName,
             pos = hrp.Position
-        })
+        }
+
+        table.insert(savedLocations, newPosItem)
         PosNameBox.Text = ""
+        
+        -- Nếu đang bật Định vị TẤT CẢ thì cập nhật luôn điểm vừa tạo vào radar
+        if isTrackingAll then refreshLocationMarkers() end
         updateSavedList()
     end
 end)
