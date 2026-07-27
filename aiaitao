@@ -1,9 +1,9 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (DRAGGABLE INNER SPLITTER EDITION)
-    - TÍNH NĂNG MỚI: NHẤN GIỮ THANH VIỀN BÊN PHẢI DANH SÁCH PLAYER ĐỂ KÉO DÃN/THU NHỎ BẢNG HEIGHT/SPEED/TRỤ
-    - NÚT TOGGLE BẤT TỬ: "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ TRÊN MÀN HÌNH
-    - THEME: TRẮNG XÁM TRONG SUỐT GLASSMORPHISM ZEBRA
-    - RESIZABLE 4 GÓC, CHUYỂN TAB, LƯU TỌA ĐỘ, BAY TỚI NGƯỜI GỤC
+    FLY TO PLAYER & SAVED LOCATIONS (INLINE ACTION BUTTON EDITION)
+    - XÓA BỎ BẢNG VÀ NÚT BẤM ĐÁY Ở CẢ 2 TAB
+    - DANH SÁCH PLAYER/TỌA ĐỘ TỰ ĐỘNG MỞ RỘNG XUỐNG ĐÁY
+    - NHẤN LẦN 1 VÀO PLAYER: HIỆN NÚT "🚀 BAY TỚI" BÊN PHẢI TÊN
+    - NHẤN LẦN 2 (HOẶC BẤM NÚT BAY): BẮT ĐẦU BAY / BẤM LẠI ĐỂ DỪNG
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -41,8 +41,8 @@ local COLOR_TAB_ACTIVE = Color3.fromRGB(255, 255, 255)  -- Trắng tinh khi ch�
 local COLOR_TAB_INACTIVE = Color3.fromRGB(200, 205, 215)-- Xám dịu
 local COLOR_STRIPE_EVEN = Color3.fromRGB(255, 255, 255)  -- Sọc Trắng
 local COLOR_STRIPE_ODD = Color3.fromRGB(215, 220, 230)   -- Sọc Xám
-local WATER_BLUE = Color3.fromRGB(0, 140, 240)           -- Xanh biển khi chọn người
-local COLOR_GREEN = Color3.fromRGB(40, 170, 90)          -- Xanh lá khi chọn tọa độ
+local WATER_BLUE = Color3.fromRGB(0, 140, 240)           -- Xanh biển
+local COLOR_GREEN = Color3.fromRGB(40, 170, 90)          -- Xanh lá
 local COLOR_DEAD = Color3.fromRGB(220, 40, 40)           -- Đỏ khi gục
 local TEXT_DARK = Color3.fromRGB(15, 15, 25)             -- Chữ tối đậm nét
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
@@ -54,7 +54,7 @@ ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
 
--- Main Frame (Menu Trong Suốt Nhìn Xuyên Qua)
+-- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 560, 0, 360)
@@ -116,7 +116,7 @@ CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
 ---------------------------------------------------------
--- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ (ALWAYS ON TOGGLE)
+-- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ
 ---------------------------------------------------------
 local PersistentToggleBtn = Instance.new("TextButton")
 PersistentToggleBtn.Name = "PersistentToggleBtn"
@@ -159,9 +159,9 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU (MAIN RESIZABLE)
+-- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU
 ---------------------------------------------------------
-local minSize = Vector2.new(460, 290)
+local minSize = Vector2.new(460, 250)
 local maxSize = Vector2.new(950, 600)
 
 local corners = {
@@ -286,7 +286,7 @@ LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
 ---------------------------------------------------------
--- TAB 1: NGƯỜI CHƠI (CÓ THANH KÉO DÃN CO GIÃN ĐÔI BÊN)
+-- TAB 1: NGƯỜI CHƠI (PAGES & DRAGGABLE SPLITTER)
 ---------------------------------------------------------
 local PlayersPage = Instance.new("Frame")
 PlayersPage.Size = UDim2.new(1, -24, 1, -80)
@@ -327,7 +327,7 @@ local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
--- [MỚI]: THANH KÉO NẮM GIỮA HAI CỘT (DRAGGABLE SPLITTER)
+-- THANH KÉO NẮM GIỮA HAI CỘT
 local SplitDivider = Instance.new("TextButton")
 SplitDivider.Name = "SplitDivider"
 SplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
@@ -416,28 +416,26 @@ local VisualCorner = Instance.new("UICorner")
 VisualCorner.CornerRadius = UDim.new(0, 4)
 VisualCorner.Parent = HeightVisualBtn
 
---- [PHẦN CẬP NHẬT GIAO DIỆN KHI KÉO THANH PHÂN CHIA] ---
+--- [CẬP NHẬT KÍCH THƯỚC VÙNG TRỘNG TOÀN DIỆN] ---
 local function updatePlayersLayout()
     local leftRatio = math.clamp(splitRatio, minSplit, maxSplit)
-    local rightRatio = 1 - leftRatio - 0.02 -- Dành 2% cho thanh divider
+    local rightRatio = 1 - leftRatio - 0.02
 
-    -- Cập nhật kích thước & vị trí cột bên trái
     SearchBox.Size = UDim2.new(leftRatio * 0.68, 0, 0, 26)
     SearchBox.Position = UDim2.new(0, 0, 0, 0)
 
     RefreshBtn.Size = UDim2.new(leftRatio * 0.28, 0, 0, 26)
     RefreshBtn.Position = UDim2.new(leftRatio * 0.70, 0, 0, 0)
 
-    PlayerList.Size = UDim2.new(leftRatio, 0, 1, -100)
+    -- Mở rộng danh sách xuống tận đáy (trừ 32px đầu cho thanh search)
+    PlayerList.Size = UDim2.new(leftRatio, 0, 1, -32)
     PlayerList.Position = UDim2.new(0, 0, 0, 32)
 
-    -- Cập nhật vị trí thanh Kéo Nắm Splitter
-    SplitDivider.Size = UDim2.new(0, 8, 1, -100)
-    SplitDivider.Position = UDim2.new(leftRatio + 0.003, 0, 0, 0)
+    SplitDivider.Size = UDim2.new(0, 8, 1, -32)
+    SplitDivider.Position = UDim2.new(leftRatio + 0.003, 0, 0, 32)
 
-    -- Cập nhật kích thước & vị trí cột bên phải (Bảng điều chỉnh)
-    P_RightPanel.Position = UDim2.new(leftRatio + 0.02, 0, 0, 0)
-    P_RightPanel.Size = UDim2.new(rightRatio, 0, 1, -100)
+    P_RightPanel.Position = UDim2.new(leftRatio + 0.02, 0, 0, 32)
+    P_RightPanel.Size = UDim2.new(rightRatio, 0, 1, -32)
 end
 
 -- Logic kéo giữ thanh Divider
@@ -468,43 +466,8 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Tự động cập nhật lại khi thay đổi kích thước Menu chính
 MainFrame:GetPropertyChangedSignal("Size"):Connect(updatePlayersLayout)
 updatePlayersLayout()
-
---- [PHẦN ĐÁY TAB PLAYERS]: TRẠNG THÁI & NÚT BẮT ĐẦU BAY ---
-local P_StatusFrame = Instance.new("Frame")
-P_StatusFrame.Size = UDim2.new(1, 0, 0, 24)
-P_StatusFrame.Position = UDim2.new(0, 0, 1, -68)
-P_StatusFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_StatusFrame.BackgroundTransparency = 0.5
-P_StatusFrame.BorderColor3 = Color3.fromRGB(200, 205, 215)
-P_StatusFrame.Parent = PlayersPage
-
-local P_StatusLabel = Instance.new("TextLabel")
-P_StatusLabel.Size = UDim2.new(1, -10, 1, 0)
-P_StatusLabel.Position = UDim2.new(0, 5, 0, 0)
-P_StatusLabel.BackgroundTransparency = 1
-P_StatusLabel.Text = "Chưa chọn người chơi nào"
-P_StatusLabel.TextColor3 = Color3.fromRGB(180, 100, 0)
-P_StatusLabel.Font = Enum.Font.SourceSansBold
-P_StatusLabel.TextSize = 12
-P_StatusLabel.Parent = P_StatusFrame
-
-local P_StartBtn = Instance.new("TextButton")
-P_StartBtn.Size = UDim2.new(1, 0, 0, 38)
-P_StartBtn.Position = UDim2.new(0, 0, 1, -38)
-P_StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_StartBtn.BackgroundTransparency = 0.3
-P_StartBtn.Text = "⚠️ CHƯA CHỌN PLAYER"
-P_StartBtn.TextColor3 = TEXT_DARK
-P_StartBtn.Font = Enum.Font.SourceSansBold
-P_StartBtn.TextSize = 14
-P_StartBtn.Parent = PlayersPage
-
-local P_StartCorner = Instance.new("UICorner")
-P_StartCorner.CornerRadius = UDim.new(0, 6)
-P_StartCorner.Parent = P_StartBtn
 
 ---------------------------------------------------------
 -- TAB 2: TỌA ĐỘ ĐÃ LƯU (LOCATIONS PAGE)
@@ -540,8 +503,9 @@ SavePosBtn.Font = Enum.Font.SourceSansBold
 SavePosBtn.TextSize = 12
 SavePosBtn.Parent = LocationsPage
 
+-- Mở rộng danh sách tọa độ xuống tận đáy
 local SavedList = Instance.new("ScrollingFrame")
-SavedList.Size = UDim2.new(1, 0, 1, -100)
+SavedList.Size = UDim2.new(1, 0, 1, -32)
 SavedList.Position = UDim2.new(0, 0, 0, 32)
 SavedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SavedList.BackgroundTransparency = 0.75
@@ -552,39 +516,6 @@ SavedList.Parent = LocationsPage
 local UIListLayout2 = Instance.new("UIListLayout")
 UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
-
-local L_StatusFrame = Instance.new("Frame")
-L_StatusFrame.Size = UDim2.new(1, 0, 0, 24)
-L_StatusFrame.Position = UDim2.new(0, 0, 1, -68)
-L_StatusFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-L_StatusFrame.BackgroundTransparency = 0.5
-L_StatusFrame.BorderColor3 = Color3.fromRGB(200, 205, 215)
-L_StatusFrame.Parent = LocationsPage
-
-local L_StatusLabel = Instance.new("TextLabel")
-L_StatusLabel.Size = UDim2.new(1, -10, 1, 0)
-L_StatusLabel.Position = UDim2.new(0, 5, 0, 0)
-L_StatusLabel.BackgroundTransparency = 1
-L_StatusLabel.Text = "Chưa chọn tọa độ nào"
-L_StatusLabel.TextColor3 = Color3.fromRGB(180, 100, 0)
-L_StatusLabel.Font = Enum.Font.SourceSansBold
-L_StatusLabel.TextSize = 12
-L_StatusLabel.Parent = L_StatusFrame
-
-local L_StartBtn = Instance.new("TextButton")
-L_StartBtn.Size = UDim2.new(1, 0, 0, 38)
-L_StartBtn.Position = UDim2.new(0, 0, 1, -38)
-L_StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-L_StartBtn.BackgroundTransparency = 0.3
-L_StartBtn.Text = "⚠️ CHƯA CHỌN TỌA ĐỘ"
-L_StartBtn.TextColor3 = TEXT_DARK
-L_StartBtn.Font = Enum.Font.SourceSansBold
-L_StartBtn.TextSize = 14
-L_StartBtn.Parent = LocationsPage
-
-local L_StartCorner = Instance.new("UICorner")
-L_StartCorner.CornerRadius = UDim.new(0, 6)
-L_StartCorner.Parent = L_StartBtn
 
 ---------------------------------------------------------
 -- EVENT XÓA MENU & PHÍM TẮT
@@ -635,42 +566,12 @@ PlayersTabBtn.MouseButton1Click:Connect(function() switchTab("Players") end)
 LocationsTabBtn.MouseButton1Click:Connect(function() switchTab("Locations") end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN (CORE LOGIC)
+-- LOGIC CƠ BẢN & XỬ LÝ BAY
 ---------------------------------------------------------
 local startFly
-
-local function updateMainStartButton()
-    if isFlying then
-        local stopText = "🛑 DỪNG BAY (STOP)"
-        P_StartBtn.Text = stopText
-        P_StartBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        P_StartBtn.TextColor3 = TEXT_LIGHT
-
-        L_StartBtn.Text = stopText
-        L_StartBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        L_StartBtn.TextColor3 = TEXT_LIGHT
-    else
-        if selectedPlayer then
-            P_StartBtn.Text = "✈️ BAY TỚI PLAYER: " .. string.upper(selectedPlayer.DisplayName)
-            P_StartBtn.BackgroundColor3 = WATER_BLUE
-            P_StartBtn.TextColor3 = TEXT_LIGHT
-        else
-            P_StartBtn.Text = "⚠️ CHƯA CHỌN PLAYER"
-            P_StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            P_StartBtn.TextColor3 = TEXT_DARK
-        end
-
-        if selectedLocation then
-            L_StartBtn.Text = "📍 BAY TỚI TỌA ĐỘ: " .. string.upper(selectedLocation.name)
-            L_StartBtn.BackgroundColor3 = COLOR_GREEN
-            L_StartBtn.TextColor3 = TEXT_LIGHT
-        else
-            L_StartBtn.Text = "⚠️ CHƯA CHỌN TỌA ĐỘ"
-            L_StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            L_StartBtn.TextColor3 = TEXT_DARK
-        end
-    end
-end
+local stopFly
+local updatePlayerList
+local updateSavedList
 
 local function getTargetPart(plr)
     if not plr or not plr.Character then return nil end
@@ -695,8 +596,8 @@ local function isPlayerDeadOrKnocked(plr)
     return false
 end
 
--- Render Danh Sách Người Chơi Sọc Xen Kẽ
-local function updatePlayerList()
+-- Render Danh Sách Người Chơi (Click lần 1 hiện nút Bay, Click lần 2 hoặc Nút Bay sẽ khởi chạy/dừng)
+updatePlayerList = function()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
     end
@@ -713,57 +614,97 @@ local function updatePlayerList()
                 count = count + 1
                 local isEven = (count % 2 == 0)
                 local isDead = isPlayerDeadOrKnocked(plr)
+                local isSelected = (selectedPlayer == plr)
 
-                local Btn = Instance.new("TextButton")
-                Btn.Size = UDim2.new(1, 0, 0, 25)
-                Btn.BorderSizePixel = 0
-                Btn.Font = Enum.Font.SourceSans
-                Btn.TextSize = 12
-                Btn.Parent = PlayerList
+                local ItemContainer = Instance.new("Frame")
+                ItemContainer.Size = UDim2.new(1, 0, 0, 28)
+                ItemContainer.BackgroundColor3 = isSelected and WATER_BLUE or (isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD)
+                ItemContainer.BackgroundTransparency = isSelected and 0.25 or 0.45
+                ItemContainer.BorderSizePixel = 0
+                ItemContainer.Parent = PlayerList
+
+                local NameBtn = Instance.new("TextButton")
+                NameBtn.Size = isSelected and UDim2.new(0.62, 0, 1, 0) or UDim2.new(1, 0, 1, 0)
+                NameBtn.BackgroundTransparency = 1
+                NameBtn.Font = Enum.Font.SourceSansBold
+                NameBtn.TextSize = 12
+                NameBtn.TextXAlignment = Enum.TextXAlignment.Left
+                NameBtn.Parent = ItemContainer
 
                 if isDead then
-                    Btn.Text = "🔴 [GỤC] " .. plr.DisplayName
-                    Btn.TextColor3 = COLOR_DEAD
+                    NameBtn.Text = "  🔴 [GỤC] " .. plr.DisplayName
+                    NameBtn.TextColor3 = isSelected and TEXT_LIGHT or COLOR_DEAD
                 else
-                    Btn.Text = "  👤 " .. plr.DisplayName
-                    Btn.TextColor3 = TEXT_DARK
-                    Btn.TextXAlignment = Enum.TextXAlignment.Left
+                    NameBtn.Text = "  👤 " .. plr.DisplayName
+                    NameBtn.TextColor3 = isSelected and TEXT_LIGHT or TEXT_DARK
                 end
 
-                if selectedPlayer == plr then
-                    Btn.BackgroundColor3 = WATER_BLUE
-                    Btn.BackgroundTransparency = 0.2
-                    Btn.TextColor3 = TEXT_LIGHT
-                else
-                    Btn.BackgroundColor3 = isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD
-                    Btn.BackgroundTransparency = 0.45
-                end
-
-                Btn.MouseButton1Click:Connect(function()
-                    selectedPlayer = plr
-                    P_StatusLabel.Text = "Đã chọn Player: " .. plr.DisplayName
-                    updatePlayerList()
-                    updateMainStartButton()
+                -- Sự kiện Click vào dòng Tên Player
+                NameBtn.MouseButton1Click:Connect(function()
+                    if selectedPlayer == plr then
+                        -- Click lần 2 vào người đã chọn -> Khởi chạy hoặc Dừng Bay
+                        if isFlying then
+                            stopFly()
+                        else
+                            startFly("Player", plr)
+                        end
+                    else
+                        -- Click lần 1: Chọn người chơi để hiện nút Bay bên phải
+                        selectedPlayer = plr
+                        updatePlayerList()
+                    end
                 end)
+
+                -- Nếu người chơi này đang được chọn -> Hiện nút "Bay Tới" / "Dừng Bay" bên phải
+                if isSelected then
+                    local FlyBtn = Instance.new("TextButton")
+                    FlyBtn.Size = UDim2.new(0.35, -4, 0.8, 0)
+                    FlyBtn.Position = UDim2.new(0.64, 0, 0.1, 0)
+                    FlyBtn.Font = Enum.Font.SourceSansBold
+                    FlyBtn.TextSize = 11
+                    FlyBtn.TextColor3 = TEXT_LIGHT
+                    FlyBtn.Parent = ItemContainer
+
+                    local FlyCorner = Instance.new("UICorner")
+                    FlyCorner.CornerRadius = UDim.new(0, 4)
+                    FlyCorner.Parent = FlyBtn
+
+                    if isFlying and selectedPlayer == plr then
+                        FlyBtn.Text = "🛑 Dừng Bay"
+                        FlyBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+                    else
+                        FlyBtn.Text = "🚀 Bay Tới"
+                        FlyBtn.BackgroundColor3 = COLOR_GREEN
+                    end
+
+                    FlyBtn.MouseButton1Click:Connect(function()
+                        if isFlying then
+                            stopFly()
+                        else
+                            startFly("Player", plr)
+                        end
+                    end)
+                end
             end
         end
     end
-    PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 25)
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 28)
 end
 
 -- Render Danh Sách Tọa Độ Sọc Xen Kẽ
-local function updateSavedList()
+updateSavedList = function()
     for _, child in pairs(SavedList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
     end
 
     for idx, item in ipairs(savedLocations) do
         local isEven = (idx % 2 == 0)
+        local isSelected = (selectedLocation == item)
         
         local Container = Instance.new("Frame")
-        Container.Size = UDim2.new(1, 0, 0, 25)
-        Container.BackgroundColor3 = (selectedLocation == item) and COLOR_GREEN or (isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD)
-        Container.BackgroundTransparency = (selectedLocation == item) and 0.2 or 0.45
+        Container.Size = UDim2.new(1, 0, 0, 28)
+        Container.BackgroundColor3 = isSelected and COLOR_GREEN or (isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD)
+        Container.BackgroundTransparency = isSelected and 0.25 or 0.45
         Container.BorderSizePixel = 0
         Container.Parent = SavedList
 
@@ -771,7 +712,7 @@ local function updateSavedList()
         SelectBtn.Size = UDim2.new(0.55, 0, 1, 0)
         SelectBtn.BackgroundTransparency = 1
         SelectBtn.Text = string.format(" 📍 %s", item.name)
-        SelectBtn.TextColor3 = (selectedLocation == item) and TEXT_LIGHT or TEXT_DARK
+        SelectBtn.TextColor3 = isSelected and TEXT_LIGHT or TEXT_DARK
         SelectBtn.Font = Enum.Font.SourceSansBold
         SelectBtn.TextSize = 12
         SelectBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -780,16 +721,25 @@ local function updateSavedList()
         local FlyDirectBtn = Instance.new("TextButton")
         FlyDirectBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
         FlyDirectBtn.Position = UDim2.new(0.56, 0, 0.1, 0)
-        FlyDirectBtn.BackgroundColor3 = COLOR_GREEN
-        FlyDirectBtn.BackgroundTransparency = 0.2
-        FlyDirectBtn.Text = "🚀 Bay Ngay"
-        FlyDirectBtn.TextColor3 = TEXT_LIGHT
         FlyDirectBtn.Font = Enum.Font.SourceSansBold
         FlyDirectBtn.TextSize = 11
+        FlyDirectBtn.TextColor3 = TEXT_LIGHT
         FlyDirectBtn.Parent = Container
 
+        local FlyCorner = Instance.new("UICorner")
+        FlyCorner.CornerRadius = UDim.new(0, 4)
+        FlyCorner.Parent = FlyDirectBtn
+
+        if isFlying and selectedLocation == item then
+            FlyDirectBtn.Text = "🛑 Dừng"
+            FlyDirectBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        else
+            FlyDirectBtn.Text = "🚀 Bay"
+            FlyDirectBtn.BackgroundColor3 = COLOR_GREEN
+        end
+
         local DeleteBtn = Instance.new("TextButton")
-        DeleteBtn.Size = UDim2.new(0.16, -2, 0.8, 0)
+        DeleteBtn.Size = UDim2.new(0.16, -4, 0.8, 0)
         DeleteBtn.Position = UDim2.new(0.82, 0, 0.1, 0)
         DeleteBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
         DeleteBtn.BackgroundTransparency = 0.2
@@ -799,29 +749,31 @@ local function updateSavedList()
         DeleteBtn.TextSize = 11
         DeleteBtn.Parent = Container
 
+        local DelCorner = Instance.new("UICorner")
+        DelCorner.CornerRadius = UDim.new(0, 4)
+        DelCorner.Parent = DeleteBtn
+
         SelectBtn.MouseButton1Click:Connect(function()
             selectedLocation = item
-            L_StatusLabel.Text = "Đã chọn Tọa độ: " .. item.name
             updateSavedList()
-            updateMainStartButton()
         end)
 
         FlyDirectBtn.MouseButton1Click:Connect(function()
             selectedLocation = item
-            activeTab = "Locations"
-            updateSavedList()
-            updateMainStartButton()
-            startFly()
+            if isFlying then
+                stopFly()
+            else
+                startFly("Location", item)
+            end
         end)
 
         DeleteBtn.MouseButton1Click:Connect(function()
             if selectedLocation == item then selectedLocation = nil end
             table.remove(savedLocations, idx)
             updateSavedList()
-            updateMainStartButton()
         end)
     end
-    SavedList.CanvasSize = UDim2.new(0, 0, 0, #savedLocations * 25)
+    SavedList.CanvasSize = UDim2.new(0, 0, 0, #savedLocations * 28)
 end
 
 SavePosBtn.MouseButton1Click:Connect(function()
@@ -838,10 +790,7 @@ SavePosBtn.MouseButton1Click:Connect(function()
             pos = hrp.Position
         })
         PosNameBox.Text = ""
-        L_StatusLabel.Text = "Đã lưu vị trí: " .. customName
         updateSavedList()
-    else
-        L_StatusLabel.Text = "Lỗi: Không tìm thấy nhân vật!"
     end
 end)
 
@@ -973,38 +922,38 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
     return true
 end
 
+-- Hàm Dừng Bay
+stopFly = function()
+    stopRequested = true
+    if currentTween then currentTween:Cancel() end
+    resetCharacterPhysics()
+    isFlying = false
+    updatePlayerList()
+    updateSavedList()
+end
+
 -- Core Flying
-startFly = function()
+startFly = function(mode, targetObj)
     if isFlying then return end
 
     local getTargetPos = nil
-    local targetName = ""
 
-    if activeTab == "Players" then
-        if not selectedPlayer then
-            P_StatusLabel.Text = "Lỗi: Vui lòng chọn một người chơi!"
-            return
-        end
+    if mode == "Player" then
+        if not targetObj then return end
+        selectedPlayer = targetObj
         getTargetPos = function()
-            local p = getTargetPart(selectedPlayer)
+            local p = getTargetPart(targetObj)
             return p and p.Position
         end
-        targetName = selectedPlayer.DisplayName
-    else
-        if not selectedLocation then
-            L_StatusLabel.Text = "Lỗi: Vui lòng chọn một tọa độ!"
-            return
-        end
+    elseif mode == "Location" then
+        if not targetObj then return end
+        selectedLocation = targetObj
         getTargetPos = function()
-            return selectedLocation.pos
+            return targetObj.pos
         end
-        targetName = selectedLocation.name
     end
 
-    if not getTargetPos() then
-        if activeTab == "Players" then P_StatusLabel.Text = "Lỗi: Không tìm thấy vị trí target!" else L_StatusLabel.Text = "Lỗi: Không tìm thấy vị trí target!" end
-        return
-    end
+    if not getTargetPos or not getTargetPos() then return end
 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1015,27 +964,24 @@ startFly = function()
 
     isFlying = true
     stopRequested = false
-    updateMainStartButton()
+    
+    updatePlayerList()
+    updateSavedList()
 
     setNoclip(true)
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
-    local currentStatusLabel = (activeTab == "Players") and P_StatusLabel or L_StatusLabel
-
-    currentStatusLabel.Text = "Đang bay lên cao..."
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
     local ok1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
 
     if ok1 and not stopRequested then
-        currentStatusLabel.Text = "Đang di chuyển tới: " .. targetName
         local dest = getTargetPos()
         if dest then
             local overhead = dest + Vector3.new(0, flyHeight, 0)
             local ok2 = tweenToTarget(hrp, CFrame.new(overhead), flySpeed)
 
             if ok2 and not stopRequested then
-                currentStatusLabel.Text = "Đang hạ cánh..."
                 dest = getTargetPos()
                 if dest then
                     local landPos = dest + Vector3.new(0, 3, 0)
@@ -1048,24 +994,7 @@ startFly = function()
     workspace.Gravity = oldGravity
     resetCharacterPhysics()
     isFlying = false
-    updateMainStartButton()
-
-    if stopRequested then
-        currentStatusLabel.Text = "Đã dừng bay an toàn!"
-    else
-        currentStatusLabel.Text = "Đã đến nơi: " .. targetName
-    end
+    
+    updatePlayerList()
+    updateSavedList()
 end
-
-local function handleStartClick()
-    if isFlying then
-        stopRequested = true
-        if currentTween then currentTween:Cancel() end
-        resetCharacterPhysics()
-    else
-        startFly()
-    end
-end
-
-P_StartBtn.MouseButton1Click:Connect(handleStartClick)
-L_StartBtn.MouseButton1Click:Connect(handleStartClick)
