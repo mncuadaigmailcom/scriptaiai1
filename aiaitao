@@ -1,10 +1,10 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (PLAYER ESP & TRACKER EDITION)
-    - THÊM NÚT "📡 ĐỊNH VỊ" BÊN PHẢI NÚT TẢI LẠI TRONG TAB PLAYERS
-    - TỰ ĐỘNG ĐỊNH VỊ NGƯỜI MỚI VÀO SERVER
-    - NGƯỜI BỊ GỤC/CHỜ ĐỒNG ĐỘI CỨU SẼ HIỆN CHỮ MÀU ĐỎ + KHỎANG CÁCH
-    - BẤM LẦN 1: BẬT TẤT CẢ | BẤM LẦN 2: TẮT
-    - CLICK VÀO TÊN PLAYER TRONG MENU: BẬT ĐỊNH VỊ LẺ DÀNH RIÊNG CHO NGƯỜI ĐÓ
+    FLY TO PLAYER & SAVED LOCATIONS (DEATH TIMER & PLAYER ESP EDITION)
+    - THÊM TÍNH NĂNG ĐẾM GIỜ HẠN ĐỊNH VỊ NGƯỜI BỊ GỤC/CHỜ CỨU
+    - TÙY CHỈNH THỜI GIAN THEO GIÂY HOẶC PHÚT TRONG BẢNG ĐIỀU CHỈNH
+    - HẾT THỜI GIAN KHÔNG CỨU KỊP -> TỰ ĐỘNG TẮT ĐỊNH VỊ NGƯỜI ĐÓ
+    - ĐỒNG ĐỘI CỨU KỊP -> TỰ ĐỘNG RESET TRẠNG THÁI SỐNG (BÌNH THƯỜNG)
+    - BẢNG NỔI 3D HIỂN THỊ THỜI GIAN CÒN LẠI VÀ KHỎANG CÁCH REAL-TIME
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -40,10 +40,14 @@ local isTrackingAllLocations = false
 local singleTrackedLocation = nil
 local locationTrackRenderConn = nil
 
--- Tracking / ESP Player Variables (TÍNH NĂNG MỚI)
+-- Tracking / ESP Player Variables
 local isTrackingAllPlayers = false
 local singleTrackedPlayer = nil
 local playerTrackRenderConn = nil
+
+-- Death/Knocked Timer System Variables (TÍNH NĂNG MỚI)
+local downedTimestamps = {} -- Luu thoi gian bat dau bi guc cua tung player
+local deathTimerUnit = "Min" -- Don vi mac dinh: "Min" (Phut) hoac "Sec" (Giay)
 
 -- Theme Colors
 local COLOR_MAIN_BG = Color3.fromRGB(245, 247, 252)
@@ -54,7 +58,7 @@ local COLOR_STRIPE_EVEN = Color3.fromRGB(255, 255, 255)
 local COLOR_STRIPE_ODD = Color3.fromRGB(215, 220, 230)
 local WATER_BLUE = Color3.fromRGB(0, 140, 240)
 local COLOR_GREEN = Color3.fromRGB(40, 170, 90)
-local COLOR_DEAD = Color3.fromRGB(230, 30, 30) -- Đỏ đậm khi bị gục / chờ cứu
+local COLOR_DEAD = Color3.fromRGB(230, 30, 30)
 local TEXT_DARK = Color3.fromRGB(15, 15, 25)
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
@@ -68,8 +72,8 @@ ScreenGui.DisplayOrder = 999
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 560, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -280, 0.5, -180)
+MainFrame.Size = UDim2.new(0, 560, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -280, 0.5, -190)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
 MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
@@ -172,8 +176,8 @@ end)
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU
 ---------------------------------------------------------
-local minSize = Vector2.new(460, 250)
-local maxSize = Vector2.new(950, 600)
+local minSize = Vector2.new(460, 270)
+local maxSize = Vector2.new(950, 650)
 
 local corners = {
     {Name = "TL", Cursor = "◤", Pos = UDim2.new(0, 0, 0, 0)},
@@ -297,7 +301,7 @@ LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
 ---------------------------------------------------------
--- TAB 1: NGƯỜI CHƠI (CÓ NÚT "📡 ĐỊNH VỊ" BÊN PHẢI "TẢI LẠI")
+-- TAB 1: NGƯỜI CHƠI (PLAYERS PAGE)
 ---------------------------------------------------------
 local PlayersPage = Instance.new("Frame")
 PlayersPage.Size = UDim2.new(1, -24, 1, -80)
@@ -328,7 +332,7 @@ RefreshBtn.Font = Enum.Font.SourceSansBold
 RefreshBtn.TextSize = 11
 RefreshBtn.Parent = PlayersPage
 
--- Nút [MỚI]: Định Vị Người Chơi (Bên phải Tải lại, Trên Chiều cao)
+-- Nút Định Vị Người Chơi
 local TrackPlayersBtn = Instance.new("TextButton")
 TrackPlayersBtn.Name = "TrackPlayersBtn"
 TrackPlayersBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
@@ -371,6 +375,7 @@ local SplitterCorner = Instance.new("UICorner")
 SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
+-- BẢNG BÊN PHẢI (CÀI ĐẶT CẮT / TỐC ĐỘ / THỜI GIAN CHỜ GỤC)
 local P_RightPanel = Instance.new("Frame")
 P_RightPanel.Name = "P_RightPanel"
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -383,52 +388,52 @@ P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.Size = UDim2.new(1, -10, 0, 18)
-P_HeightLabel.Position = UDim2.new(0, 5, 0, 6)
+P_HeightLabel.Size = UDim2.new(1, -10, 0, 16)
+P_HeightLabel.Position = UDim2.new(0, 5, 0, 4)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
 P_HeightLabel.TextColor3 = TEXT_DARK
 P_HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_HeightLabel.Font = Enum.Font.SourceSansBold
-P_HeightLabel.TextSize = 12
+P_HeightLabel.TextSize = 11
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.Size = UDim2.new(1, -10, 0, 24)
-P_HeightBox.Position = UDim2.new(0, 5, 0, 26)
+P_HeightBox.Size = UDim2.new(1, -10, 0, 22)
+P_HeightBox.Position = UDim2.new(0, 5, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
 P_HeightBox.TextColor3 = TEXT_DARK
 P_HeightBox.Font = Enum.Font.SourceSansBold
-P_HeightBox.TextSize = 13
+P_HeightBox.TextSize = 12
 P_HeightBox.Parent = P_RightPanel
 
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.Size = UDim2.new(1, -10, 0, 18)
-P_SpeedLabel.Position = UDim2.new(0, 5, 0, 56)
+P_SpeedLabel.Size = UDim2.new(1, -10, 0, 16)
+P_SpeedLabel.Position = UDim2.new(0, 5, 0, 48)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
 P_SpeedLabel.TextColor3 = TEXT_DARK
 P_SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_SpeedLabel.Font = Enum.Font.SourceSansBold
-P_SpeedLabel.TextSize = 12
+P_SpeedLabel.TextSize = 11
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.Size = UDim2.new(1, -10, 0, 24)
-P_SpeedBox.Position = UDim2.new(0, 5, 0, 76)
+P_SpeedBox.Size = UDim2.new(1, -10, 0, 22)
+P_SpeedBox.Position = UDim2.new(0, 5, 0, 66)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
 P_SpeedBox.TextColor3 = TEXT_DARK
 P_SpeedBox.Font = Enum.Font.SourceSansBold
-P_SpeedBox.TextSize = 13
+P_SpeedBox.TextSize = 12
 P_SpeedBox.Parent = P_RightPanel
 
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(1, -10, 0, 28)
-HeightVisualBtn.Position = UDim2.new(0, 5, 0, 108)
+HeightVisualBtn.Size = UDim2.new(1, -10, 0, 24)
+HeightVisualBtn.Position = UDim2.new(0, 5, 0, 92)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
 HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
@@ -441,11 +446,61 @@ local VisualCorner = Instance.new("UICorner")
 VisualCorner.CornerRadius = UDim.new(0, 4)
 VisualCorner.Parent = HeightVisualBtn
 
+-- [MỚI]: THỜI GIAN HẠN CHỜ GỤC & NÚT CHUYỂN ĐỔI ĐƠN VỊ (GIÂY/PHÚT)
+local P_DeathTimerLabel = Instance.new("TextLabel")
+P_DeathTimerLabel.Size = UDim2.new(1, -10, 0, 16)
+P_DeathTimerLabel.Position = UDim2.new(0, 5, 0, 122)
+P_DeathTimerLabel.BackgroundTransparency = 1
+P_DeathTimerLabel.Text = "⏳ Hạn định vị gục:"
+P_DeathTimerLabel.TextColor3 = TEXT_DARK
+P_DeathTimerLabel.TextXAlignment = Enum.TextXAlignment.Left
+P_DeathTimerLabel.Font = Enum.Font.SourceSansBold
+P_DeathTimerLabel.TextSize = 11
+P_DeathTimerLabel.Parent = P_RightPanel
+
+local P_DeathTimerBox = Instance.new("TextBox")
+P_DeathTimerBox.Size = UDim2.new(1, -10, 0, 22)
+P_DeathTimerBox.Position = UDim2.new(0, 5, 0, 140)
+P_DeathTimerBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+P_DeathTimerBox.BackgroundTransparency = 0.3
+P_DeathTimerBox.Text = "2"
+P_DeathTimerBox.TextColor3 = TEXT_DARK
+P_DeathTimerBox.Font = Enum.Font.SourceSansBold
+P_DeathTimerBox.TextSize = 12
+P_DeathTimerBox.Parent = P_RightPanel
+
+local DeathTimerUnitBtn = Instance.new("TextButton")
+DeathTimerUnitBtn.Size = UDim2.new(1, -10, 0, 24)
+DeathTimerUnitBtn.Position = UDim2.new(0, 5, 0, 166)
+DeathTimerUnitBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+DeathTimerUnitBtn.BackgroundTransparency = 0.3
+DeathTimerUnitBtn.Text = "⏱️ Đơn vị: PHÚT"
+DeathTimerUnitBtn.TextColor3 = TEXT_DARK
+DeathTimerUnitBtn.Font = Enum.Font.SourceSansBold
+DeathTimerUnitBtn.TextSize = 11
+DeathTimerUnitBtn.Parent = P_RightPanel
+
+local UnitCorner = Instance.new("UICorner")
+UnitCorner.CornerRadius = UDim.new(0, 4)
+UnitCorner.Parent = DeathTimerUnitBtn
+
+-- Toggling Sec / Min Unit
+DeathTimerUnitBtn.MouseButton1Click:Connect(function()
+    if deathTimerUnit == "Min" then
+        deathTimerUnit = "Sec"
+        DeathTimerUnitBtn.Text = "⏱️ Đơn vị: GIÂY"
+        P_DeathTimerBox.Text = "120"
+    else
+        deathTimerUnit = "Min"
+        DeathTimerUnitBtn.Text = "⏱️ Đơn vị: PHÚT"
+        P_DeathTimerBox.Text = "2"
+    end
+end)
+
 local function updatePlayersLayout()
     local leftRatio = math.clamp(splitRatio, minSplit, maxSplit)
     local rightRatio = 1 - leftRatio - 0.02
 
-    -- Chia tỉ lệ 3 ô phía trên (Tìm kiếm - Tải lại - Định vị)
     SearchBox.Size = UDim2.new(leftRatio * 0.44, 0, 0, 26)
     SearchBox.Position = UDim2.new(0, 0, 0, 0)
 
@@ -660,7 +715,7 @@ TrackAllBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ ĐỊNH VỊ NGƯỜI CHƠI (PLAYER ESP & RADAR SYSTEM)
+-- CƠ CHẾ ĐỊNH VỊ NGƯỜI CHƠI (TÍNH NĂNG TỰ ĐỘNG HẾT HẠN KHI GỤC)
 ---------------------------------------------------------
 local function getTargetPart(plr)
     if not plr or not plr.Character then return nil end
@@ -735,7 +790,7 @@ local function refreshPlayerMarkers()
     for _, plr in ipairs(targetList) do
         local bgui = Instance.new("BillboardGui")
         bgui.Name = "PlrMarker_" .. plr.Name
-        bgui.Size = UDim2.new(0, 160, 0, 42)
+        bgui.Size = UDim2.new(0, 165, 0, 44)
         bgui.AlwaysOnTop = true
         bgui.ExtentsOffset = Vector3.new(0, 3, 0)
         bgui.Parent = folder
@@ -745,7 +800,7 @@ local function refreshPlayerMarkers()
         txt.BackgroundColor3 = Color3.fromRGB(15, 20, 30)
         txt.BackgroundTransparency = 0.35
         txt.Font = Enum.Font.SourceSansBold
-        txt.TextSize = 12
+        txt.TextSize = 11
         txt.Parent = bgui
 
         local txtCorner = Instance.new("UICorner")
@@ -755,39 +810,70 @@ local function refreshPlayerMarkers()
         table.insert(activePlrGuis, {plr = plr, textLabel = txt, bgui = bgui})
     end
 
+    -- XỬ LÝ ĐẾM GIỜ VÀ HIỂN THỊ REAL-TIME
     playerTrackRenderConn = RunService.RenderStepped:Connect(function()
         local myChar = LocalPlayer.Character
         local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local myPos = myHrp and myHrp.Position or Vector3.zero
 
+        -- Tính số giây giới hạn cài đặt
+        local rawTimeVal = tonumber(P_DeathTimerBox.Text) or 2
+        local maxAllowedSec = (deathTimerUnit == "Min") and (rawTimeVal * 60) or rawTimeVal
+
         for _, mData in ipairs(activePlrGuis) do
             local plr = mData.plr
             if plr and plr.Parent then
                 local targetPart = getTargetPart(plr)
-                if targetPart then
-                    mData.bgui.Adornee = targetPart
-                    local dist = math.floor((targetPart.Position - myPos).Magnitude)
-                    local isDead = isPlayerDeadOrKnocked(plr)
+                local isDead = isPlayerDeadOrKnocked(plr)
 
-                    if isDead then
-                        -- NGƯỜI BỊ BỊ GỤC / BỊ KÍCH / CHỜ HỒI SINH -> HIỆN TÊN MÀU ĐỎ RỰC
-                        mData.textLabel.TextColor3 = COLOR_DEAD
-                        mData.textLabel.Text = string.format("🔴 [GỤC/CHỜ CỨU] %s\n📏 %d m", plr.DisplayName, dist)
+                if isDead then
+                    -- LƯU LẠI THỜI ĐIỂM BẮT ĐẦU BỊ GỤC
+                    if not downedTimestamps[plr] then
+                        downedTimestamps[plr] = tick()
+                    end
+
+                    local elapsed = tick() - downedTimestamps[plr]
+
+                    -- NẾU HẾT HẠN THỜI GIAN KHÔNG CỨU KỊP -> TẮT ĐỊNH VỊ
+                    if elapsed >= maxAllowedSec then
+                        mData.bgui.Enabled = false
                     else
-                        -- NGƯỜI BÌNH THƯỜNG -> MÀU XANH LÁ
-                        mData.textLabel.TextColor3 = Color3.fromRGB(40, 220, 120)
-                        mData.textLabel.Text = string.format("👤 %s\n📏 %d m", plr.DisplayName, dist)
+                        mData.bgui.Enabled = true
+                        if targetPart then
+                            mData.bgui.Adornee = targetPart
+                            local dist = math.floor((targetPart.Position - myPos).Magnitude)
+                            local remaining = math.ceil(maxAllowedSec - elapsed)
+
+                            local remStr = ""
+                            if deathTimerUnit == "Min" then
+                                local m = math.floor(remaining / 60)
+                                local s = remaining % 60
+                                remStr = string.format("%dm %ds", m, s)
+                            else
+                                remStr = string.format("%ds", remaining)
+                            end
+
+                            mData.textLabel.TextColor3 = COLOR_DEAD
+                            mData.textLabel.Text = string.format("🔴 [GỤC/CỨU] %s\n📏 %dm | ⏱️ Hạn: %s", plr.DisplayName, dist, remStr)
+                        end
                     end
                 else
-                    mData.textLabel.TextColor3 = COLOR_DEAD
-                    mData.textLabel.Text = string.format("🔴 [ĐANG HỒI SINH] %s", plr.DisplayName)
+                    -- NGƯỜI BÌNH THƯỜNG / ĐỘNG ĐỘI CỨU KỊP -> RESET TIMESTAMP
+                    downedTimestamps[plr] = nil
+                    mData.bgui.Enabled = true
+
+                    if targetPart then
+                        mData.bgui.Adornee = targetPart
+                        local dist = math.floor((targetPart.Position - myPos).Magnitude)
+                        mData.textLabel.TextColor3 = Color3.fromRGB(40, 220, 120)
+                        mData.textLabel.Text = string.format("👤 %s\n📏 %dm", plr.DisplayName, dist)
+                    end
                 end
             end
         end
     end)
 end
 
--- Bấm nút Định Vị Người Chơi ở trên
 TrackPlayersBtn.MouseButton1Click:Connect(function()
     isTrackingAllPlayers = not isTrackingAllPlayers
     singleTrackedPlayer = nil
@@ -895,7 +981,6 @@ updatePlayerList = function()
                     NameBtn.TextColor3 = isSelected and TEXT_LIGHT or TEXT_DARK
                 end
 
-                -- BẤM VÀO TÊN PLAYER TRONG DANH SÁCH -> BẬT ĐỊNH VỊ LẺ DÀNH RIÊNG CHO PLAYER ĐÓ
                 NameBtn.MouseButton1Click:Connect(function()
                     if selectedPlayer == plr then
                         if isFlying then
@@ -1071,7 +1156,6 @@ end)
 RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
--- TỰ ĐỘNG BẬT ĐỊNH VỊ CHO NGƯỜI MỚI VÀO SERVER
 Players.PlayerAdded:Connect(function(plr)
     updatePlayerList()
     if isTrackingAllPlayers then
@@ -1085,6 +1169,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(plr)
     if singleTrackedPlayer == plr then singleTrackedPlayer = nil end
+    downedTimestamps[plr] = nil
     updatePlayerList()
     if isTrackingAllPlayers or singleTrackedPlayer then
         refreshPlayerMarkers()
