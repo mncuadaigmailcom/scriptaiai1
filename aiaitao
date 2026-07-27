@@ -1,6 +1,8 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (SELF GLOW FEATURE ADDED)
-    - THÊM TÍNH NĂNG PHÁT SÁNG BẢN THÂN (SELF GLOW) DỊU MẮT, KHÔNG CHÓI, CHỈNH BÁN KÍNH SÁNG
+    FLY TO PLAYER & SAVED LOCATIONS (FIXED VISUAL PILLAR OVERFLOW)
+    - ĐÃ SỬA LỖI TRỤ VISUAL BỊ LỒI RA NGOÀI KHUNG KI THU NHỎ MENU
+    - CỘT PHẢI TỰ ĐỘNG CHUYỂN THÀNH THANH CUỘN MƯỢT MÀ NẾU KÍCH THƯỚC MENU QUÁ NHỎ
+    - TÍNH NĂNG PHÁT SÁNG BẢN THÂN (SELF GLOW) DỊU MẮT, KHÔNG CHÓI, CHỈNH BÁN KÍNH SÁNG
     - 4 GÓC KÉO CO GIÃN TĂNG KÍCH THƯỚC (CHỈ KÍCH HOẠT GÓC ĐANG BẤM GIỮ)
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
     - TÍNH NĂNG ĐỊNH VỊ TỌA ĐỘ ĐÃ LƯU (ESP ALL LOCATIONS / ESP LẺ THEO CHỌN + KHOẢNG CÁCH Realtime)
@@ -232,7 +234,7 @@ end)
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN LỚN HƠN (CHỈ KÍCH HOẠT GÓC ĐANG BẤM)
 ---------------------------------------------------------
-local minSize = Vector2.new(480, 310)
+local minSize = Vector2.new(480, 280)
 local maxSize = Vector2.new(950, 650)
 
 local activeResizeCorner = nil 
@@ -421,21 +423,42 @@ local SplitterCorner = Instance.new("UICorner")
 SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
-local P_RightPanel = Instance.new("Frame")
+---------------------------------------------------------
+-- CỘT PHẢI CÓ THANH CUỘN CHỐNG TRÀN VÀ LỒI KHUNG
+---------------------------------------------------------
+local P_RightPanel = Instance.new("ScrollingFrame")
 P_RightPanel.Name = "P_RightPanel"
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_RightPanel.BackgroundTransparency = 0.65
 P_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
+P_RightPanel.ScrollBarThickness = 4
+P_RightPanel.ScrollBarImageColor3 = Color3.fromRGB(180, 185, 195)
+P_RightPanel.BorderSizePixel = 0
+P_RightPanel.ClipsDescendants = true -- GIỮ TẤT CẢ PHẦN TỬ KHÔNG BỊ LỒI RA NGOÀI
+P_RightPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+P_RightPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
 P_RightPanel.Parent = PlayersPage
 
 local P_PanelCorner = Instance.new("UICorner")
 P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
--- 1. Nút ESP Player All
+local P_PanelLayout = Instance.new("UIListLayout")
+P_PanelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+P_PanelLayout.Padding = UDim.new(0, 4)
+P_PanelLayout.Parent = P_RightPanel
+
+local P_PanelPadding = Instance.new("UIPadding")
+P_PanelPadding.PaddingTop = UDim.new(0, 4)
+P_PanelPadding.PaddingBottom = UDim.new(0, 6)
+P_PanelPadding.PaddingLeft = UDim.new(0, 4)
+P_PanelPadding.PaddingRight = UDim.new(0, 6)
+P_PanelPadding.Parent = P_RightPanel
+
+-- 1. ESP Player All
 local EspAllBtn = Instance.new("TextButton")
-EspAllBtn.Size = UDim2.new(1, -10, 0, 22)
-EspAllBtn.Position = UDim2.new(0, 5, 0, 5)
+EspAllBtn.LayoutOrder = 1
+EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspAllBtn.BackgroundTransparency = 0.3
 EspAllBtn.Text = "📡 ESP Player Tất Cả: OFF"
@@ -448,10 +471,10 @@ local EspAllCorner = Instance.new("UICorner")
 EspAllCorner.CornerRadius = UDim.new(0, 4)
 EspAllCorner.Parent = EspAllBtn
 
--- 2. Nút ESP Player Single
+-- 2. ESP Player Single
 local EspSingleBtn = Instance.new("TextButton")
-EspSingleBtn.Size = UDim2.new(1, -10, 0, 22)
-EspSingleBtn.Position = UDim2.new(0, 5, 0, 31)
+EspSingleBtn.LayoutOrder = 2
+EspSingleBtn.Size = UDim2.new(1, 0, 0, 24)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspSingleBtn.BackgroundTransparency = 0.3
 EspSingleBtn.Text = "🎯 ESP Player Lẻ: OFF"
@@ -464,12 +487,10 @@ local EspSingleCorner = Instance.new("UICorner")
 EspSingleCorner.CornerRadius = UDim.new(0, 4)
 EspSingleCorner.Parent = EspSingleBtn
 
----------------------------------------------------------
--- CÁC CÔNG CỤ PHÁT SÁNG (BÁN KÍNH SÁNG, NÚT TẮT BẬT)
----------------------------------------------------------
+-- 3. Nút Phát Sáng
 local GlowToggleBtn = Instance.new("TextButton")
-GlowToggleBtn.Size = UDim2.new(1, -10, 0, 22)
-GlowToggleBtn.Position = UDim2.new(0, 5, 0, 57)
+GlowToggleBtn.LayoutOrder = 3
+GlowToggleBtn.Size = UDim2.new(1, 0, 0, 24)
 GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 GlowToggleBtn.BackgroundTransparency = 0.3
 GlowToggleBtn.Text = "💡 Phát Sáng Nhân Vật: OFF"
@@ -482,9 +503,10 @@ local GlowCorner = Instance.new("UICorner")
 GlowCorner.CornerRadius = UDim.new(0, 4)
 GlowCorner.Parent = GlowToggleBtn
 
+-- 4. Bán Kính Phát Sáng Label & Box
 local GlowRangeLabel = Instance.new("TextLabel")
-GlowRangeLabel.Size = UDim2.new(1, -10, 0, 14)
-GlowRangeLabel.Position = UDim2.new(0, 5, 0, 83)
+GlowRangeLabel.LayoutOrder = 4
+GlowRangeLabel.Size = UDim2.new(1, 0, 0, 14)
 GlowRangeLabel.BackgroundTransparency = 1
 GlowRangeLabel.Text = "💡 Bán kính sáng (Studs):"
 GlowRangeLabel.TextColor3 = TEXT_DARK
@@ -494,8 +516,8 @@ GlowRangeLabel.TextSize = 10
 GlowRangeLabel.Parent = P_RightPanel
 
 local GlowRangeBox = Instance.new("TextBox")
-GlowRangeBox.Size = UDim2.new(1, -10, 0, 20)
-GlowRangeBox.Position = UDim2.new(0, 5, 0, 99)
+GlowRangeBox.LayoutOrder = 5
+GlowRangeBox.Size = UDim2.new(1, 0, 0, 22)
 GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 GlowRangeBox.BackgroundTransparency = 0.3
 GlowRangeBox.Text = "50"
@@ -504,10 +526,10 @@ GlowRangeBox.Font = Enum.Font.SourceSansBold
 GlowRangeBox.TextSize = 11
 GlowRangeBox.Parent = P_RightPanel
 
--- Chiều cao
+-- 5. Chiều cao Label & Box
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.Size = UDim2.new(1, -10, 0, 14)
-P_HeightLabel.Position = UDim2.new(0, 5, 0, 123)
+P_HeightLabel.LayoutOrder = 6
+P_HeightLabel.Size = UDim2.new(1, 0, 0, 14)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
 P_HeightLabel.TextColor3 = TEXT_DARK
@@ -517,8 +539,8 @@ P_HeightLabel.TextSize = 10
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.Size = UDim2.new(1, -10, 0, 20)
-P_HeightBox.Position = UDim2.new(0, 5, 0, 139)
+P_HeightBox.LayoutOrder = 7
+P_HeightBox.Size = UDim2.new(1, 0, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
@@ -527,10 +549,10 @@ P_HeightBox.Font = Enum.Font.SourceSansBold
 P_HeightBox.TextSize = 11
 P_HeightBox.Parent = P_RightPanel
 
--- Tốc độ
+-- 6. Tốc độ Label & Box
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.Size = UDim2.new(1, -10, 0, 14)
-P_SpeedLabel.Position = UDim2.new(0, 5, 0, 163)
+P_SpeedLabel.LayoutOrder = 8
+P_SpeedLabel.Size = UDim2.new(1, 0, 0, 14)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
 P_SpeedLabel.TextColor3 = TEXT_DARK
@@ -540,8 +562,8 @@ P_SpeedLabel.TextSize = 10
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.Size = UDim2.new(1, -10, 0, 20)
-P_SpeedBox.Position = UDim2.new(0, 5, 0, 179)
+P_SpeedBox.LayoutOrder = 9
+P_SpeedBox.Size = UDim2.new(1, 0, 0, 22)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
@@ -550,10 +572,10 @@ P_SpeedBox.Font = Enum.Font.SourceSansBold
 P_SpeedBox.TextSize = 11
 P_SpeedBox.Parent = P_RightPanel
 
--- Visual Height Button
+-- 7. Visual Height Button (NẰM TRONG BẢNG CÓ THANH CUỘN KHÔNG BAO GIỜ BỊ LỒI)
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(1, -10, 0, 22)
-HeightVisualBtn.Position = UDim2.new(0, 5, 0, 203)
+HeightVisualBtn.LayoutOrder = 10
+HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
 HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
@@ -750,8 +772,8 @@ local function updateGlow()
             if glowLightInstance then glowLightInstance:Destroy() end
             local light = Instance.new("PointLight")
             light.Name = "BananaSelfGlow"
-            light.Color = Color3.fromRGB(255, 245, 200) -- MÀU ẤM DỊU NHẸ, KHÔNG BỊ CHÓI
-            light.Brightness = 1.2                      -- CƯỜNG ĐỘ DỊU DÀNG
+            light.Color = Color3.fromRGB(255, 245, 200)
+            light.Brightness = 1.2                      
             light.Shadows = false
             light.Parent = hrp
             glowLightInstance = light
@@ -1399,7 +1421,7 @@ startFly = function(mode, targetObj)
             return p and p.Position
         end
     elseif mode == "Location" then
-        if not targetObj then return end
+        if not targetObj me return end
         selectedLocation = targetObj
         getTargetPos = function()
             return targetObj.pos
