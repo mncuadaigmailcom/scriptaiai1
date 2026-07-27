@@ -1,5 +1,6 @@
 --[[
-    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME) - WITH CLOSE & MINIMIZE
+    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME) 
+    - WITH CLOSE, MINIMIZE, STOP FUNCTION & HEIGHT VISUALIZER PILLAR
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -12,7 +13,14 @@ local CoreGui = game:GetService("CoreGui")
 -- Variables
 local selectedPlayer = nil
 local isFlying = false
+local stopRequested = false
+local currentTween = nil
 local noclipConnection = nil
+
+-- Visual Height Pillar Variables
+local heightVisualPart = nil
+local heightVisualConn = nil
+local showHeightVisual = false
 
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
@@ -98,9 +106,9 @@ UIListLayout.Parent = PlayerList
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 2)
 
--- Height Input
+-- Height Input Label
 local HeightLabel = Instance.new("TextLabel")
-HeightLabel.Size = UDim2.new(0, 130, 0, 30)
+HeightLabel.Size = UDim2.new(0, 120, 0, 30)
 HeightLabel.Position = UDim2.new(0.05, 0, 0.52, 0)
 HeightLabel.BackgroundTransparency = 1
 HeightLabel.Text = "Chiều cao (Height):"
@@ -110,9 +118,10 @@ HeightLabel.Font = Enum.Font.SourceSans
 HeightLabel.TextSize = 14
 HeightLabel.Parent = MainFrame
 
+-- Height Input Box
 local HeightBox = Instance.new("TextBox")
-HeightBox.Size = UDim2.new(0.45, 0, 0, 30)
-HeightBox.Position = UDim2.new(0.5, 0, 0.52, 0)
+HeightBox.Size = UDim2.new(0.28, 0, 0, 30)
+HeightBox.Position = UDim2.new(0.42, 0, 0.52, 0)
 HeightBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 HeightBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
 HeightBox.Text = "150"
@@ -121,7 +130,19 @@ HeightBox.Font = Enum.Font.SourceSans
 HeightBox.TextSize = 14
 HeightBox.Parent = MainFrame
 
--- Speed Input
+-- [TÍNH NĂNG MỚI] Height Visualizer Toggle Button (Trụ hiển thị)
+local HeightVisualBtn = Instance.new("TextButton")
+HeightVisualBtn.Size = UDim2.new(0.22, 0, 0, 30)
+HeightVisualBtn.Position = UDim2.new(0.73, 0, 0.52, 0)
+HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+HeightVisualBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+HeightVisualBtn.Text = "Trụ: OFF"
+HeightVisualBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+HeightVisualBtn.Font = Enum.Font.SourceSansBold
+HeightVisualBtn.TextSize = 13
+HeightVisualBtn.Parent = MainFrame
+
+-- Speed Input Label
 local SpeedLabel = Instance.new("TextLabel")
 SpeedLabel.Size = UDim2.new(0, 130, 0, 30)
 SpeedLabel.Position = UDim2.new(0.05, 0, 0.62, 0)
@@ -133,9 +154,10 @@ SpeedLabel.Font = Enum.Font.SourceSans
 SpeedLabel.TextSize = 14
 SpeedLabel.Parent = MainFrame
 
+-- Speed Input Box
 local SpeedBox = Instance.new("TextBox")
-SpeedBox.Size = UDim2.new(0.45, 0, 0, 30)
-SpeedBox.Position = UDim2.new(0.5, 0, 0.62, 0)
+SpeedBox.Size = UDim2.new(0.53, 0, 0, 30)
+SpeedBox.Position = UDim2.new(0.42, 0, 0.62, 0)
 SpeedBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 SpeedBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Text = "100"
@@ -155,7 +177,7 @@ StatusLabel.Font = Enum.Font.SourceSansItalic
 StatusLabel.TextSize = 14
 StatusLabel.Parent = MainFrame
 
--- Start Button
+-- Start / Stop Button
 local StartBtn = Instance.new("TextButton")
 StartBtn.Size = UDim2.new(0.9, 0, 0, 40)
 StartBtn.Position = UDim2.new(0.05, 0, 0.82, 0)
@@ -167,34 +189,38 @@ StartBtn.Font = Enum.Font.SourceSansBold
 StartBtn.TextSize = 16
 StartBtn.Parent = MainFrame
 
---- GUI Event Controls (Close / Minimize / Keybind) ---
+--- Clear Visual Pillar Function ---
+local function clearHeightVisual()
+    if heightVisualPart then
+        heightVisualPart:Destroy()
+        heightVisualPart = nil
+    end
+    if heightVisualConn then
+        heightVisualConn:Disconnect()
+        heightVisualConn = nil
+    end
+end
 
--- Tắt hẳn Menu
+--- GUI Event Controls (Close / Minimize / Keybind) ---
 CloseBtn.MouseButton1Click:Connect(function()
+    clearHeightVisual()
     ScreenGui:Destroy()
 end)
 
--- Thu nhỏ Menu
 MinimizeBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     OpenBtn.Visible = true
 end)
 
--- Mở lại Menu khi nhấn nút "Mở Menu"
 OpenBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenBtn.Visible = false
 end)
 
--- Nhấn phím RightControl để Ẩn / Hiện Menu nhanh
 UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
         MainFrame.Visible = not MainFrame.Visible
-        if not MainFrame.Visible then
-            OpenBtn.Visible = true
-        else
-            OpenBtn.Visible = false
-        end
+        OpenBtn.Visible = not MainFrame.Visible
     end
 end)
 
@@ -231,6 +257,61 @@ Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
 updatePlayerList()
 
+--- [TÍNH NĂNG MỚI] Visual Pillar Logic (Trụ hiển thị chiều cao) ---
+local function updateHeightVisual()
+    if not showHeightVisual then
+        clearHeightVisual()
+        return
+    end
+
+    if not heightVisualPart then
+        heightVisualPart = Instance.new("Part")
+        heightVisualPart.Name = "FlyHeightPillar"
+        heightVisualPart.Shape = Enum.PartType.Cylinder
+        heightVisualPart.Material = Enum.Material.SmoothPlastic
+        heightVisualPart.Color = Color3.fromRGB(110, 110, 115) -- Màu xám trắng đậm
+        heightVisualPart.Transparency = 0.35
+        heightVisualPart.Anchored = true
+        heightVisualPart.CanCollide = false
+        heightVisualPart.Parent = workspace
+    end
+
+    if heightVisualConn then heightVisualConn:Disconnect() end
+
+    heightVisualConn = RunService.RenderStepped:Connect(function()
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and heightVisualPart then
+            local flyHeight = tonumber(HeightBox.Text) or 150
+            local hrp = char.HumanoidRootPart
+            
+            -- Cài đặt kích thước và góc quay cho hình trụ bám theo người chơi
+            heightVisualPart.Size = Vector3.new(flyHeight, 2, 2)
+            heightVisualPart.CFrame = CFrame.new(hrp.Position + Vector3.new(0, flyHeight / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+        end
+    end)
+end
+
+HeightVisualBtn.MouseButton1Click:Connect(function()
+    showHeightVisual = not showHeightVisual
+    if showHeightVisual then
+        HeightVisualBtn.Text = "Trụ: ON"
+        HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        HeightVisualBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        updateHeightVisual()
+    else
+        HeightVisualBtn.Text = "Trụ: OFF"
+        HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        HeightVisualBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        clearHeightVisual()
+    end
+end)
+
+HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if showHeightVisual then
+        updateHeightVisual()
+    end
+end)
+
 --- Noclip Function ---
 local function setNoclip(state)
     if state then
@@ -251,9 +332,39 @@ local function setNoclip(state)
     end
 end
 
+--- Helper Tween Motion with Cancel Support ---
+local function tweenToTarget(hrp, targetCFrame, flySpeed)
+    if stopRequested then return false end
+
+    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    local duration = distance / flySpeed
+
+    currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    currentTween:Play()
+
+    local finished = false
+    local connection
+    connection = currentTween.Completed:Connect(function()
+        finished = true
+    end)
+
+    while not finished do
+        if stopRequested then
+            if currentTween then currentTween:Cancel() end
+            if connection then connection:Disconnect() end
+            return false
+        end
+        task.wait()
+    end
+
+    if connection then connection:Disconnect() end
+    return true
+end
+
 --- Flying Logic ---
 local function startFly()
     if isFlying then return end
+
     if not selectedPlayer or not selectedPlayer.Character or not selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
         StatusLabel.Text = "Lỗi: Người chơi không tồn tại!"
         return
@@ -269,41 +380,61 @@ local function startFly()
     local flySpeed = tonumber(SpeedBox.Text) or 100
 
     isFlying = true
-    StartBtn.Text = "ĐANG BAY..."
-    StartBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    stopRequested = false
+
+    -- Cập nhật nút thành nút DỪNG BAY
+    StartBtn.Text = "DỪNG BAY (STOP)"
+    StartBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
     setNoclip(true)
 
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
     -- Phase 1: Fly Up
+    StatusLabel.Text = "Đang bay lên..."
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
-    local dist1 = (skyPos - hrp.Position).Magnitude
-    local tween1 = TweenService:Create(hrp, TweenInfo.new(dist1 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(skyPos)})
-    tween1:Play()
-    tween1.Completed:Wait()
+    local success1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
 
     -- Phase 2: Fly to Target Overhead
-    local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
-    local dist2 = (targetOverhead - hrp.Position).Magnitude
-    local tween2 = TweenService:Create(hrp, TweenInfo.new(dist2 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetOverhead)})
-    tween2:Play()
-    tween2.Completed:Wait()
+    if success1 and not stopRequested then
+        StatusLabel.Text = "Đang di chuyển tới mục tiêu..."
+        local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
+        local success2 = tweenToTarget(hrp, CFrame.new(targetOverhead), flySpeed)
 
-    -- Phase 3: Land on Target
-    local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
-    local dist3 = (targetLandPos - hrp.Position).Magnitude
-    local tween3 = TweenService:Create(hrp, TweenInfo.new(dist3 / flySpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetLandPos)})
-    tween3:Play()
-    tween3.Completed:Wait()
+        -- Phase 3: Land on Target
+        if success2 and not stopRequested then
+            StatusLabel.Text = "Đang hạ cánh..."
+            local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
+            tweenToTarget(hrp, CFrame.new(targetLandPos), flySpeed)
+        end
+    end
 
-    -- Reset
+    -- Khôi phục trạng thái ban đầu
     workspace.Gravity = oldGravity
     setNoclip(false)
     isFlying = false
+
     StartBtn.Text = "BẮT ĐẦU BAY"
     StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    StatusLabel.Text = "Đã đến nơi!"
+    StartBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+
+    if stopRequested then
+        StatusLabel.Text = "Đã dừng bay!"
+    else
+        StatusLabel.Text = "Đã đến nơi!"
+    end
 end
 
-StartBtn.MouseButton1Click:Connect(startFly)
+-- [TÍNH NĂNG MỚI] Xử lý khi nhấn nút Bắt đầu / Dừng bay
+StartBtn.MouseButton1Click:Connect(function()
+    if isFlying then
+        stopRequested = true
+        if currentTween then
+            currentTween:Cancel()
+        end
+    else
+        startFly()
+    end
+end)
