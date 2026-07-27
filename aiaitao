@@ -1,11 +1,11 @@
 --[[
     FLY TO PLAYER SCRIPT (BLACK & WHITE THEME) 
-    - FIXED: UI OVERLAPPING STATUS LABEL BUG
-    - WITH REFRESH PLAYER LIST BUTTON
+    - FIXED: CAN NOW FLY TO DEAD/KNOCKED/RAGDOLL PLAYERS
+    - ADDED: RED HIGHLIGHT FOR DEAD/KNOCKED PLAYERS (🔴)
+    - WITH REFRESH & SEARCH PLAYER FEATURE
     - WITH WATER-BLUE HIGHLIGHT FOR SELECTED PLAYER
-    - FULL INTERACTION SUPPORT WHILE FLYING
-    - FIXED: NO-CLIP / WALL CLIPPING BUG ON STOP
-    - WITH CLOSE, MINIMIZE, STOP FUNCTION & HEIGHT VISUALIZER PILLAR
+    - NO-CLIP / WALL CLIPPING BUG FIXED ON STOP
+    - CLOSE, MINIMIZE, STOP FUNCTION & HEIGHT VISUALIZER PILLAR
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -29,6 +29,7 @@ local showHeightVisual = false
 
 -- Colors
 local WATER_BLUE = Color3.fromRGB(0, 170, 255) -- Màu xanh nước biển khi chọn
+local COLOR_DEAD = Color3.fromRGB(255, 60, 60)   -- Màu đỏ khi bị gục/chết
 local DEFAULT_BTN_COLOR = Color3.fromRGB(20, 20, 20)
 
 -- UI Construction
@@ -37,7 +38,7 @@ ScreenGui.Name = "FlyToPlayerBW"
 ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- Main Frame (Mở rộng chiều cao lên 450px để tạo khoảng trống thoải mái)
+-- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 350, 0, 450)
@@ -203,7 +204,7 @@ SpeedBox.Font = Enum.Font.SourceSans
 SpeedBox.TextSize = 14
 SpeedBox.Parent = MainFrame
 
--- [ĐÃ SỬA LỖI CHE MẤT] Khung Thông Báo Riêng Biệt (Status Box)
+-- Status Frame
 local StatusFrame = Instance.new("Frame")
 StatusFrame.Name = "StatusFrame"
 StatusFrame.Size = UDim2.new(0.9, 0, 0, 36)
@@ -218,10 +219,10 @@ StatusLabel.Size = UDim2.new(1, -10, 1, 0)
 StatusLabel.Position = UDim2.new(0, 5, 0, 0)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Text = "Đã chọn: Chưa chọn ai"
-StatusLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Màu vàng nổi bật
+StatusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 StatusLabel.Font = Enum.Font.SourceSansBold
 StatusLabel.TextSize = 14
-StatusLabel.TextWrapped = true -- Tự động xuống dòng nếu tên dài
+StatusLabel.TextWrapped = true
 StatusLabel.Parent = StatusFrame
 
 -- Start / Stop Button
@@ -235,6 +236,37 @@ StartBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
 StartBtn.Font = Enum.Font.SourceSansBold
 StartBtn.TextSize = 16
 StartBtn.Parent = MainFrame
+
+--- [TÍNH NĂNG MỚI] Smart Target Finder (Mắt Tìm Xác/Người Gục) ---
+local function getTargetPart(plr)
+    if not plr or not plr.Character then return nil end
+    local char = plr.Character
+
+    -- Tìm theo thứ tự ưu tiên: Root -> Thân trên -> Thân dưới -> Bất kỳ bộ phận nào của xác
+    return char:FindFirstChild("HumanoidRootPart")
+        or char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("Torso")
+        or char:FindFirstChild("Head")
+        or char.PrimaryPart
+        or char:FindFirstChildOfClass("BasePart")
+end
+
+-- Kiểm tra xem người chơi có bị gục/chết/ragdoll hay không
+local function isPlayerDeadOrKnocked(plr)
+    if not plr or not plr.Character then return true end
+    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+    local targetPart = getTargetPart(plr)
+
+    if not targetPart then return true end
+    if hum and hum.Health <= 0 then return true end
+
+    -- Kiểm tra thuộc tính gục của một số tựa game (Knocked / Downed / Ragdoll)
+    if plr.Character:FindFirstChild("Knocked") or plr.Character:FindFirstChild("Downed") or plr.Character:FindFirstChild("Ragdoll") then
+        return true
+    end
+
+    return false
+end
 
 --- Clear Visual Pillar Function ---
 local function clearHeightVisual()
@@ -271,7 +303,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
---- Player Listing, Search, Refresh & Water-Blue Highlight ---
+--- Player Listing with RED DEAD INDICATOR & Blue Highlight ---
 local function updatePlayerList()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("TextButton") then
@@ -290,25 +322,38 @@ local function updatePlayerList()
             if filterText == "" or nameMatch or displayMatch then
                 visibleCount = visibleCount + 1
                 
+                local isDead = isPlayerDeadOrKnocked(plr)
                 local Btn = Instance.new("TextButton")
                 Btn.Size = UDim2.new(1, 0, 0, 25)
                 Btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
-                Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
                 Btn.Font = Enum.Font.SourceSans
                 Btn.TextSize = 14
                 Btn.Parent = PlayerList
 
+                -- Tên & Biểu tượng ĐỎ khi bị gục/chết
+                if isDead then
+                    Btn.Text = "🔴 [KO/Chết] " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.TextColor3 = COLOR_DEAD
+                else
+                    Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+
+                -- Tô màu XANH NƯỚC khi chọn
                 if selectedPlayer == plr then
                     Btn.BackgroundColor3 = WATER_BLUE
                     Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 else
                     Btn.BackgroundColor3 = DEFAULT_BTN_COLOR
-                    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 end
 
                 Btn.MouseButton1Click:Connect(function()
                     selectedPlayer = plr
-                    StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
+                    if isPlayerDeadOrKnocked(plr) then
+                        StatusLabel.Text = "Đã chọn: " .. plr.DisplayName .. " (ĐANG GỤC/CHẾT)"
+                    else
+                        StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
+                    end
 
                     for _, child in pairs(PlayerList:GetChildren()) do
                         if child:IsA("TextButton") then
@@ -438,7 +483,7 @@ local function setNoclip(state)
     end
 end
 
---- Helper Tween Motion with Cancel Support ---
+--- Helper Tween Motion ---
 local function tweenToTarget(hrp, targetCFrame, flySpeed)
     if stopRequested then return false end
 
@@ -467,12 +512,13 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
     return true
 end
 
---- Flying Logic ---
+--- Flying Logic (Đã hỗ trợ người bị gục/chết) ---
 local function startFly()
     if isFlying then return end
 
-    if not selectedPlayer or not selectedPlayer.Character or not selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        StatusLabel.Text = "Lỗi: Người chơi không tồn tại!"
+    local targetPart = getTargetPart(selectedPlayer)
+    if not selectedPlayer or not targetPart then
+        StatusLabel.Text = "Lỗi: Không tìm thấy người chơi hoặc xác!"
         return
     end
 
@@ -480,8 +526,6 @@ local function startFly()
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 
     local hrp = char.HumanoidRootPart
-    local targetHrp = selectedPlayer.Character.HumanoidRootPart
-
     local flyHeight = tonumber(HeightBox.Text) or 150
     local flySpeed = tonumber(SpeedBox.Text) or 100
 
@@ -502,17 +546,23 @@ local function startFly()
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
     local success1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
 
-    -- Phase 2: Fly to Target Overhead
+    -- Phase 2: Fly to Target Overhead (Cập nhật vị trí thực tế của xác)
     if success1 and not stopRequested then
-        StatusLabel.Text = "Đang di chuyển tới..."
-        local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
-        local success2 = tweenToTarget(hrp, CFrame.new(targetOverhead), flySpeed)
+        targetPart = getTargetPart(selectedPlayer)
+        if targetPart then
+            StatusLabel.Text = "Đang di chuyển tới vị trí..."
+            local targetOverhead = targetPart.Position + Vector3.new(0, flyHeight, 0)
+            local success2 = tweenToTarget(hrp, CFrame.new(targetOverhead), flySpeed)
 
-        -- Phase 3: Land on Target
-        if success2 and not stopRequested then
-            StatusLabel.Text = "Đang hạ cánh..."
-            local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
-            tweenToTarget(hrp, CFrame.new(targetLandPos), flySpeed)
+            -- Phase 3: Land on Target
+            if success2 and not stopRequested then
+                targetPart = getTargetPart(selectedPlayer)
+                if targetPart then
+                    StatusLabel.Text = "Đang hạ cánh xuống..."
+                    local targetLandPos = targetPart.Position + Vector3.new(0, 3, 0)
+                    tweenToTarget(hrp, CFrame.new(targetLandPos), flySpeed)
+                end
+            end
         end
     end
 
@@ -528,7 +578,7 @@ local function startFly()
     if stopRequested then
         StatusLabel.Text = "Đã dừng bay an toàn!"
     else
-        StatusLabel.Text = "Đã đến nơi!"
+        StatusLabel.Text = "Đã đến vị trí mục tiêu!"
     end
 end
 
