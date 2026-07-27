@@ -1,7 +1,8 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (FIXED ALL SYNTAX ERRORS)
-    - CHỈ SỬ DỤNG 1 GÓC DƯỚI BÊN PHẢI (BR) ĐỂ KÉO CO GIÃN
-    - KÉO DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ
+    FLY TO PLAYER & SAVED LOCATIONS (4-CORNER INDEPENDENT RESIZE)
+    - TĂNG KÍCH THƯỚC 4 GÓC KÉO CO GIÃN (TO HƠN, DỄ BẤM HƠN)
+    - CHỈ KÍCH HOẠT DUY NHẤT GÓC ĐANG BẤM GIỮ, BỎ QUA 3 GÓC CÒN LẠI (CHỐNG LỖI TỐC BIẾN)
+    - DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ (SMOOTH TITLE DRAG)
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
     - TÍNH NĂNG ĐỊNH VỊ TỌA ĐỘ ĐÃ LƯU (ESP ALL LOCATIONS / ESP LẺ THEO CHỌN + KHOẢNG CÁCH Realtime)
     - NÚT TOGGLE "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
@@ -226,54 +227,95 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ KÉO CO GIÃN DUY NHẤT 1 GÓC DƯỚI BÊN PHẢI (BOTTOM-RIGHT)
+-- TÍNH NĂNG 4 GÓC KÉO CO GIÃN LỚN HƠN (CHỈ KÍCH HOẠT GÓC ĐANG BẤM)
 ---------------------------------------------------------
 local minSize = Vector2.new(480, 280)
 local maxSize = Vector2.new(950, 600)
 
-local ResizeHandle = Instance.new("TextButton")
-ResizeHandle.Name = "Resize_BR_Only"
-ResizeHandle.Size = UDim2.new(0, 16, 0, 16)
-ResizeHandle.Position = UDim2.new(1, -16, 1, -16)
-ResizeHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ResizeHandle.BackgroundTransparency = 0.4
-ResizeHandle.Text = "◢"
-ResizeHandle.TextColor3 = TEXT_DARK
-ResizeHandle.Font = Enum.Font.SourceSansBold
-ResizeHandle.TextSize = 11
-ResizeHandle.ZIndex = 10
-ResizeHandle.Parent = MainFrame
+local activeResizeCorner = nil -- Tên của góc đang được bấm giữ kéo
+local resizeStartMousePos, resizeStartSize, resizeStartPos
 
-local HandleCorner = Instance.new("UICorner")
-HandleCorner.CornerRadius = UDim.new(0, 4)
-HandleCorner.Parent = ResizeHandle
+local cornersInfo = {
+    {Name = "TL", Icon = "◤", Pos = UDim2.new(0, 0, 0, 0)},
+    {Name = "TR", Icon = "◥", Pos = UDim2.new(1, -20, 0, 0)},
+    {Name = "BL", Icon = "◣", Pos = UDim2.new(0, 0, 1, -20)},
+    {Name = "BR", Icon = "◢", Pos = UDim2.new(1, -20, 1, -20)}
+}
 
-local isResizing = false
-local startMousePos, startSize
+for _, info in ipairs(cornersInfo) do
+    local handle = Instance.new("TextButton")
+    handle.Name = "ResizeCorner_" .. info.Name
+    handle.Size = UDim2.new(0, 20, 0, 20) -- Tăng kích thước nút lên 20x20
+    handle.Position = info.Pos
+    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    handle.BackgroundTransparency = 0.4
+    handle.Text = info.Icon
+    handle.TextColor3 = TEXT_DARK
+    handle.Font = Enum.Font.SourceSansBold
+    handle.TextSize = 13 -- Chữ biểu tượng to hơn
+    handle.ZIndex = 12
+    handle.Parent = MainFrame
 
-ResizeHandle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        isResizing = true
-        startMousePos = UserInputService:GetMouseLocation()
-        startSize = MainFrame.AbsoluteSize
-    end
-end)
+    local cornerShape = Instance.new("UICorner")
+    cornerShape.CornerRadius = UDim.new(0, 4)
+    cornerShape.Parent = handle
+
+    handle.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and activeResizeCorner == nil then
+            activeResizeCorner = info.Name
+            resizeStartMousePos = UserInputService:GetMouseLocation()
+            resizeStartSize = MainFrame.AbsoluteSize
+            resizeStartPos = MainFrame.AbsolutePosition
+        end
+    end)
+end
 
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        isResizing = false
+        activeResizeCorner = nil
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if isResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    if activeResizeCorner and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local currentMousePos = UserInputService:GetMouseLocation()
-        local delta = currentMousePos - startMousePos
+        local delta = currentMousePos - resizeStartMousePos
 
-        local newWidth = math.clamp(startSize.X + delta.X, minSize.X, maxSize.X)
-        local newHeight = math.clamp(startSize.Y + delta.Y, minSize.Y, maxSize.Y)
+        local rawW = resizeStartSize.X
+        local rawH = resizeStartSize.Y
 
-        MainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+        if activeResizeCorner == "BR" then
+            rawW = resizeStartSize.X + delta.X
+            rawH = resizeStartSize.Y + delta.Y
+        elseif activeResizeCorner == "BL" then
+            rawW = resizeStartSize.X - delta.X
+            rawH = resizeStartSize.Y + delta.Y
+        elseif activeResizeCorner == "TR" then
+            rawW = resizeStartSize.X + delta.X
+            rawH = resizeStartSize.Y - delta.Y
+        elseif activeResizeCorner == "TL" then
+            rawW = resizeStartSize.X - delta.X
+            rawH = resizeStartSize.Y - delta.Y
+        end
+
+        local actualW = math.clamp(rawW, minSize.X, maxSize.X)
+        local actualH = math.clamp(rawH, minSize.Y, maxSize.Y)
+
+        local deltaW = actualW - resizeStartSize.X
+        local deltaH = actualH - resizeStartSize.Y
+
+        local newX = resizeStartPos.X
+        local newY = resizeStartPos.Y
+
+        if activeResizeCorner == "BL" or activeResizeCorner == "TL" then
+            newX = resizeStartPos.X - deltaW
+        end
+        if activeResizeCorner == "TR" or activeResizeCorner == "TL" then
+            newY = resizeStartPos.Y - deltaH
+        end
+
+        MainFrame.Size = UDim2.new(0, actualW, 0, actualH)
+        MainFrame.Position = UDim2.new(0, newX, 0, newY)
     end
 end)
 
