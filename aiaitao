@@ -1,7 +1,7 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (SIDE-BY-SIDE CONTROLS EDITION)
-    - CẢI TIẾN MỚI: TÙY CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL ĐƯỢC CHUYỂN SANG BÊN PHẢI DANH SÁCH PLAYER
-    - NÚT TOGGLE BẤT TỬ: "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
+    FLY TO PLAYER & SAVED LOCATIONS (DRAGGABLE INNER SPLITTER EDITION)
+    - TÍNH NĂNG MỚI: NHẤN GIỮ THANH VIỀN BÊN PHẢI DANH SÁCH PLAYER ĐỂ KÉO DÃN/THU NHỎ BẢNG HEIGHT/SPEED/TRỤ
+    - NÚT TOGGLE BẤT TỬ: "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ TRÊN MÀN HÌNH
     - THEME: TRẮNG XÁM TRONG SUỐT GLASSMORPHISM ZEBRA
     - RESIZABLE 4 GÓC, CHUYỂN TAB, LƯU TỌA ĐỘ, BAY TỚI NGƯỜI GỤC
 --]]
@@ -24,6 +24,11 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
+-- Inner Split Ratio for Players Tab (Mặc định 60% trái - 40% phải)
+local splitRatio = 0.60 
+local minSplit = 0.30
+local maxSplit = 0.80
+
 -- Visual Height Pillar Variables
 local heightVisualPart = nil
 local heightVisualConn = nil
@@ -44,7 +49,7 @@ local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FlyBananaCatSideControls"
+ScreenGui.Name = "FlyBananaCatResizableSplitter"
 ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
@@ -73,7 +78,7 @@ Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
-Title.Text = "  🍌 BANANA FLY - SIDE CONTROLS EDITION"
+Title.Text = "  🍌 BANANA FLY - SPLITTER RESIZABLE"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -154,7 +159,7 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MENU (RESIZABLE)
+-- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU (MAIN RESIZABLE)
 ---------------------------------------------------------
 local minSize = Vector2.new(460, 290)
 local maxSize = Vector2.new(950, 600)
@@ -281,7 +286,7 @@ LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
 ---------------------------------------------------------
--- TAB 1: NGƯỜI CHƠI (BỐ CỤC CHIA 2 BÊN TRÁI - PHẢI)
+-- TAB 1: NGƯỜI CHƠI (CÓ THANH KÉO DÃN CO GIÃN ĐÔI BÊN)
 ---------------------------------------------------------
 local PlayersPage = Instance.new("Frame")
 PlayersPage.Size = UDim2.new(1, -24, 1, -80)
@@ -290,10 +295,8 @@ PlayersPage.BackgroundTransparency = 1
 PlayersPage.Visible = true
 PlayersPage.Parent = MainFrame
 
---- [BÊN TRÁI]: TÌM KIẾM & DANH SÁCH PLAYER (61% chiều rộng) ---
+-- [BÊN TRÁI]: TÌM KIẾM & DANH SÁCH PLAYER
 local SearchBox = Instance.new("TextBox")
-SearchBox.Size = UDim2.new(0.42, 0, 0, 26)
-SearchBox.Position = UDim2.new(0, 0, 0, 0)
 SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SearchBox.BackgroundTransparency = 0.4
 SearchBox.PlaceholderText = "🔍 Tìm tên..."
@@ -305,8 +308,6 @@ SearchBox.TextSize = 12
 SearchBox.Parent = PlayersPage
 
 local RefreshBtn = Instance.new("TextButton")
-RefreshBtn.Size = UDim2.new(0.18, 0, 0, 26)
-RefreshBtn.Position = UDim2.new(0.43, 0, 0, 0)
 RefreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 RefreshBtn.BackgroundTransparency = 0.4
 RefreshBtn.Text = "🔄 Tải Lại"
@@ -316,8 +317,6 @@ RefreshBtn.TextSize = 11
 RefreshBtn.Parent = PlayersPage
 
 local PlayerList = Instance.new("ScrollingFrame")
-PlayerList.Size = UDim2.new(0.61, 0, 1, -100)
-PlayerList.Position = UDim2.new(0, 0, 0, 32)
 PlayerList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 PlayerList.BackgroundTransparency = 0.75
 PlayerList.BorderColor3 = Color3.fromRGB(220, 225, 235)
@@ -328,11 +327,27 @@ local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
---- [BÊN PHẢI]: BẢNG ĐIỀU CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL (37% chiều rộng) ---
+-- [MỚI]: THANH KÉO NẮM GIỮA HAI CỘT (DRAGGABLE SPLITTER)
+local SplitDivider = Instance.new("TextButton")
+SplitDivider.Name = "SplitDivider"
+SplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
+SplitDivider.BackgroundTransparency = 0.2
+SplitDivider.BorderColor3 = Color3.fromRGB(255, 255, 255)
+SplitDivider.BorderSizePixel = 1
+SplitDivider.Text = "┆"
+SplitDivider.TextColor3 = TEXT_DARK
+SplitDivider.Font = Enum.Font.SourceSansBold
+SplitDivider.TextSize = 13
+SplitDivider.ZIndex = 8
+SplitDivider.Parent = PlayersPage
+
+local SplitterCorner = Instance.new("UICorner")
+SplitterCorner.CornerRadius = UDim.new(0, 4)
+SplitterCorner.Parent = SplitDivider
+
+-- [BÊN PHẢI]: BẢNG ĐIỀU CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL
 local P_RightPanel = Instance.new("Frame")
 P_RightPanel.Name = "P_RightPanel"
-P_RightPanel.Size = UDim2.new(0.37, 0, 1, -100)
-P_RightPanel.Position = UDim2.new(0.63, 0, 0, 0)
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_RightPanel.BackgroundTransparency = 0.65
 P_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
@@ -342,7 +357,6 @@ local P_PanelCorner = Instance.new("UICorner")
 P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
--- Height Control
 local P_HeightLabel = Instance.new("TextLabel")
 P_HeightLabel.Size = UDim2.new(1, -10, 0, 18)
 P_HeightLabel.Position = UDim2.new(0, 5, 0, 6)
@@ -365,7 +379,6 @@ P_HeightBox.Font = Enum.Font.SourceSansBold
 P_HeightBox.TextSize = 13
 P_HeightBox.Parent = P_RightPanel
 
--- Speed Control
 local P_SpeedLabel = Instance.new("TextLabel")
 P_SpeedLabel.Size = UDim2.new(1, -10, 0, 18)
 P_SpeedLabel.Position = UDim2.new(0, 5, 0, 56)
@@ -388,7 +401,6 @@ P_SpeedBox.Font = Enum.Font.SourceSansBold
 P_SpeedBox.TextSize = 13
 P_SpeedBox.Parent = P_RightPanel
 
--- Visual Pillar Toggle (Đã chuyển sang bên phải danh sách)
 local HeightVisualBtn = Instance.new("TextButton")
 HeightVisualBtn.Size = UDim2.new(1, -10, 0, 28)
 HeightVisualBtn.Position = UDim2.new(0, 5, 0, 108)
@@ -404,7 +416,63 @@ local VisualCorner = Instance.new("UICorner")
 VisualCorner.CornerRadius = UDim.new(0, 4)
 VisualCorner.Parent = HeightVisualBtn
 
---- [PHẦN ĐÁY]: TRẠNG THÁI & NÚT BẮT ĐẦU BAY ---
+--- [PHẦN CẬP NHẬT GIAO DIỆN KHI KÉO THANH PHÂN CHIA] ---
+local function updatePlayersLayout()
+    local leftRatio = math.clamp(splitRatio, minSplit, maxSplit)
+    local rightRatio = 1 - leftRatio - 0.02 -- Dành 2% cho thanh divider
+
+    -- Cập nhật kích thước & vị trí cột bên trái
+    SearchBox.Size = UDim2.new(leftRatio * 0.68, 0, 0, 26)
+    SearchBox.Position = UDim2.new(0, 0, 0, 0)
+
+    RefreshBtn.Size = UDim2.new(leftRatio * 0.28, 0, 0, 26)
+    RefreshBtn.Position = UDim2.new(leftRatio * 0.70, 0, 0, 0)
+
+    PlayerList.Size = UDim2.new(leftRatio, 0, 1, -100)
+    PlayerList.Position = UDim2.new(0, 0, 0, 32)
+
+    -- Cập nhật vị trí thanh Kéo Nắm Splitter
+    SplitDivider.Size = UDim2.new(0, 8, 1, -100)
+    SplitDivider.Position = UDim2.new(leftRatio + 0.003, 0, 0, 0)
+
+    -- Cập nhật kích thước & vị trí cột bên phải (Bảng điều chỉnh)
+    P_RightPanel.Position = UDim2.new(leftRatio + 0.02, 0, 0, 0)
+    P_RightPanel.Size = UDim2.new(rightRatio, 0, 1, -100)
+end
+
+-- Logic kéo giữ thanh Divider
+local isDraggingSplit = false
+
+SplitDivider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSplit = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSplit = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingSplit and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local pageAbsPos = PlayersPage.AbsolutePosition.X
+        local pageAbsSize = PlayersPage.AbsoluteSize.X
+        if pageAbsSize > 0 then
+            local mouseX = UserInputService:GetMouseLocation().X
+            local newRatio = (mouseX - pageAbsPos) / pageAbsSize
+            splitRatio = math.clamp(newRatio, minSplit, maxSplit)
+            updatePlayersLayout()
+        end
+    end
+end)
+
+-- Tự động cập nhật lại khi thay đổi kích thước Menu chính
+MainFrame:GetPropertyChangedSignal("Size"):Connect(updatePlayersLayout)
+updatePlayersLayout()
+
+--- [PHẦN ĐÁY TAB PLAYERS]: TRẠNG THÁI & NÚT BẮT ĐẦU BAY ---
 local P_StatusFrame = Instance.new("Frame")
 P_StatusFrame.Size = UDim2.new(1, 0, 0, 24)
 P_StatusFrame.Position = UDim2.new(0, 0, 1, -68)
