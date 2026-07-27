@@ -1,8 +1,7 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (4-CORNER INDEPENDENT RESIZE)
-    - TĂNG KÍCH THƯỚC 4 GÓC KÉO CO GIÃN (TO HƠN, DỄ BẤM HƠN)
-    - CHỈ KÍCH HOẠT DUY NHẤT GÓC ĐANG BẤM GIỮ, BỎ QUA 3 GÓC CÒN LẠI (CHỐNG LỖI TỐC BIẾN)
-    - DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ (SMOOTH TITLE DRAG)
+    FLY TO PLAYER & SAVED LOCATIONS (SELF GLOW FEATURE ADDED)
+    - THÊM TÍNH NĂNG PHÁT SÁNG BẢN THÂN (SELF GLOW) DỊU MẮT, KHÔNG CHÓI, CHỈNH BÁN KÍNH SÁNG
+    - 4 GÓC KÉO CO GIÃN TĂNG KÍCH THƯỚC (CHỈ KÍCH HOẠT GÓC ĐANG BẤM GIỮ)
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
     - TÍNH NĂNG ĐỊNH VỊ TỌA ĐỘ ĐÃ LƯU (ESP ALL LOCATIONS / ESP LẺ THEO CHỌN + KHOẢNG CÁCH Realtime)
     - NÚT TOGGLE "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
@@ -42,6 +41,10 @@ local locEspAllActive = false
 local locEspSingleActive = false
 local locEspStorage = {}       
 
+-- Glow / Light Variables
+local glowActive = false
+local glowLightInstance = nil
+
 -- Visual Height Pillar Variables
 local heightVisualPart = nil
 local heightVisualConn = nil
@@ -70,8 +73,8 @@ ScreenGui.DisplayOrder = 999
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 580, 0, 390)
-MainFrame.Position = UDim2.new(0.5, -290, 0.5, -195)
+MainFrame.Size = UDim2.new(0, 580, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -210)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
 MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
@@ -229,10 +232,10 @@ end)
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN LỚN HƠN (CHỈ KÍCH HOẠT GÓC ĐANG BẤM)
 ---------------------------------------------------------
-local minSize = Vector2.new(480, 280)
-local maxSize = Vector2.new(950, 600)
+local minSize = Vector2.new(480, 310)
+local maxSize = Vector2.new(950, 650)
 
-local activeResizeCorner = nil -- Tên của góc đang được bấm giữ kéo
+local activeResizeCorner = nil 
 local resizeStartMousePos, resizeStartSize, resizeStartPos
 
 local cornersInfo = {
@@ -245,14 +248,14 @@ local cornersInfo = {
 for _, info in ipairs(cornersInfo) do
     local handle = Instance.new("TextButton")
     handle.Name = "ResizeCorner_" .. info.Name
-    handle.Size = UDim2.new(0, 20, 0, 20) -- Tăng kích thước nút lên 20x20
+    handle.Size = UDim2.new(0, 20, 0, 20) 
     handle.Position = info.Pos
     handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     handle.BackgroundTransparency = 0.4
     handle.Text = info.Icon
     handle.TextColor3 = TEXT_DARK
     handle.Font = Enum.Font.SourceSansBold
-    handle.TextSize = 13 -- Chữ biểu tượng to hơn
+    handle.TextSize = 13 
     handle.ZIndex = 12
     handle.Parent = MainFrame
 
@@ -429,10 +432,10 @@ local P_PanelCorner = Instance.new("UICorner")
 P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
--- Nút ESP Player
+-- 1. Nút ESP Player All
 local EspAllBtn = Instance.new("TextButton")
-EspAllBtn.Size = UDim2.new(1, -10, 0, 24)
-EspAllBtn.Position = UDim2.new(0, 5, 0, 6)
+EspAllBtn.Size = UDim2.new(1, -10, 0, 22)
+EspAllBtn.Position = UDim2.new(0, 5, 0, 5)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspAllBtn.BackgroundTransparency = 0.3
 EspAllBtn.Text = "📡 ESP Player Tất Cả: OFF"
@@ -445,9 +448,10 @@ local EspAllCorner = Instance.new("UICorner")
 EspAllCorner.CornerRadius = UDim.new(0, 4)
 EspAllCorner.Parent = EspAllBtn
 
+-- 2. Nút ESP Player Single
 local EspSingleBtn = Instance.new("TextButton")
-EspSingleBtn.Size = UDim2.new(1, -10, 0, 24)
-EspSingleBtn.Position = UDim2.new(0, 5, 0, 34)
+EspSingleBtn.Size = UDim2.new(1, -10, 0, 22)
+EspSingleBtn.Position = UDim2.new(0, 5, 0, 31)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspSingleBtn.BackgroundTransparency = 0.3
 EspSingleBtn.Text = "🎯 ESP Player Lẻ: OFF"
@@ -460,56 +464,96 @@ local EspSingleCorner = Instance.new("UICorner")
 EspSingleCorner.CornerRadius = UDim.new(0, 4)
 EspSingleCorner.Parent = EspSingleBtn
 
+---------------------------------------------------------
+-- CÁC CÔNG CỤ PHÁT SÁNG (BÁN KÍNH SÁNG, NÚT TẮT BẬT)
+---------------------------------------------------------
+local GlowToggleBtn = Instance.new("TextButton")
+GlowToggleBtn.Size = UDim2.new(1, -10, 0, 22)
+GlowToggleBtn.Position = UDim2.new(0, 5, 0, 57)
+GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+GlowToggleBtn.BackgroundTransparency = 0.3
+GlowToggleBtn.Text = "💡 Phát Sáng Nhân Vật: OFF"
+GlowToggleBtn.TextColor3 = TEXT_DARK
+GlowToggleBtn.Font = Enum.Font.SourceSansBold
+GlowToggleBtn.TextSize = 11
+GlowToggleBtn.Parent = P_RightPanel
+
+local GlowCorner = Instance.new("UICorner")
+GlowCorner.CornerRadius = UDim.new(0, 4)
+GlowCorner.Parent = GlowToggleBtn
+
+local GlowRangeLabel = Instance.new("TextLabel")
+GlowRangeLabel.Size = UDim2.new(1, -10, 0, 14)
+GlowRangeLabel.Position = UDim2.new(0, 5, 0, 83)
+GlowRangeLabel.BackgroundTransparency = 1
+GlowRangeLabel.Text = "💡 Bán kính sáng (Studs):"
+GlowRangeLabel.TextColor3 = TEXT_DARK
+GlowRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+GlowRangeLabel.Font = Enum.Font.SourceSansBold
+GlowRangeLabel.TextSize = 10
+GlowRangeLabel.Parent = P_RightPanel
+
+local GlowRangeBox = Instance.new("TextBox")
+GlowRangeBox.Size = UDim2.new(1, -10, 0, 20)
+GlowRangeBox.Position = UDim2.new(0, 5, 0, 99)
+GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+GlowRangeBox.BackgroundTransparency = 0.3
+GlowRangeBox.Text = "50"
+GlowRangeBox.TextColor3 = TEXT_DARK
+GlowRangeBox.Font = Enum.Font.SourceSansBold
+GlowRangeBox.TextSize = 11
+GlowRangeBox.Parent = P_RightPanel
+
 -- Chiều cao
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.Size = UDim2.new(1, -10, 0, 16)
-P_HeightLabel.Position = UDim2.new(0, 5, 0, 64)
+P_HeightLabel.Size = UDim2.new(1, -10, 0, 14)
+P_HeightLabel.Position = UDim2.new(0, 5, 0, 123)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
 P_HeightLabel.TextColor3 = TEXT_DARK
 P_HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_HeightLabel.Font = Enum.Font.SourceSansBold
-P_HeightLabel.TextSize = 11
+P_HeightLabel.TextSize = 10
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.Size = UDim2.new(1, -10, 0, 22)
-P_HeightBox.Position = UDim2.new(0, 5, 0, 82)
+P_HeightBox.Size = UDim2.new(1, -10, 0, 20)
+P_HeightBox.Position = UDim2.new(0, 5, 0, 139)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
 P_HeightBox.TextColor3 = TEXT_DARK
 P_HeightBox.Font = Enum.Font.SourceSansBold
-P_HeightBox.TextSize = 12
+P_HeightBox.TextSize = 11
 P_HeightBox.Parent = P_RightPanel
 
 -- Tốc độ
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.Size = UDim2.new(1, -10, 0, 16)
-P_SpeedLabel.Position = UDim2.new(0, 5, 0, 108)
+P_SpeedLabel.Size = UDim2.new(1, -10, 0, 14)
+P_SpeedLabel.Position = UDim2.new(0, 5, 0, 163)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
 P_SpeedLabel.TextColor3 = TEXT_DARK
 P_SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_SpeedLabel.Font = Enum.Font.SourceSansBold
-P_SpeedLabel.TextSize = 11
+P_SpeedLabel.TextSize = 10
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.Size = UDim2.new(1, -10, 0, 22)
-P_SpeedBox.Position = UDim2.new(0, 5, 0, 126)
+P_SpeedBox.Size = UDim2.new(1, -10, 0, 20)
+P_SpeedBox.Position = UDim2.new(0, 5, 0, 179)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
 P_SpeedBox.TextColor3 = TEXT_DARK
 P_SpeedBox.Font = Enum.Font.SourceSansBold
-P_SpeedBox.TextSize = 12
+P_SpeedBox.TextSize = 11
 P_SpeedBox.Parent = P_RightPanel
 
 -- Visual Height Button
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(1, -10, 0, 24)
-HeightVisualBtn.Position = UDim2.new(0, 5, 0, 154)
+HeightVisualBtn.Size = UDim2.new(1, -10, 0, 22)
+HeightVisualBtn.Position = UDim2.new(0, 5, 0, 203)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
 HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
@@ -686,6 +730,62 @@ end
 
 PlayersTabBtn.MouseButton1Click:Connect(function() switchTab("Players") end)
 LocationsTabBtn.MouseButton1Click:Connect(function() switchTab("Locations") end)
+
+---------------------------------------------------------
+-- LOGIC PHÁT SÁNG BẢN THÂN (SELF GLOW LOGIC)
+---------------------------------------------------------
+local function updateGlow()
+    local char = LocalPlayer.Character
+    if not glowActive or not char then
+        if glowLightInstance then
+            glowLightInstance:Destroy()
+            glowLightInstance = nil
+        end
+        return
+    end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+    if hrp then
+        if not glowLightInstance or glowLightInstance.Parent ~= hrp then
+            if glowLightInstance then glowLightInstance:Destroy() end
+            local light = Instance.new("PointLight")
+            light.Name = "BananaSelfGlow"
+            light.Color = Color3.fromRGB(255, 245, 200) -- MÀU ẤM DỊU NHẸ, KHÔNG BỊ CHÓI
+            light.Brightness = 1.2                      -- CƯỜNG ĐỘ DỊU DÀNG
+            light.Shadows = false
+            light.Parent = hrp
+            glowLightInstance = light
+        end
+
+        local rangeVal = tonumber(GlowRangeBox.Text) or 50
+        glowLightInstance.Range = math.clamp(rangeVal, 5, 300)
+    end
+end
+
+GlowToggleBtn.MouseButton1Click:Connect(function()
+    glowActive = not glowActive
+    if glowActive then
+        GlowToggleBtn.Text = "💡 Phát Sáng Nhân Vật: ON"
+        GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        GlowToggleBtn.Text = "💡 Phát Sáng Nhân Vật: OFF"
+        GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    end
+    updateGlow()
+end)
+
+GlowRangeBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if glowActive then
+        updateGlow()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if glowActive then
+        updateGlow()
+    end
+end)
 
 ---------------------------------------------------------
 -- LOGIC CƠ BẢN & XỬ LÝ BAY
@@ -1358,6 +1458,7 @@ end
 CloseBtn.MouseButton1Click:Connect(function()
     removeAllESP()
     removeAllLocESP()
+    if glowLightInstance then glowLightInstance:Destroy() end
     if heightVisualPart then heightVisualPart:Destroy() end
     if heightVisualConn then heightVisualConn:Disconnect() end
     ScreenGui:Destroy()
