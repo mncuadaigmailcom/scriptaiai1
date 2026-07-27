@@ -1,10 +1,9 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (DEATH TIMER & PLAYER ESP EDITION)
-    - THÊM TÍNH NĂNG ĐẾM GIỜ HẠN ĐỊNH VỊ NGƯỜI BỊ GỤC/CHỜ CỨU
-    - TÙY CHỈNH THỜI GIAN THEO GIÂY HOẶC PHÚT TRONG BẢNG ĐIỀU CHỈNH
-    - HẾT THỜI GIAN KHÔNG CỨU KỊP -> TỰ ĐỘNG TẮT ĐỊNH VỊ NGƯỜI ĐÓ
-    - ĐỒNG ĐỘI CỨU KỊP -> TỰ ĐỘNG RESET TRẠNG THÁI SỐNG (BÌNH THƯỜNG)
-    - BẢNG NỔI 3D HIỂN THỊ THỜI GIAN CÒN LẠI VÀ KHỎANG CÁCH REAL-TIME
+    FLY TO PLAYER & SAVED LOCATIONS (DEATH TIMER & HEALTH ESP EDITION)
+    - ĐÃ XÓA TÍNH NĂNG KÉO CO GIÃN 4 GÓC MENU
+    - HIỂN THỊ LƯỢNG MÁU REAL-TIME CỦA NGƯỜI CHƠI (HP: Current/Max)
+    - TỰ ĐỘNG ĐẾM THỜI GIAN NGƯỜI CHƠI BỊ GỤC ĐANG CHỜ CỨU
+    - TỰ ĐỘNG RESET THỜI GIAN VỀ 0 KHI ĐỒNG ĐỘI CỨU SỐNG LẠI
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -45,9 +44,9 @@ local isTrackingAllPlayers = false
 local singleTrackedPlayer = nil
 local playerTrackRenderConn = nil
 
--- Death/Knocked Timer System Variables (TÍNH NĂNG MỚI)
-local downedTimestamps = {} -- Luu thoi gian bat dau bi guc cua tung player
-local deathTimerUnit = "Min" -- Don vi mac dinh: "Min" (Phut) hoac "Sec" (Giay)
+-- Death/Knocked Timer System Variables
+local downedTimestamps = {} -- Lưu thời điểm bắt đầu bị gục của từng player
+local deathTimerUnit = "Min" -- Đơn vị mặc định: "Min" (Phút) hoặc "Sec" (Giây)
 
 -- Theme Colors
 local COLOR_MAIN_BG = Color3.fromRGB(245, 247, 252)
@@ -93,7 +92,7 @@ Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
-Title.Text = "  🍌 BANANA FLY - SPLITTER RESIZABLE"
+Title.Text = "  🍌 BANANA FLY & PLAYER ESP"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -172,94 +171,6 @@ end)
 MinimizeBtn.MouseButton1Click:Connect(function()
     setMenuVisible(false)
 end)
-
----------------------------------------------------------
--- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU
----------------------------------------------------------
-local minSize = Vector2.new(460, 270)
-local maxSize = Vector2.new(950, 650)
-
-local corners = {
-    {Name = "TL", Cursor = "◤", Pos = UDim2.new(0, 0, 0, 0)},
-    {Name = "TR", Cursor = "◥", Pos = UDim2.new(1, -14, 0, 0)},
-    {Name = "BL", Cursor = "◣", Pos = UDim2.new(0, 0, 1, -14)},
-    {Name = "BR", Cursor = "◢", Pos = UDim2.new(1, -14, 1, -14)}
-}
-
-for _, cornerInfo in ipairs(corners) do
-    local handle = Instance.new("TextButton")
-    handle.Name = "Resize_" .. cornerInfo.Name
-    handle.Size = UDim2.new(0, 14, 0, 14)
-    handle.Position = cornerInfo.Pos
-    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    handle.BackgroundTransparency = 0.5
-    handle.Text = cornerInfo.Cursor
-    handle.TextColor3 = TEXT_DARK
-    handle.Font = Enum.Font.SourceSansBold
-    handle.TextSize = 10
-    handle.ZIndex = 10
-    handle.Parent = MainFrame
-
-    local handleCorner = Instance.new("UICorner")
-    handleCorner.CornerRadius = UDim.new(0, 3)
-    handleCorner.Parent = handle
-
-    local isDragging = false
-    local startMousePos, startSize, startPos
-
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = true
-            startMousePos = UserInputService:GetMouseLocation()
-            startSize = MainFrame.AbsoluteSize
-            startPos = MainFrame.AbsolutePosition
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = false
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local currentMousePos = UserInputService:GetMouseLocation()
-            local delta = currentMousePos - startMousePos
-
-            local newW = startSize.X
-            local newH = startSize.Y
-            local newX = startPos.X
-            local newY = startPos.Y
-
-            if cornerInfo.Name == "BR" then
-                newW = startSize.X + delta.X
-                newH = startSize.Y + delta.Y
-            elseif cornerInfo.Name == "BL" then
-                newW = startSize.X - delta.X
-                newH = startSize.Y + delta.Y
-                newX = startPos.X + delta.X
-            elseif cornerInfo.Name == "TR" then
-                newW = startSize.X + delta.X
-                newH = startSize.Y - delta.Y
-                newY = startPos.Y + delta.Y
-            elseif cornerInfo.Name == "TL" then
-                newW = startSize.X - delta.X
-                newH = startSize.Y - delta.Y
-                newX = startPos.X + delta.X
-                newY = startPos.Y + delta.Y
-            end
-
-            newW = math.clamp(newW, minSize.X, maxSize.X)
-            newH = math.clamp(newH, minSize.Y, maxSize.Y)
-
-            MainFrame.Size = UDim2.new(0, newW, 0, newH)
-            if cornerInfo.Name == "BL" or cornerInfo.Name == "TL" or cornerInfo.Name == "TR" then
-                MainFrame.Position = UDim2.new(0, newX, 0, newY)
-            end
-        end
-    end)
-end
 
 ---------------------------------------------------------
 -- THANH TAB BAR TRONG SUỐT
@@ -446,7 +357,7 @@ local VisualCorner = Instance.new("UICorner")
 VisualCorner.CornerRadius = UDim.new(0, 4)
 VisualCorner.Parent = HeightVisualBtn
 
--- [MỚI]: THỜI GIAN HẠN CHỜ GỤC & NÚT CHUYỂN ĐỔI ĐƠN VỊ (GIÂY/PHÚT)
+-- THỜI GIAN HẠN CHỜ GỤC & NÚT CHUYỂN ĐỔI ĐƠN VỊ
 local P_DeathTimerLabel = Instance.new("TextLabel")
 P_DeathTimerLabel.Size = UDim2.new(1, -10, 0, 16)
 P_DeathTimerLabel.Position = UDim2.new(0, 5, 0, 122)
@@ -715,7 +626,7 @@ TrackAllBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ ĐỊNH VỊ NGƯỜI CHƠI (TÍNH NĂNG TỰ ĐỘNG HẾT HẠN KHI GỤC)
+-- CƠ CHẾ ĐỊNH VỊ NGƯỜI CHƠI (CẬP NHẬT MÁU & ĐẾM GIỜ CHỜ CỨU)
 ---------------------------------------------------------
 local function getTargetPart(plr)
     if not plr or not plr.Character then return nil end
@@ -790,7 +701,7 @@ local function refreshPlayerMarkers()
     for _, plr in ipairs(targetList) do
         local bgui = Instance.new("BillboardGui")
         bgui.Name = "PlrMarker_" .. plr.Name
-        bgui.Size = UDim2.new(0, 165, 0, 44)
+        bgui.Size = UDim2.new(0, 180, 0, 52)
         bgui.AlwaysOnTop = true
         bgui.ExtentsOffset = Vector3.new(0, 3, 0)
         bgui.Parent = folder
@@ -810,7 +721,7 @@ local function refreshPlayerMarkers()
         table.insert(activePlrGuis, {plr = plr, textLabel = txt, bgui = bgui})
     end
 
-    -- XỬ LÝ ĐẾM GIỜ VÀ HIỂN THỊ REAL-TIME
+    -- XỬ LÝ LƯỢNG MÁU, ĐẾM GIỜ & HIỂN THỊ REAL-TIME
     playerTrackRenderConn = RunService.RenderStepped:Connect(function()
         local myChar = LocalPlayer.Character
         local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -825,40 +736,38 @@ local function refreshPlayerMarkers()
             if plr and plr.Parent then
                 local targetPart = getTargetPart(plr)
                 local isDead = isPlayerDeadOrKnocked(plr)
+                local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+                local currentHp = hum and math.max(0, math.floor(hum.Health)) or 0
+                local maxHp = hum and math.floor(hum.MaxHealth) or 100
 
                 if isDead then
-                    -- LƯU LẠI THỜI ĐIỂM BẮT ĐẦU BỊ GỤC
+                    -- LƯU LẠI THỜI ĐIỂM BẮT ĐẦU BỊ GỤC (LẦN ĐẦU)
                     if not downedTimestamps[plr] then
                         downedTimestamps[plr] = tick()
                     end
 
-                    local elapsed = tick() - downedTimestamps[plr]
+                    local waitTime = math.floor(tick() - downedTimestamps[plr])
 
-                    -- NẾU HẾT HẠN THỜI GIAN KHÔNG CỨU KỊP -> TẮT ĐỊNH VỊ
-                    if elapsed >= maxAllowedSec then
+                    -- HẾT HẠN THỜI GIAN CHỜ CỨU -> TẮT ĐỊNH VỊ
+                    if waitTime >= maxAllowedSec then
                         mData.bgui.Enabled = false
                     else
                         mData.bgui.Enabled = true
                         if targetPart then
                             mData.bgui.Adornee = targetPart
                             local dist = math.floor((targetPart.Position - myPos).Magnitude)
-                            local remaining = math.ceil(maxAllowedSec - elapsed)
 
-                            local remStr = ""
-                            if deathTimerUnit == "Min" then
-                                local m = math.floor(remaining / 60)
-                                local s = remaining % 60
-                                remStr = string.format("%dm %ds", m, s)
-                            else
-                                remStr = string.format("%ds", remaining)
-                            end
+                            local m = math.floor(waitTime / 60)
+                            local s = waitTime % 60
+                            local timeStr = (m > 0) and string.format("%dm %ds", m, s) or string.format("%ds", s)
 
                             mData.textLabel.TextColor3 = COLOR_DEAD
-                            mData.textLabel.Text = string.format("🔴 [GỤC/CỨU] %s\n📏 %dm | ⏱️ Hạn: %s", plr.DisplayName, dist, remStr)
+                            mData.textLabel.Text = string.format("🔴 [GỤC/CHỜ CỨU] %s\n❤️ HP: %d/%d\n📏 %dm | ⏱️ Đã chờ: %s", 
+                                plr.DisplayName, currentHp, maxHp, dist, timeStr)
                         end
                     end
                 else
-                    -- NGƯỜI BÌNH THƯỜNG / ĐỘNG ĐỘI CỨU KỊP -> RESET TIMESTAMP
+                    -- ĐỒNG ĐỘI CỨU SỐNG LẠI -> TỰ ĐỘNG RESET TIMESTAMP VỀ NULL
                     downedTimestamps[plr] = nil
                     mData.bgui.Enabled = true
 
@@ -866,7 +775,8 @@ local function refreshPlayerMarkers()
                         mData.bgui.Adornee = targetPart
                         local dist = math.floor((targetPart.Position - myPos).Magnitude)
                         mData.textLabel.TextColor3 = Color3.fromRGB(40, 220, 120)
-                        mData.textLabel.Text = string.format("👤 %s\n📏 %dm", plr.DisplayName, dist)
+                        mData.textLabel.Text = string.format("👤 %s\n❤️ HP: %d/%d | 📏 %dm", 
+                            plr.DisplayName, currentHp, maxHp, dist)
                     end
                 end
             end
