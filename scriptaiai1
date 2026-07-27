@@ -1,920 +1,245 @@
--- ============================================
--- EXECUTOR MENU (Bay & Đứng trên không dùng nút game)
--- Đặt trong StarterGui -> LocalScript
--- ============================================
+--[[
+    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME)
+    Features: Sky-Fly approach, Speed & Height control, Noclip while flying.
+--]]
 
-local player = game.Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
-local lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ExecutorMenu"
-screenGui.Parent = playerGui
+-- Variables
+local selectedPlayer = nil
+local isFlying = false
+local noclipConnection = nil
 
-print("✅ Script executor đã khởi động.")
+-- UI Construction
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlyToPlayerBW"
+ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
+ScreenGui.ResetOnSpawn = false
 
--- Nút toggle chính
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 45, 0, 45)
-toggleButton.Position = UDim2.new(1, -55, 1, -55)
-toggleButton.Text = "⚙"
-toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.TextSize = 24
-toggleButton.BorderSizePixel = 0
-toggleButton.Parent = screenGui
-Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 350, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -210)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- Black background
+MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255) -- White border
+MainFrame.BorderSizePixel = 2
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
 
-toggleButton.MouseEnter:Connect(function()
-	toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-end)
-toggleButton.MouseLeave:Connect(function()
-	toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-end)
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Title.BorderColor3 = Color3.fromRGB(255, 255, 255)
+Title.BorderSizePixel = 1
+Title.Text = "FLY TO PLAYER"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
 
--- Khung chính
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 340, 0, 350)
-mainFrame.Position = UDim2.new(0.5, -170, 0.5, -175)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-mainFrame.BorderSizePixel = 0
-mainFrame.Visible = false
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+-- Player List (ScrollingFrame)
+local PlayerList = Instance.new("ScrollingFrame")
+PlayerList.Size = UDim2.new(0.9, 0, 0, 150)
+PlayerList.Position = UDim2.new(0.05, 0, 0.12, 0)
+PlayerList.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+PlayerList.BorderColor3 = Color3.fromRGB(200, 200, 200)
+PlayerList.ScrollBarThickness = 6
+PlayerList.Parent = MainFrame
 
-local borderFrame = Instance.new("Frame")
-borderFrame.Size = UDim2.new(1, 2, 1, 2)
-borderFrame.Position = UDim2.new(0, -1, 0, -1)
-borderFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-borderFrame.BorderSizePixel = 0
-borderFrame.Parent = mainFrame
-Instance.new("UICorner", borderFrame).CornerRadius = UDim.new(0, 10)
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = PlayerList
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 2)
 
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 30)
-titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
-titleBar.Draggable = true
+-- Height Input Label & Box
+local HeightLabel = Instance.new("TextLabel")
+HeightLabel.Size = UDim2.new(0.4, 0, 0, 30)
+HeightLabel.Position = UDim2.new(0.05, 0, 0.52, 0)
+HeightLabel.BackgroundTransparency = 1
+HeightLabel.Text = "Chiều cao (Height):"
+HeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
+HeightLabel.Font = Enum.Font.SourceSans
+HeightLabel.TextSize = 14
+HeightLabel.Parent = MainFrame
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -40, 1, 0)
-titleLabel.Position = UDim2.new(0, 15, 0, 0)
-titleLabel.Text = "⚡ Executor"
-titleLabel.BackgroundTransparency = 1
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.TextSize = 16
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Parent = titleBar
+local HeightBox = Instance.new("TextBox")
+HeightBox.Size = UDim2.new(0.45, 0, 0, 30)
+HeightBox.Position = UDim2.new(0.5, 0, 0.52, 0)
+HeightBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+HeightBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+HeightBox.Text = "150" -- Default height
+HeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeightBox.Font = Enum.Font.SourceSans
+HeightBox.TextSize = 14
+HeightBox.Parent = MainFrame
 
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(1, -30, 0, 0)
-closeButton.Text = "✕"
-closeButton.BackgroundTransparency = 1
-closeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-closeButton.Font = Enum.Font.SourceSansBold
-closeButton.TextSize = 16
-closeButton.BorderSizePixel = 0
-closeButton.Parent = titleBar
+-- Speed Input Label & Box
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0.4, 0, 0, 30)
+SpeedLabel.Position = UDim2.new(0.05, 0, 0.62, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Tốc độ (Speed):"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Font = Enum.Font.SourceSans
+SpeedLabel.TextSize = 14
+SpeedLabel.Parent = MainFrame
 
-closeButton.MouseEnter:Connect(function()
-	closeButton.TextColor3 = Color3.fromRGB(255, 80, 80)
-end)
-closeButton.MouseLeave:Connect(function()
-	closeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-end)
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Size = UDim2.new(0.45, 0, 0, 30)
+SpeedBox.Position = UDim2.new(0.5, 0, 0.62, 0)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SpeedBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.Text = "100" -- Default speed
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.Font = Enum.Font.SourceSans
+SpeedBox.TextSize = 14
+SpeedBox.Parent = MainFrame
 
--- ==================== SCROLLING FRAME ====================
-local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(1, 0, 1, -30)
-scrollFrame.Position = UDim2.new(0, 0, 0, 30)
-scrollFrame.BackgroundTransparency = 1
-scrollFrame.BorderSizePixel = 0
-scrollFrame.ScrollBarThickness = 8
-scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
-scrollFrame.ClipsDescendants = true
-scrollFrame.Parent = mainFrame
+-- Target Status
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.72, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Đã chọn: Chưa chọn ai"
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+StatusLabel.Font = Enum.Font.SourceSansItalic
+StatusLabel.TextSize = 14
+StatusLabel.Parent = MainFrame
 
--- ===== CÁC THÀNH PHẦN TRONG SCROLL FRAME =====
+-- Start Button
+local StartBtn = Instance.new("TextButton")
+StartBtn.Size = UDim2.new(0.9, 0, 0, 40)
+StartBtn.Position = UDim2.new(0.05, 0, 0.82, 0)
+StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+StartBtn.Text = "BẮT ĐẦU BAY"
+StartBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+StartBtn.Font = Enum.Font.SourceSansBold
+StartBtn.TextSize = 16
+StartBtn.Parent = MainFrame
 
--- Ô nhập tên
-local nameLabel = Instance.new("TextLabel")
-nameLabel.Size = UDim2.new(1, -20, 0, 18)
-nameLabel.Position = UDim2.new(0, 10, 0, 5)
-nameLabel.Text = "👤 Tên"
-nameLabel.BackgroundTransparency = 1
-nameLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-nameLabel.Font = Enum.Font.SourceSans
-nameLabel.TextSize = 13
-nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-nameLabel.Parent = scrollFrame
+-- Function to Update Player List
+local function updatePlayerList()
+    for _, child in pairs(PlayerList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
 
-local nameBox = Instance.new("TextBox")
-nameBox.Size = UDim2.new(1, -20, 0, 28)
-nameBox.Position = UDim2.new(0, 10, 0, 25)
-nameBox.PlaceholderText = "Nhập tên..."
-nameBox.Text = ""
-nameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-nameBox.Font = Enum.Font.SourceSans
-nameBox.TextSize = 14
-nameBox.BorderSizePixel = 0
-nameBox.Parent = scrollFrame
-Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 5)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local Btn = Instance.new("TextButton")
+            Btn.Size = UDim2.new(1, 0, 0, 25)
+            Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+            Btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+            Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Btn.Font = Enum.Font.SourceSans
+            Btn.TextSize = 14
+            Btn.Parent = PlayerList
 
--- Ô nhập code
-local codeLabel = Instance.new("TextLabel")
-codeLabel.Size = UDim2.new(1, -20, 0, 18)
-codeLabel.Position = UDim2.new(0, 10, 0, 60)
-codeLabel.Text = "💻 Code (Lua)"
-codeLabel.BackgroundTransparency = 1
-codeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-codeLabel.Font = Enum.Font.SourceSans
-codeLabel.TextSize = 13
-codeLabel.TextXAlignment = Enum.TextXAlignment.Left
-codeLabel.Parent = scrollFrame
-
-local codeBox = Instance.new("TextBox")
-codeBox.Size = UDim2.new(1, -20, 0, 110)
-codeBox.Position = UDim2.new(0, 10, 0, 80)
-codeBox.PlaceholderText = [[loadstring(game:HttpGet("..."))()]]
-codeBox.Text = ""
-codeBox.MultiLine = true
-codeBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-codeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-codeBox.Font = Enum.Font.SourceSans
-codeBox.TextSize = 14
-codeBox.TextWrapped = true
-codeBox.TextXAlignment = Enum.TextXAlignment.Left
-codeBox.TextYAlignment = Enum.TextYAlignment.Top
-codeBox.BorderSizePixel = 0
-codeBox.Parent = scrollFrame
-Instance.new("UICorner", codeBox).CornerRadius = UDim.new(0, 5)
-
--- Số lần lặp
-local loopLabel = Instance.new("TextLabel")
-loopLabel.Size = UDim2.new(1, -20, 0, 18)
-loopLabel.Position = UDim2.new(0, 10, 0, 195)
-loopLabel.Text = "🔁 Số lần lặp"
-loopLabel.BackgroundTransparency = 1
-loopLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-loopLabel.Font = Enum.Font.SourceSans
-loopLabel.TextSize = 13
-loopLabel.TextXAlignment = Enum.TextXAlignment.Left
-loopLabel.Parent = scrollFrame
-
-local loopBox = Instance.new("TextBox")
-loopBox.Size = UDim2.new(0, 70, 0, 28)
-loopBox.Position = UDim2.new(0, 10, 0, 215)
-loopBox.PlaceholderText = "1"
-loopBox.Text = ""
-loopBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-loopBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-loopBox.Font = Enum.Font.SourceSans
-loopBox.TextSize = 14
-loopBox.BorderSizePixel = 0
-loopBox.Parent = scrollFrame
-Instance.new("UICorner", loopBox).CornerRadius = UDim.new(0, 5)
-
--- Khoảng thời gian chờ
-local delayLabel = Instance.new("TextLabel")
-delayLabel.Size = UDim2.new(1, -20, 0, 18)
-delayLabel.Position = UDim2.new(0, 10, 0, 250)
-delayLabel.Text = "⏱️ Khoảng thời gian chờ"
-delayLabel.BackgroundTransparency = 1
-delayLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-delayLabel.Font = Enum.Font.SourceSans
-delayLabel.TextSize = 13
-delayLabel.TextXAlignment = Enum.TextXAlignment.Left
-delayLabel.Parent = scrollFrame
-
-local delayBox = Instance.new("TextBox")
-delayBox.Size = UDim2.new(0, 55, 0, 28)
-delayBox.Position = UDim2.new(0, 10, 0, 270)
-delayBox.PlaceholderText = "0"
-delayBox.Text = ""
-delayBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-delayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-delayBox.Font = Enum.Font.SourceSans
-delayBox.TextSize = 14
-delayBox.BorderSizePixel = 0
-delayBox.Parent = scrollFrame
-Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 5)
-
--- Chọn đơn vị thời gian
-local unitButton = Instance.new("TextButton")
-unitButton.Size = UDim2.new(0, 70, 0, 28)
-unitButton.Position = UDim2.new(0, 75, 0, 270)
-unitButton.Text = "Giây"
-unitButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-unitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-unitButton.Font = Enum.Font.SourceSansBold
-unitButton.TextSize = 14
-unitButton.BorderSizePixel = 0
-unitButton.Parent = scrollFrame
-Instance.new("UICorner", unitButton).CornerRadius = UDim.new(0, 5)
-
-local dropdownFrame = Instance.new("Frame")
-dropdownFrame.Size = UDim2.new(0, 70, 0, 56)
-dropdownFrame.Position = UDim2.new(0, 75, 0, 270 + 28)
-dropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-dropdownFrame.BorderSizePixel = 0
-dropdownFrame.Visible = false
-dropdownFrame.Parent = scrollFrame
-Instance.new("UICorner", dropdownFrame).CornerRadius = UDim.new(0, 5)
-
-local secOption = Instance.new("TextButton")
-secOption.Size = UDim2.new(1, 0, 0, 28)
-secOption.Text = "Giây"
-secOption.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-secOption.TextColor3 = Color3.fromRGB(255, 255, 255)
-secOption.Font = Enum.Font.SourceSansBold
-secOption.TextSize = 14
-secOption.BorderSizePixel = 0
-secOption.Parent = dropdownFrame
-Instance.new("UICorner", secOption).CornerRadius = UDim.new(0, 5)
-
-local minOption = Instance.new("TextButton")
-minOption.Size = UDim2.new(1, 0, 0, 28)
-minOption.Position = UDim2.new(0, 0, 0, 28)
-minOption.Text = "Phút"
-minOption.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-minOption.TextColor3 = Color3.fromRGB(255, 255, 255)
-minOption.Font = Enum.Font.SourceSansBold
-minOption.TextSize = 14
-minOption.BorderSizePixel = 0
-minOption.Parent = dropdownFrame
-Instance.new("UICorner", minOption).CornerRadius = UDim.new(0, 5)
-
-unitButton.MouseButton1Click:Connect(function()
-	dropdownFrame.Visible = not dropdownFrame.Visible
-end)
-secOption.MouseButton1Click:Connect(function()
-	unitButton.Text = "Giây"
-	dropdownFrame.Visible = false
-end)
-minOption.MouseButton1Click:Connect(function()
-	unitButton.Text = "Phút"
-	dropdownFrame.Visible = false
-end)
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		local mousePos = input.Position
-		local guiObjectsAtPos = screenGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
-		local found = false
-		for _, obj in ipairs(guiObjectsAtPos) do
-			if obj == unitButton or obj:IsDescendantOf(dropdownFrame) then
-				found = true
-				break
-			end
-		end
-		if not found then
-			dropdownFrame.Visible = false
-		end
-	end
-end)
-
--- Nút chạy code
-local runButton = Instance.new("TextButton")
-runButton.Size = UDim2.new(0, 120, 0, 30)
-runButton.Position = UDim2.new(0.5, -60, 0, 310)
-runButton.Text = "▶ Chạy Code"
-runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
-runButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-runButton.Font = Enum.Font.SourceSansBold
-runButton.TextSize = 14
-runButton.BorderSizePixel = 0
-runButton.Parent = scrollFrame
-Instance.new("UICorner", runButton).CornerRadius = UDim.new(0, 6)
-
-runButton.MouseEnter:Connect(function()
-	runButton.BackgroundColor3 = Color3.fromRGB(0, 180, 110)
-end)
-runButton.MouseLeave:Connect(function()
-	runButton.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
-end)
-
--- Label trạng thái
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 18)
-statusLabel.Position = UDim2.new(0, 10, 0, 345)
-statusLabel.Text = ""
-statusLabel.BackgroundTransparency = 1
-statusLabel.TextColor3 = Color3.fromRGB(255, 255, 120)
-statusLabel.Font = Enum.Font.SourceSans
-statusLabel.TextSize = 12
-statusLabel.TextWrapped = true
-statusLabel.Parent = scrollFrame
-
--- Label tổng số lần đã chạy
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(1, -20, 0, 18)
-countLabel.Position = UDim2.new(0, 10, 0, 363)
-countLabel.Text = "🔄 Tổng số lần đã chạy: 0"
-countLabel.BackgroundTransparency = 1
-countLabel.TextColor3 = Color3.fromRGB(130, 230, 130)
-countLabel.Font = Enum.Font.SourceSansBold
-countLabel.TextSize = 12
-countLabel.TextWrapped = true
-countLabel.Parent = scrollFrame
-
--- ======================== HIỆU ỨNG MÔI TRƯỜNG ========================
-
-local envLabel = Instance.new("TextLabel")
-envLabel.Size = UDim2.new(1, -20, 0, 18)
-envLabel.Position = UDim2.new(0, 10, 0, 390)
-envLabel.Text = "⚙️ Điều khiển môi trường"
-envLabel.BackgroundTransparency = 1
-envLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-envLabel.Font = Enum.Font.SourceSansBold
-envLabel.TextSize = 13
-envLabel.TextXAlignment = Enum.TextXAlignment.Left
-envLabel.Parent = scrollFrame
-
-local function animateButton(button)
-	local originalSize = button.Size
-	local originalColor = button.BackgroundColor3
-	local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local tweenBig = TweenService:Create(button, tweenInfo, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset * 1.1, originalSize.Y.Scale, originalSize.Y.Offset * 1.1)})
-	local tweenSmall = TweenService:Create(button, tweenInfo, {Size = originalSize})
-	tweenBig:Play()
-	tweenBig.Completed:Connect(function()
-		tweenSmall:Play()
-	end)
-	local blinkTween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = button.BackgroundColor3:Lerp(Color3.new(1,1,1), 0.5)})
-	blinkTween:Play()
-	blinkTween.Completed:Connect(function()
-		TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = originalColor}):Play()
-	end)
+            Btn.MouseButton1Click:Connect(function()
+                selectedPlayer = plr
+                StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
+            end)
+        end
+    end
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, #PlayerList:GetChildren() * 27)
 end
 
-local darkButton = Instance.new("TextButton")
-darkButton.Size = UDim2.new(0, 150, 0, 28)
-darkButton.Position = UDim2.new(0, 10, 0, 415)
-darkButton.Text = "🌙 Trời tối"
-darkButton.BackgroundColor3 = Color3.fromRGB(60, 60, 100)
-darkButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-darkButton.Font = Enum.Font.SourceSansBold
-darkButton.TextSize = 13
-darkButton.BorderSizePixel = 0
-darkButton.Parent = scrollFrame
-Instance.new("UICorner", darkButton).CornerRadius = UDim.new(0, 5)
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
 
-local lightButton = Instance.new("TextButton")
-lightButton.Size = UDim2.new(0, 150, 0, 28)
-lightButton.Position = UDim2.new(0, 170, 0, 415)
-lightButton.Text = "☀️ Trời sáng"
-lightButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
-lightButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-lightButton.Font = Enum.Font.SourceSansBold
-lightButton.TextSize = 13
-lightButton.BorderSizePixel = 0
-lightButton.Parent = scrollFrame
-Instance.new("UICorner", lightButton).CornerRadius = UDim.new(0, 5)
-
-local fogButton = Instance.new("TextButton")
-fogButton.Size = UDim2.new(0, 150, 0, 28)
-fogButton.Position = UDim2.new(0, 10, 0, 448)
-fogButton.Text = "🌫️ Sương mù: TẮT"
-fogButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-fogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-fogButton.Font = Enum.Font.SourceSansBold
-fogButton.TextSize = 13
-fogButton.BorderSizePixel = 0
-fogButton.Parent = scrollFrame
-Instance.new("UICorner", fogButton).CornerRadius = UDim.new(0, 5)
-
-local resetEnvButton = Instance.new("TextButton")
-resetEnvButton.Size = UDim2.new(0, 150, 0, 28)
-resetEnvButton.Position = UDim2.new(0, 170, 0, 448)
-resetEnvButton.Text = "🔄 Reset mặc định"
-resetEnvButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-resetEnvButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-resetEnvButton.Font = Enum.Font.SourceSansBold
-resetEnvButton.TextSize = 13
-resetEnvButton.BorderSizePixel = 0
-resetEnvButton.Parent = scrollFrame
-Instance.new("UICorner", resetEnvButton).CornerRadius = UDim.new(0, 5)
-
--- ======================== BAY & ĐỨNG TRÊN KHÔNG ========================
-
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1, -20, 0, 18)
-speedLabel.Position = UDim2.new(0, 10, 0, 483)
-speedLabel.Text = "⚡ Tốc độ bay/đi: 50"
-speedLabel.BackgroundTransparency = 1
-speedLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-speedLabel.Font = Enum.Font.SourceSans
-speedLabel.TextSize = 13
-speedLabel.TextXAlignment = Enum.TextXAlignment.Left
-speedLabel.Parent = scrollFrame
-
-local speedSlider = Instance.new("TextBox")
-speedSlider.Size = UDim2.new(0, 60, 0, 28)
-speedSlider.Position = UDim2.new(0, 10, 0, 502)
-speedSlider.PlaceholderText = "50"
-speedSlider.Text = ""
-speedSlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedSlider.Font = Enum.Font.SourceSans
-speedSlider.TextSize = 14
-speedSlider.BorderSizePixel = 0
-speedSlider.Parent = scrollFrame
-Instance.new("UICorner", speedSlider).CornerRadius = UDim.new(0, 5)
-
-local flyButton = Instance.new("TextButton")
-flyButton.Size = UDim2.new(0, 150, 0, 28)
-flyButton.Position = UDim2.new(0, 90, 0, 502)
-flyButton.Text = "🕊️ Bay: TẮT"
-flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-flyButton.Font = Enum.Font.SourceSansBold
-flyButton.TextSize = 13
-flyButton.BorderSizePixel = 0
-flyButton.Parent = scrollFrame
-Instance.new("UICorner", flyButton).CornerRadius = UDim.new(0, 5)
-
-local standAirButton = Instance.new("TextButton")
-standAirButton.Size = UDim2.new(0, 150, 0, 28)
-standAirButton.Position = UDim2.new(0, 10, 0, 535)
-standAirButton.Text = "🧍 Đứng trên không: TẮT"
-standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-standAirButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-standAirButton.Font = Enum.Font.SourceSansBold
-standAirButton.TextSize = 13
-standAirButton.BorderSizePixel = 0
-standAirButton.Parent = scrollFrame
-Instance.new("UICorner", standAirButton).CornerRadius = UDim.new(0, 5)
-
--- ==================== MOBILE VIRTUAL CONTROLS (chỉ cho bay lên/xuống) ====================
-local mobileControlsFrame = Instance.new("Frame")
-mobileControlsFrame.Size = UDim2.new(0, 200, 0, 80)
-mobileControlsFrame.Position = UDim2.new(0, 10, 1, -90)
-mobileControlsFrame.BackgroundTransparency = 1
-mobileControlsFrame.Visible = false
-mobileControlsFrame.Parent = screenGui
-
-local btnFlyUp = Instance.new("TextButton")
-btnFlyUp.Size = UDim2.new(0, 44, 0, 44)
-btnFlyUp.Position = UDim2.new(0, 10, 0, 10)
-btnFlyUp.Text = "⏫"
-btnFlyUp.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-btnFlyUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlyUp.Font = Enum.Font.SourceSansBold
-btnFlyUp.TextSize = 20
-btnFlyUp.BorderSizePixel = 0
-btnFlyUp.Parent = mobileControlsFrame
-Instance.new("UICorner", btnFlyUp).CornerRadius = UDim.new(1, 0)
-
-local btnFlyDown = Instance.new("TextButton")
-btnFlyDown.Size = UDim2.new(0, 44, 0, 44)
-btnFlyDown.Position = UDim2.new(0, 146, 0, 10)
-btnFlyDown.Text = "⏬"
-btnFlyDown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-btnFlyDown.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlyDown.Font = Enum.Font.SourceSansBold
-btnFlyDown.TextSize = 20
-btnFlyDown.BorderSizePixel = 0
-btnFlyDown.Parent = mobileControlsFrame
-Instance.new("UICorner", btnFlyDown).CornerRadius = UDim.new(1, 0)
-
-local mobileKeys = { FlyUp = false, FlyDown = false }
-local activeTouches = {}
-
-local function onTouchStarted(input, processed)
-	if processed then return end
-	for _, btnData in ipairs({{btnFlyUp, "FlyUp"}, {btnFlyDown, "FlyDown"}}) do
-		local button, key = btnData[1], btnData[2]
-		local pos = input.Position
-		local absPos = button.AbsolutePosition
-		local absSize = button.AbsoluteSize
-		if pos.X >= absPos.X and pos.X <= absPos.X + absSize.X and pos.Y >= absPos.Y and pos.Y <= absPos.Y + absSize.Y then
-			mobileKeys[key] = true
-			activeTouches[input] = key
-			break
-		end
-	end
+-- Enable/Disable Noclip
+local function setNoclip(state)
+    if state then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
 end
 
-local function onTouchEnded(input)
-	if activeTouches[input] then
-		local key = activeTouches[input]
-		mobileKeys[key] = false
-		activeTouches[input] = nil
-	end
+-- Flying Function
+local function startFly()
+    if isFlying then return end
+    if not selectedPlayer or not selectedPlayer.Character or not selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        StatusLabel.Text = "Lỗi: Người chơi không tồn tại!"
+        return
+    end
+
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+    local targetHrp = selectedPlayer.Character.HumanoidRootPart
+
+    local flyHeight = tonumber(HeightBox.Text) or 150
+    local flySpeed = tonumber(SpeedBox.Text) or 100
+
+    isFlying = true
+    StartBtn.Text = "ĐANG BAY..."
+    StartBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    setNoclip(true)
+
+    -- Lock Physics
+    local oldGravity = workspace.Gravity
+    workspace.Gravity = 0
+
+    -- Phase 1: Fly Straight Up
+    local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
+    local dist1 = (skyPos - hrp.Position).Magnitude
+    local time1 = dist1 / flySpeed
+    local tween1 = TweenService:Create(hrp, TweenInfo.new(time1, Enum.EasingStyle.Linear), {CFrame = CFrame.new(skyPos)})
+    
+    tween1:Play()
+    tween1.Completed:Wait()
+
+    -- Phase 2: Fly Horizontally to Target Overhead
+    local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
+    local dist2 = (targetOverhead - hrp.Position).Magnitude
+    local time2 = dist2 / flySpeed
+    local tween2 = TweenService:Create(hrp, TweenInfo.new(time2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetOverhead)})
+    
+    tween2:Play()
+    tween2.Completed:Wait()
+
+    -- Phase 3: Fly Down to Target Position
+    local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
+    local dist3 = (targetLandPos - hrp.Position).Magnitude
+    local time3 = dist3 / flySpeed
+    local tween3 = TweenService:Create(hrp, TweenInfo.new(time3, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetLandPos)})
+    
+    tween3:Play()
+    tween3.Completed:Wait()
+
+    -- Reset State
+    workspace.Gravity = oldGravity
+    setNoclip(false)
+    isFlying = false
+    StartBtn.Text = "BẮT ĐẦU BAY"
+    StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    StatusLabel.Text = "Đã đến nơi!"
 end
 
-UserInputService.TouchStarted:Connect(onTouchStarted)
-UserInputService.TouchEnded:Connect(onTouchEnded)
-
-local function getVerticalInput()
-	local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) or mobileKeys.FlyUp
-	local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or mobileKeys.FlyDown
-	return up, down
-end
-
--- ==================== CÀI ĐẶT CHUNG ====================
-local flySpeed = 50
-speedSlider.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		local num = tonumber(speedSlider.Text)
-		if num and num >= 0 then
-			flySpeed = num
-			speedLabel.Text = "⚡ Tốc độ bay/đi: " .. tostring(num)
-		else
-			speedSlider.Text = tostring(flySpeed)
-		end
-	end
-end)
-
-local character = player.Character or player.CharacterAdded:Wait()
-
-player.CharacterAdded:Connect(function(char)
-	character = char
-	if isFlying then stopFly() isFlying = false end
-	if isStandingOnAir then stopStandOnAir() isStandingOnAir = false end
-	flyButton.Text = "🕊️ Bay: TẮT"
-	flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	standAirButton.Text = "🧍 Đứng trên không: TẮT"
-	standAirButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	mobileControlsFrame.Visible = false
-end)
-
--- Cập nhật hiển thị nút ảo mobile
-local function updateMobileControls()
-	if isFlying then
-		mobileControlsFrame.Visible = UserInputService.TouchEnabled
-	else
-		mobileControlsFrame.Visible = false
-	end
-end
-
-local function stopFly()
-	if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity = nil end
-	if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
-	if character and character:FindFirstChild("Humanoid") then
-		character.Humanoid.AutoRotate = true
-		character.Humanoid.PlatformStand = false
-	end
-	RunService:UnbindFromRenderStep("FlyUpdate")
-	updateMobileControls()
-end
-
-local function stopStandOnAir()
-	if standBodyPosition then standBodyPosition:Destroy() standBodyPosition = nil end
-	if character and character:FindFirstChild("Humanoid") then
-		character.Humanoid.PlatformStand = false
-	end
-	RunService:UnbindFromRenderStep("StandUpdate")
-	updateMobileControls()
-end
-
-local function toggleFly()
-	isFlying = not isFlying
-	flyButton.Text = isFlying and "🕊️ Bay: BẬT" or "🕊️ Bay: TẮT"
-	flyButton.BackgroundColor3 = isFlying and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(45, 45, 45)
-	animateButton(flyButton)
-
-	if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Humanoid") then
-		character = player.Character
-		if not character then return end
-	end
-	local rootPart = character:WaitForChild("HumanoidRootPart")
-	local humanoid = character:WaitForChild("Humanoid")
-
-	if isFlying then
-		if isStandingOnAir then toggleStandOnAir() end
-		flyBodyVelocity = Instance.new("BodyVelocity")
-		flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-		flyBodyVelocity.Parent = rootPart
-
-		flyBodyGyro = Instance.new("BodyGyro")
-		flyBodyGyro.CFrame = rootPart.CFrame
-		flyBodyGyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-		flyBodyGyro.Parent = rootPart
-
-		humanoid.AutoRotate = false
-		humanoid.PlatformStand = true
-
-		RunService:BindToRenderStep("FlyUpdate", 1, function()
-			if not isFlying or not character or not rootPart or not flyBodyVelocity or not flyBodyGyro then return end
-
-			-- Dùng MoveDirection từ humanoid (WASD/joystick)
-			local moveDir = humanoid.MoveDirection
-			local worldMove = rootPart.CFrame:VectorToWorldSpace(moveDir)
-			if worldMove.Magnitude > 0 then worldMove = worldMove.Unit end
-
-			local upInput, downInput = getVerticalInput()
-			local vertical = (upInput and 1 or 0) - (downInput and 1 or 0)
-
-			flyBodyVelocity.Velocity = (worldMove + Vector3.new(0, vertical, 0)) * flySpeed
-			flyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + workspace.CurrentCamera.CFrame.LookVector)
-		end)
-	else
-		stopFly()
-	end
-	updateMobileControls()
-end
-
--- Đứng trên không (dùng MoveDirection, giữ độ cao)
-local function toggleStandOnAir()
-	isStandingOnAir = not isStandingOnAir
-	standAirButton.Text = isStandingOnAir and "🧍 Đứng trên không: BẬT" or "🧍 Đứng trên không: TẮT"
-	standAirButton.BackgroundColor3 = isStandingOnAir and Color3.fromRGB(160, 100, 200) or Color3.fromRGB(45, 45, 45)
-	animateButton(standAirButton)
-
-	if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Humanoid") then
-		character = player.Character
-		if not character then return end
-	end
-	local rootPart = character:WaitForChild("HumanoidRootPart")
-	local humanoid = character:WaitForChild("Humanoid")
-
-	if isStandingOnAir then
-		if isFlying then toggleFly() end
-		standBodyPosition = Instance.new("BodyPosition")
-		standBodyPosition.MaxForce = Vector3.new(100000, 100000, 100000)
-		standBodyPosition.Parent = rootPart
-		humanoid.PlatformStand = true
-
-		local targetY = rootPart.Position.Y
-
-		RunService:BindToRenderStep("StandUpdate", 1, function()
-			if not isStandingOnAir or not character or not rootPart or not standBodyPosition then return end
-			local moveDir = humanoid.MoveDirection
-			local worldMove = rootPart.CFrame:VectorToWorldSpace(moveDir)
-			if worldMove.Magnitude > 0 then worldMove = worldMove.Unit end
-
-			local newPos = rootPart.Position + worldMove * flySpeed * 0.016
-			newPos = Vector3.new(newPos.X, targetY, newPos.Z)
-			standBodyPosition.Position = newPos
-		end)
-	else
-		stopStandOnAir()
-	end
-	updateMobileControls()
-end
-
-flyButton.MouseButton1Click:Connect(toggleFly)
-standAirButton.MouseButton1Click:Connect(toggleStandOnAir)
-
--- ======================== LƯU & DANH SÁCH SCRIPT ========================
-
-local savedScripts = {}
-
-local scriptListLabel = Instance.new("TextLabel")
-scriptListLabel.Size = UDim2.new(1, -20, 0, 18)
-scriptListLabel.Position = UDim2.new(0, 10, 0, 570)
-scriptListLabel.Text = "💾 Script đã lưu (nhấn để chạy ngay)"
-scriptListLabel.BackgroundTransparency = 1
-scriptListLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-scriptListLabel.Font = Enum.Font.SourceSansBold
-scriptListLabel.TextSize = 13
-scriptListLabel.TextXAlignment = Enum.TextXAlignment.Left
-scriptListLabel.Parent = scrollFrame
-
-local saveButton = Instance.new("TextButton")
-saveButton.Size = UDim2.new(0, 150, 0, 28)
-saveButton.Position = UDim2.new(0, 10, 0, 590)
-saveButton.Text = "➕ Lưu script hiện tại"
-saveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-saveButton.Font = Enum.Font.SourceSansBold
-saveButton.TextSize = 13
-saveButton.BorderSizePixel = 0
-saveButton.Parent = scrollFrame
-Instance.new("UICorner", saveButton).CornerRadius = UDim.new(0, 5)
-
-local scriptListFrame = Instance.new("Frame")
-scriptListFrame.Size = UDim2.new(1, -20, 0, 0)
-scriptListFrame.Position = UDim2.new(0, 10, 0, 623)
-scriptListFrame.BackgroundTransparency = 1
-scriptListFrame.BorderSizePixel = 0
-scriptListFrame.Parent = scrollFrame
-
-local scriptListLayout = Instance.new("UIListLayout")
-scriptListLayout.Parent = scriptListFrame
-scriptListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-scriptListLayout.Padding = UDim.new(0, 4)
-
--- ==================== HÀM THỰC THI ====================
-local function executeOnce(code, name)
-	if #name > 0 then print("👤 Tên người dùng:", name) end
-	local success, result = pcall(function()
-		local executor = loadstring or function(c) return loadstring(c) end
-		local fn, err = executor(code)
-		if not fn then error("Lỗi biên dịch: " .. tostring(err)) end
-		fn()
-	end)
-	return success, result
-end
-
-local function executeCurrentCode()
-	local code = codeBox.Text
-	local name = nameBox.Text
-	local loopStr = loopBox.Text
-	local delayStr = delayBox.Text
-	local unit = unitButton.Text
-
-	if #code == 0 then
-		statusLabel.Text = "⚠️ Vui lòng nhập code!"
-		return
-	end
-
-	local loopCount = 1
-	if #loopStr > 0 then
-		loopCount = tonumber(loopStr)
-		if not loopCount or loopCount <= 0 then
-			statusLabel.Text = "⚠️ Số lần lặp không hợp lệ (phải là số > 0)"
-			return
-		end
-		if loopCount > 1000 then
-			statusLabel.Text = "⚠️ Tối đa 1000 lần lặp để tránh lag"
-			return
-		end
-	end
-
-	local delaySeconds = 0
-	if #delayStr > 0 then
-		delaySeconds = tonumber(delayStr)
-		if not delaySeconds or delaySeconds < 0 then
-			statusLabel.Text = "⚠️ Thời gian chờ không hợp lệ (phải là số >= 0)"
-			return
-		end
-		if unit == "Phút" then delaySeconds = delaySeconds * 60 end
-	end
-
-	statusLabel.Text = "⏳ Đang thực thi..."
-	local successCount = 0
-	local failCount = 0
-
-	for i = 1, loopCount do
-		if i > 1 and delaySeconds > 0 then task.wait(delaySeconds) end
-		local ok, err = executeOnce(code, name)
-		if ok then successCount = successCount + 1
-		else failCount = failCount + 1; warn("Lần chạy thứ " .. i .. " lỗi:", err) end
-		statusLabel.Text = string.format("⏳ Đang chạy %d/%d...", i, loopCount)
-	end
-
-	totalExecutions = totalExecutions + loopCount
-	countLabel.Text = "🔄 Tổng số lần đã chạy: " .. totalExecutions
-	statusLabel.Text = failCount == 0 and string.format("✅ Hoàn tất %d lần, tất cả thành công!", loopCount)
-		or string.format("⚠️ Hoàn tất %d lần: %d thành công, %d thất bại.", loopCount, successCount, failCount)
-end
-
-runButton.MouseButton1Click:Connect(executeCurrentCode)
-
--- Quản lý danh sách script
-local function updateCanvasSize()
-	local count = #savedScripts
-	local height = 623 + count * 32 + 20
-	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(height, 680))
-end
-
-local function clearScriptListUI()
-	for _, child in ipairs(scriptListFrame:GetChildren()) do
-		if child:IsA("Frame") then child:Destroy() end
-	end
-end
-
-local function rebuildScriptList()
-	clearScriptListUI()
-	for i, scriptData in ipairs(savedScripts) do
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 30)
-		row.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-		row.BorderSizePixel = 0
-		row.Parent = scriptListFrame
-		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 5)
-
-		local scriptButton = Instance.new("TextButton")
-		scriptButton.Size = UDim2.new(1, -30, 1, 0)
-		scriptButton.Text = scriptData.name
-		scriptButton.BackgroundTransparency = 1
-		scriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		scriptButton.Font = Enum.Font.SourceSans
-		scriptButton.TextSize = 13
-		scriptButton.TextXAlignment = Enum.TextXAlignment.Left
-		scriptButton.BorderSizePixel = 0
-		scriptButton.Parent = row
-
-		local deleteButton = Instance.new("TextButton")
-		deleteButton.Size = UDim2.new(0, 24, 0, 24)
-		deleteButton.Position = UDim2.new(1, -28, 0.5, -12)
-		deleteButton.Text = "✕"
-		deleteButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-		deleteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		deleteButton.Font = Enum.Font.SourceSansBold
-		deleteButton.TextSize = 14
-		deleteButton.BorderSizePixel = 0
-		deleteButton.Parent = row
-		Instance.new("UICorner", deleteButton).CornerRadius = UDim.new(1, 0)
-
-		scriptButton.MouseButton1Click:Connect(function()
-			nameBox.Text = scriptData.name
-			codeBox.Text = scriptData.code
-			executeCurrentCode()
-		end)
-
-		deleteButton.MouseButton1Click:Connect(function()
-			table.remove(savedScripts, i)
-			rebuildScriptList()
-			updateCanvasSize()
-		end)
-	end
-	updateCanvasSize()
-end
-
-saveButton.MouseButton1Click:Connect(function()
-	local currentName = nameBox.Text
-	local currentCode = codeBox.Text
-	if #currentCode == 0 then
-		statusLabel.Text = "⚠️ Không có code để lưu!"
-		return
-	end
-	if #currentName == 0 then currentName = "Script " .. (#savedScripts + 1) end
-	local baseName = currentName
-	local counter = 1
-	while true do
-		local exists = false
-		for _, s in ipairs(savedScripts) do if s.name == currentName then exists = true break end end
-		if not exists then break end
-		counter = counter + 1
-		currentName = baseName .. " (" .. counter .. ")"
-	end
-	table.insert(savedScripts, {name = currentName, code = currentCode})
-	rebuildScriptList()
-	statusLabel.Text = "✅ Đã lưu: " .. currentName
-	scrollFrame.CanvasPosition = Vector2.new(0, scrollFrame.CanvasSize.Y.Offset)
-end)
-
--- ==================== CÁC HÀM MÔI TRƯỜNG ====================
-local function tweenLighting(properties, duration)
-	local tweenInfo = TweenInfo.new(duration or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-	local goals = {}
-	for prop, value in pairs(properties) do goals[prop] = value end
-	local tween = TweenService:Create(lighting, tweenInfo, goals)
-	tween:Play()
-	return tween
-end
-
-local function setDark()
-	animateButton(darkButton)
-	tweenLighting({ClockTime = 0, Brightness = 0.3, OutdoorAmbient = Color3.fromRGB(20, 20, 40)}, 1.5)
-end
-
-local function setLight()
-	animateButton(lightButton)
-	tweenLighting({ClockTime = 14, Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(180, 180, 180)}, 1.5)
-end
-
-local function toggleFog()
-	animateButton(fogButton)
-	isFogOn = not isFogOn
-	fogButton.Text = isFogOn and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
-	fogButton.BackgroundColor3 = isFogOn and Color3.fromRGB(70, 70, 70) or Color3.fromRGB(45, 45, 45)
-	if isFogOn then
-		tweenLighting({FogStart = 0, FogEnd = 80, FogColor = Color3.fromRGB(180, 180, 180)}, 1)
-	else
-		tweenLighting({FogStart = 0, FogEnd = 100000, FogColor = Color3.fromRGB(255, 255, 255)}, 1)
-	end
-end
-
-local function resetEnvironment()
-	animateButton(resetEnvButton)
-	setLight()
-	if isFogOn then toggleFog() end
-end
-
-darkButton.MouseButton1Click:Connect(setDark)
-lightButton.MouseButton1Click:Connect(setLight)
-fogButton.MouseButton1Click:Connect(toggleFog)
-resetEnvButton.MouseButton1Click:Connect(resetEnvironment)
-
--- ==================== LOGIC ẨN/HIỆN MENU ====================
-local totalExecutions = 0
-local menuVisible = false
-
-local function setMenuVisible(state)
-	menuVisible = state
-	mainFrame.Visible = state
-	toggleButton.Text = state and "✕" or "⚙"
-end
-
-toggleButton.MouseButton1Click:Connect(function()
-	setMenuVisible(not menuVisible)
-end)
-closeButton.MouseButton1Click:Connect(function()
-	setMenuVisible(false)
-end)
-
-updateCanvasSize()
+StartBtn.MouseButton1Click:Connect(startFly)
