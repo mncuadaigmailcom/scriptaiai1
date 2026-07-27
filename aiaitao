@@ -1,8 +1,8 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (ALWAYS-ON TOGGLE BUTTON EDITION)
-    - TÍNH NĂNG MỚI: NÚT "🍌 BẬT/ẨN MENU" LUÔN XUẤT HIỆN TRÊN MÀN HÌNH (KÉO THẢ ĐƯỢC)
-    - KHI BẬT MENU -> NÚT VẪN CÒN ĐỂ BẤM ẨN MENU
-    - THEME: TRẮNG XÁM TRONG SUỐT NHÌN XUYÊN THẤU (GLASSMORPHISM ZEBRA)
+    FLY TO PLAYER & SAVED LOCATIONS (SIDE-BY-SIDE CONTROLS EDITION)
+    - CẢI TIẾN MỚI: TÙY CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL ĐƯỢC CHUYỂN SANG BÊN PHẢI DANH SÁCH PLAYER
+    - NÚT TOGGLE BẤT TỬ: "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
+    - THEME: TRẮNG XÁM TRONG SUỐT GLASSMORPHISM ZEBRA
     - RESIZABLE 4 GÓC, CHUYỂN TAB, LƯU TỌA ĐỘ, BAY TỚI NGƯỜI GỤC
 --]]
 
@@ -29,7 +29,7 @@ local heightVisualPart = nil
 local heightVisualConn = nil
 local showHeightVisual = false
 
--- Theme Colors (Trắng - Xám Trong Suốt Modern Glass)
+-- Theme Colors
 local COLOR_MAIN_BG = Color3.fromRGB(245, 247, 252)     -- Trắng xám tuyết
 local COLOR_TITLE_BG = Color3.fromRGB(215, 220, 230)    -- Xám mờ nhạt
 local COLOR_TAB_ACTIVE = Color3.fromRGB(255, 255, 255)  -- Trắng tinh khi chọn
@@ -44,7 +44,7 @@ local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FlyBananaCatPersistentToggle"
+ScreenGui.Name = "FlyBananaCatSideControls"
 ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
@@ -52,10 +52,10 @@ ScreenGui.DisplayOrder = 999
 -- Main Frame (Menu Trong Suốt Nhìn Xuyên Qua)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 550, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -180)
+MainFrame.Size = UDim2.new(0, 560, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -280, 0.5, -180)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
-MainFrame.BackgroundTransparency = 0.55 -- Siêu trong suốt nhìn xuyên qua được
+MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
@@ -73,7 +73,7 @@ Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
-Title.Text = "  🍌 BANANA FLY - PERSISTENT TOGGLE"
+Title.Text = "  🍌 BANANA FLY - SIDE CONTROLS EDITION"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -111,22 +111,22 @@ CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
 ---------------------------------------------------------
--- [MỚI] NÚT BẬT / ẨN MENU LUÔN LUÔN HIỂN THỊ (ALWAYS ON TOGGLE)
+-- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ (ALWAYS ON TOGGLE)
 ---------------------------------------------------------
 local PersistentToggleBtn = Instance.new("TextButton")
 PersistentToggleBtn.Name = "PersistentToggleBtn"
 PersistentToggleBtn.Size = UDim2.new(0, 115, 0, 32)
-PersistentToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0) -- Vị trí góc trái màn hình
+PersistentToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
 PersistentToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PersistentToggleBtn.BackgroundTransparency = 0.35 -- Trong suốt đẹp mắt
+PersistentToggleBtn.BackgroundTransparency = 0.35
 PersistentToggleBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
 PersistentToggleBtn.BorderSizePixel = 1
 PersistentToggleBtn.Text = "🍌 Ẩn Menu"
 PersistentToggleBtn.TextColor3 = TEXT_DARK
 PersistentToggleBtn.Font = Enum.Font.SourceSansBold
 PersistentToggleBtn.TextSize = 13
-PersistentToggleBtn.Visible = true -- BẤT TỬ: LUÔN HIỆN TRÊN MÀN HÌNH
-PersistentToggleBtn.Draggable = true -- Có thể kéo thả di chuyển tùy ý
+PersistentToggleBtn.Visible = true
+PersistentToggleBtn.Draggable = true
 PersistentToggleBtn.ZIndex = 100
 PersistentToggleBtn.Parent = ScreenGui
 
@@ -134,7 +134,6 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 8)
 ToggleCorner.Parent = PersistentToggleBtn
 
--- Hàm cập nhật trạng thái Ẩn / Hiện
 local function setMenuVisible(visible)
     MainFrame.Visible = visible
     if visible then
@@ -146,12 +145,10 @@ local function setMenuVisible(visible)
     end
 end
 
--- Bấm nút toggle bất tử -> Đảo trạng thái Ẩn/Hiện Menu
 PersistentToggleBtn.MouseButton1Click:Connect(function()
     setMenuVisible(not MainFrame.Visible)
 end)
 
--- Bấm nút (-) ở góc menu -> Dùng chung hàm thu gọn
 MinimizeBtn.MouseButton1Click:Connect(function()
     setMenuVisible(false)
 end)
@@ -159,8 +156,8 @@ end)
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MENU (RESIZABLE)
 ---------------------------------------------------------
-local minSize = Vector2.new(420, 280)
-local maxSize = Vector2.new(900, 600)
+local minSize = Vector2.new(460, 290)
+local maxSize = Vector2.new(950, 600)
 
 local corners = {
     {Name = "TL", Cursor = "◤", Pos = UDim2.new(0, 0, 0, 0)},
@@ -284,7 +281,7 @@ LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
 ---------------------------------------------------------
--- TAB 1: NGƯỜI CHƠI (PLAYERS PAGE)
+-- TAB 1: NGƯỜI CHƠI (BỐ CỤC CHIA 2 BÊN TRÁI - PHẢI)
 ---------------------------------------------------------
 local PlayersPage = Instance.new("Frame")
 PlayersPage.Size = UDim2.new(1, -24, 1, -80)
@@ -293,32 +290,33 @@ PlayersPage.BackgroundTransparency = 1
 PlayersPage.Visible = true
 PlayersPage.Parent = MainFrame
 
+--- [BÊN TRÁI]: TÌM KIẾM & DANH SÁCH PLAYER (61% chiều rộng) ---
 local SearchBox = Instance.new("TextBox")
-SearchBox.Size = UDim2.new(0.72, 0, 0, 26)
+SearchBox.Size = UDim2.new(0.42, 0, 0, 26)
 SearchBox.Position = UDim2.new(0, 0, 0, 0)
 SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SearchBox.BackgroundTransparency = 0.4
-SearchBox.PlaceholderText = "🔍 Tìm kiếm người chơi..."
+SearchBox.PlaceholderText = "🔍 Tìm tên..."
 SearchBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 SearchBox.Text = ""
 SearchBox.TextColor3 = TEXT_DARK
 SearchBox.Font = Enum.Font.SourceSans
-SearchBox.TextSize = 13
+SearchBox.TextSize = 12
 SearchBox.Parent = PlayersPage
 
 local RefreshBtn = Instance.new("TextButton")
-RefreshBtn.Size = UDim2.new(0.26, 0, 0, 26)
-RefreshBtn.Position = UDim2.new(0.74, 0, 0, 0)
+RefreshBtn.Size = UDim2.new(0.18, 0, 0, 26)
+RefreshBtn.Position = UDim2.new(0.43, 0, 0, 0)
 RefreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 RefreshBtn.BackgroundTransparency = 0.4
 RefreshBtn.Text = "🔄 Tải Lại"
 RefreshBtn.TextColor3 = TEXT_DARK
 RefreshBtn.Font = Enum.Font.SourceSansBold
-RefreshBtn.TextSize = 12
+RefreshBtn.TextSize = 11
 RefreshBtn.Parent = PlayersPage
 
 local PlayerList = Instance.new("ScrollingFrame")
-PlayerList.Size = UDim2.new(1, 0, 1, -135)
+PlayerList.Size = UDim2.new(0.61, 0, 1, -100)
 PlayerList.Position = UDim2.new(0, 0, 0, 32)
 PlayerList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 PlayerList.BackgroundTransparency = 0.75
@@ -330,51 +328,83 @@ local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Control Inputs
+--- [BÊN PHẢI]: BẢNG ĐIỀU CHỈNH HEIGHT, SPEED VÀ TRỤ VISUAL (37% chiều rộng) ---
+local P_RightPanel = Instance.new("Frame")
+P_RightPanel.Name = "P_RightPanel"
+P_RightPanel.Size = UDim2.new(0.37, 0, 1, -100)
+P_RightPanel.Position = UDim2.new(0.63, 0, 0, 0)
+P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+P_RightPanel.BackgroundTransparency = 0.65
+P_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
+P_RightPanel.Parent = PlayersPage
+
+local P_PanelCorner = Instance.new("UICorner")
+P_PanelCorner.CornerRadius = UDim.new(0, 6)
+P_PanelCorner.Parent = P_RightPanel
+
+-- Height Control
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.Size = UDim2.new(0.22, 0, 0, 22)
-P_HeightLabel.Position = UDim2.new(0, 0, 1, -96)
+P_HeightLabel.Size = UDim2.new(1, -10, 0, 18)
+P_HeightLabel.Position = UDim2.new(0, 5, 0, 6)
 P_HeightLabel.BackgroundTransparency = 1
-P_HeightLabel.Text = "Height:"
+P_HeightLabel.Text = "📏 Chiều cao (Height):"
 P_HeightLabel.TextColor3 = TEXT_DARK
 P_HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_HeightLabel.Font = Enum.Font.SourceSansBold
-P_HeightLabel.TextSize = 13
-P_HeightLabel.Parent = PlayersPage
+P_HeightLabel.TextSize = 12
+P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.Size = UDim2.new(0.25, 0, 0, 22)
-P_HeightBox.Position = UDim2.new(0.22, 0, 1, -96)
+P_HeightBox.Size = UDim2.new(1, -10, 0, 24)
+P_HeightBox.Position = UDim2.new(0, 5, 0, 26)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_HeightBox.BackgroundTransparency = 0.4
+P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
 P_HeightBox.TextColor3 = TEXT_DARK
 P_HeightBox.Font = Enum.Font.SourceSansBold
 P_HeightBox.TextSize = 13
-P_HeightBox.Parent = PlayersPage
+P_HeightBox.Parent = P_RightPanel
 
+-- Speed Control
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.Size = UDim2.new(0.22, 0, 0, 22)
-P_SpeedLabel.Position = UDim2.new(0.51, 0, 1, -96)
+P_SpeedLabel.Size = UDim2.new(1, -10, 0, 18)
+P_SpeedLabel.Position = UDim2.new(0, 5, 0, 56)
 P_SpeedLabel.BackgroundTransparency = 1
-P_SpeedLabel.Text = "Speed:"
+P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
 P_SpeedLabel.TextColor3 = TEXT_DARK
 P_SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_SpeedLabel.Font = Enum.Font.SourceSansBold
-P_SpeedLabel.TextSize = 13
-P_SpeedLabel.Parent = PlayersPage
+P_SpeedLabel.TextSize = 12
+P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.Size = UDim2.new(0.27, 0, 0, 22)
-P_SpeedBox.Position = UDim2.new(0.73, 0, 1, -96)
+P_SpeedBox.Size = UDim2.new(1, -10, 0, 24)
+P_SpeedBox.Position = UDim2.new(0, 5, 0, 76)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_SpeedBox.BackgroundTransparency = 0.4
+P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
 P_SpeedBox.TextColor3 = TEXT_DARK
 P_SpeedBox.Font = Enum.Font.SourceSansBold
 P_SpeedBox.TextSize = 13
-P_SpeedBox.Parent = PlayersPage
+P_SpeedBox.Parent = P_RightPanel
 
+-- Visual Pillar Toggle (Đã chuyển sang bên phải danh sách)
+local HeightVisualBtn = Instance.new("TextButton")
+HeightVisualBtn.Size = UDim2.new(1, -10, 0, 28)
+HeightVisualBtn.Position = UDim2.new(0, 5, 0, 108)
+HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+HeightVisualBtn.BackgroundTransparency = 0.3
+HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
+HeightVisualBtn.TextColor3 = TEXT_DARK
+HeightVisualBtn.Font = Enum.Font.SourceSansBold
+HeightVisualBtn.TextSize = 11
+HeightVisualBtn.Parent = P_RightPanel
+
+local VisualCorner = Instance.new("UICorner")
+VisualCorner.CornerRadius = UDim.new(0, 4)
+VisualCorner.Parent = HeightVisualBtn
+
+--- [PHẦN ĐÁY]: TRẠNG THÁI & NÚT BẮT ĐẦU BAY ---
 local P_StatusFrame = Instance.new("Frame")
 P_StatusFrame.Size = UDim2.new(1, 0, 0, 24)
 P_StatusFrame.Position = UDim2.new(0, 0, 1, -68)
@@ -443,7 +473,7 @@ SavePosBtn.TextSize = 12
 SavePosBtn.Parent = LocationsPage
 
 local SavedList = Instance.new("ScrollingFrame")
-SavedList.Size = UDim2.new(1, 0, 1, -135)
+SavedList.Size = UDim2.new(1, 0, 1, -100)
 SavedList.Position = UDim2.new(0, 0, 0, 32)
 SavedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SavedList.BackgroundTransparency = 0.75
@@ -454,21 +484,6 @@ SavedList.Parent = LocationsPage
 local UIListLayout2 = Instance.new("UIListLayout")
 UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
-
-local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(1, 0, 0, 22)
-HeightVisualBtn.Position = UDim2.new(0, 0, 1, -96)
-HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-HeightVisualBtn.BackgroundTransparency = 0.4
-HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: OFF"
-HeightVisualBtn.TextColor3 = TEXT_DARK
-HeightVisualBtn.Font = Enum.Font.SourceSansBold
-HeightVisualBtn.TextSize = 12
-HeightVisualBtn.Parent = LocationsPage
-
-local VisualCorner = Instance.new("UICorner")
-VisualCorner.CornerRadius = UDim.new(0, 4)
-VisualCorner.Parent = HeightVisualBtn
 
 local L_StatusFrame = Instance.new("Frame")
 L_StatusFrame.Size = UDim2.new(1, 0, 0, 24)
@@ -504,7 +519,7 @@ L_StartCorner.CornerRadius = UDim.new(0, 6)
 L_StartCorner.Parent = L_StartBtn
 
 ---------------------------------------------------------
--- NÚT XÓA MENU & BÀN PHÍM TẮT
+-- EVENT XÓA MENU & PHÍM TẮT
 ---------------------------------------------------------
 CloseBtn.MouseButton1Click:Connect(function()
     if heightVisualPart then heightVisualPart:Destroy() end
@@ -552,7 +567,7 @@ PlayersTabBtn.MouseButton1Click:Connect(function() switchTab("Players") end)
 LocationsTabBtn.MouseButton1Click:Connect(function() switchTab("Locations") end)
 
 ---------------------------------------------------------
--- LOGIC RENDER SỌC TRẮNG XÁM XEN KẼ (ZEBRA LOGIC)
+-- LOGIC CƠ BẢN (CORE LOGIC)
 ---------------------------------------------------------
 local startFly
 
@@ -635,14 +650,14 @@ local function updatePlayerList()
                 Btn.Size = UDim2.new(1, 0, 0, 25)
                 Btn.BorderSizePixel = 0
                 Btn.Font = Enum.Font.SourceSans
-                Btn.TextSize = 13
+                Btn.TextSize = 12
                 Btn.Parent = PlayerList
 
                 if isDead then
-                    Btn.Text = "🔴 [GỤC/CHẾT] " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.Text = "🔴 [GỤC] " .. plr.DisplayName
                     Btn.TextColor3 = COLOR_DEAD
                 else
-                    Btn.Text = "  👤 " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                    Btn.Text = "  👤 " .. plr.DisplayName
                     Btn.TextColor3 = TEXT_DARK
                     Btn.TextXAlignment = Enum.TextXAlignment.Left
                 end
@@ -804,17 +819,21 @@ end
 HeightVisualBtn.MouseButton1Click:Connect(function()
     showHeightVisual = not showHeightVisual
     if showHeightVisual then
-        HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: ON"
+        HeightVisualBtn.Text = "💈 Trụ Visual: ON"
         HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         updateHeightVisual()
     else
-        HeightVisualBtn.Text = "📏 Trụ Visual Chiều Cao: OFF"
+        HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
         HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
         updateHeightVisual()
     end
 end)
 
--- Physics Reset
+P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if showHeightVisual then updateHeightVisual() end
+end)
+
+-- Reset Physics Safe
 local function resetCharacterPhysics()
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
     local char = LocalPlayer.Character
@@ -886,7 +905,7 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
     return true
 end
 
--- Core Fly Routine
+-- Core Flying
 startFly = function()
     if isFlying then return end
 
