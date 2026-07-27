@@ -1,8 +1,9 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (ULTRA TRANSLUCENT WHITE-GREY ZEBRA)
-    - THEME: TRẮNG XÁM TRONG SUỐT NHÌN XUYÊN THẤU (GLASSMORPHISM)
-    - HỌA TIẾT: SỌC XEN KẼ (ZEBRA STRIPES) TRẮNG & XÁM MỜ
-    - TÍNH NĂNG: KÉO NẮM 4 GÓC RESIZE, CHUYỂN TAB, LƯU TỌA ĐỘ, BAY TỚI NGƯỜI GỤC
+    FLY TO PLAYER & SAVED LOCATIONS (ALWAYS-ON TOGGLE BUTTON EDITION)
+    - TÍNH NĂNG MỚI: NÚT "🍌 BẬT/ẨN MENU" LUÔN XUẤT HIỆN TRÊN MÀN HÌNH (KÉO THẢ ĐƯỢC)
+    - KHI BẬT MENU -> NÚT VẪN CÒN ĐỂ BẤM ẨN MENU
+    - THEME: TRẮNG XÁM TRONG SUỐT NHÌN XUYÊN THẤU (GLASSMORPHISM ZEBRA)
+    - RESIZABLE 4 GÓC, CHUYỂN TAB, LƯU TỌA ĐỘ, BAY TỚI NGƯỜI GỤC
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -43,12 +44,12 @@ local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FlyBananaCatGlassZebra"
+ScreenGui.Name = "FlyBananaCatPersistentToggle"
 ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
 
--- Main Frame (Menu Trong Suốt)
+-- Main Frame (Menu Trong Suốt Nhìn Xuyên Qua)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 550, 0, 360)
@@ -72,7 +73,7 @@ Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
-Title.Text = "  🍌 BANANA FLY - WHITE GREY GLASS"
+Title.Text = "  🍌 BANANA FLY - PERSISTENT TOGGLE"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -109,26 +110,51 @@ CloseBtn.TextSize = 13
 CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
--- Open Button (Khi Thu Gọn)
-local OpenBtn = Instance.new("TextButton")
-OpenBtn.Size = UDim2.new(0, 110, 0, 32)
-OpenBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
-OpenBtn.BackgroundColor3 = COLOR_MAIN_BG
-OpenBtn.BackgroundTransparency = 0.3
-OpenBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
-OpenBtn.BorderSizePixel = 1
-OpenBtn.Text = "🍌 Open Fly"
-OpenBtn.TextColor3 = TEXT_DARK
-OpenBtn.Font = Enum.Font.SourceSansBold
-OpenBtn.TextSize = 14
-OpenBtn.Visible = false
-OpenBtn.Draggable = true
-OpenBtn.ZIndex = 100
-OpenBtn.Parent = ScreenGui
+---------------------------------------------------------
+-- [MỚI] NÚT BẬT / ẨN MENU LUÔN LUÔN HIỂN THỊ (ALWAYS ON TOGGLE)
+---------------------------------------------------------
+local PersistentToggleBtn = Instance.new("TextButton")
+PersistentToggleBtn.Name = "PersistentToggleBtn"
+PersistentToggleBtn.Size = UDim2.new(0, 115, 0, 32)
+PersistentToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0) -- Vị trí góc trái màn hình
+PersistentToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+PersistentToggleBtn.BackgroundTransparency = 0.35 -- Trong suốt đẹp mắt
+PersistentToggleBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+PersistentToggleBtn.BorderSizePixel = 1
+PersistentToggleBtn.Text = "🍌 Ẩn Menu"
+PersistentToggleBtn.TextColor3 = TEXT_DARK
+PersistentToggleBtn.Font = Enum.Font.SourceSansBold
+PersistentToggleBtn.TextSize = 13
+PersistentToggleBtn.Visible = true -- BẤT TỬ: LUÔN HIỆN TRÊN MÀN HÌNH
+PersistentToggleBtn.Draggable = true -- Có thể kéo thả di chuyển tùy ý
+PersistentToggleBtn.ZIndex = 100
+PersistentToggleBtn.Parent = ScreenGui
 
-local OpenCorner = Instance.new("UICorner")
-OpenCorner.CornerRadius = UDim.new(0, 6)
-OpenCorner.Parent = OpenBtn
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = PersistentToggleBtn
+
+-- Hàm cập nhật trạng thái Ẩn / Hiện
+local function setMenuVisible(visible)
+    MainFrame.Visible = visible
+    if visible then
+        PersistentToggleBtn.Text = "🍌 Ẩn Menu"
+        PersistentToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        PersistentToggleBtn.Text = "🍌 Mở Menu"
+        PersistentToggleBtn.BackgroundColor3 = COLOR_TITLE_BG
+    end
+end
+
+-- Bấm nút toggle bất tử -> Đảo trạng thái Ẩn/Hiện Menu
+PersistentToggleBtn.MouseButton1Click:Connect(function()
+    setMenuVisible(not MainFrame.Visible)
+end)
+
+-- Bấm nút (-) ở góc menu -> Dùng chung hàm thu gọn
+MinimizeBtn.MouseButton1Click:Connect(function()
+    setMenuVisible(false)
+end)
 
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MENU (RESIZABLE)
@@ -291,12 +317,11 @@ RefreshBtn.Font = Enum.Font.SourceSansBold
 RefreshBtn.TextSize = 12
 RefreshBtn.Parent = PlayersPage
 
--- Danh sách cuộn Sọc Xen Kẽ
 local PlayerList = Instance.new("ScrollingFrame")
 PlayerList.Size = UDim2.new(1, 0, 1, -135)
 PlayerList.Position = UDim2.new(0, 0, 0, 32)
 PlayerList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PlayerList.BackgroundTransparency = 0.75 -- Nhìn xuyên qua khung danh sách
+PlayerList.BackgroundTransparency = 0.75
 PlayerList.BorderColor3 = Color3.fromRGB(220, 225, 235)
 PlayerList.ScrollBarThickness = 5
 PlayerList.Parent = PlayersPage
@@ -305,7 +330,7 @@ local UIListLayout1 = Instance.new("UIListLayout")
 UIListLayout1.Parent = PlayerList
 UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Phía Dưới Control
+-- Control Inputs
 local P_HeightLabel = Instance.new("TextLabel")
 P_HeightLabel.Size = UDim2.new(0.22, 0, 0, 22)
 P_HeightLabel.Position = UDim2.new(0, 0, 1, -96)
@@ -479,18 +504,8 @@ L_StartCorner.CornerRadius = UDim.new(0, 6)
 L_StartCorner.Parent = L_StartBtn
 
 ---------------------------------------------------------
--- XỬ LÝ ẨN / HIỆN MENU
+-- NÚT XÓA MENU & BÀN PHÍM TẮT
 ---------------------------------------------------------
-MinimizeBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-    OpenBtn.Visible = true
-end)
-
-OpenBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = true
-    OpenBtn.Visible = false
-end)
-
 CloseBtn.MouseButton1Click:Connect(function()
     if heightVisualPart then heightVisualPart:Destroy() end
     if heightVisualConn then heightVisualConn:Disconnect() end
@@ -499,8 +514,7 @@ end)
 
 UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
-        MainFrame.Visible = not MainFrame.Visible
-        OpenBtn.Visible = not MainFrame.Visible
+        setMenuVisible(not MainFrame.Visible)
     end
 end)
 
@@ -633,14 +647,13 @@ local function updatePlayerList()
                     Btn.TextXAlignment = Enum.TextXAlignment.Left
                 end
 
-                -- Tô màu Sọc Xen Kẽ Trắng / Xám mờ
                 if selectedPlayer == plr then
                     Btn.BackgroundColor3 = WATER_BLUE
                     Btn.BackgroundTransparency = 0.2
                     Btn.TextColor3 = TEXT_LIGHT
                 else
                     Btn.BackgroundColor3 = isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD
-                    Btn.BackgroundTransparency = 0.45 -- Độ mờ sọc
+                    Btn.BackgroundTransparency = 0.45
                 end
 
                 Btn.MouseButton1Click:Connect(function()
@@ -873,7 +886,7 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
     return true
 end
 
--- Core Fly Execution
+-- Core Fly Routine
 startFly = function()
     if isFlying then return end
 
