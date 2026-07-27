@@ -1,7 +1,7 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (ONLY 1 RESIZE CORNER EDITION)
-    - CHỈ SỬ DỤNG 1 GÓC DƯỚI BÊN PHẢI (BR) ĐỂ KÉO CO GIÃN (3 GÓC CÒN LẠI ĐÃ XÓA TẮT)
-    - KÉO DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ (SMOOTH NO-GLITCH DRAG)
+    FLY TO PLAYER & SAVED LOCATIONS (FIXED ALL SYNTAX ERRORS)
+    - CHỈ SỬ DỤNG 1 GÓC DƯỚI BÊN PHẢI (BR) ĐỂ KÉO CO GIÃN
+    - KÉO DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
     - TÍNH NĂNG ĐỊNH VỊ TỌA ĐỘ ĐÃ LƯU (ESP ALL LOCATIONS / ESP LẺ THEO CHỌN + KHOẢNG CÁCH Realtime)
     - NÚT TOGGLE "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
@@ -1231,7 +1231,7 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
         task.wait()
     end
 
-    if connection meDisconnect() end
+    if connection then connection:Disconnect() end
     return true
 end
 
