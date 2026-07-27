@@ -1,9 +1,5 @@
 -- ============================================
--- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
--- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
--- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
--- + [MỚI] FLY TO PLAYER (BAY ĐẾN NGƯỜI CHƠI GỤC/CHẾT/SỐNG + TRỤ ĐỘ CAO + TÌM KIẾM)
+-- EXECUTOR MENU - Banana Cat Hub + Fly To Player (FIX LỖI HIỂN THỊ 100%)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -17,15 +13,21 @@ local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Xác định Parent an toàn cho UI
-local targetGui = playerGui
-if gethui then
-    targetGui = gethui()
-elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
-    targetGui = game:GetService("CoreGui")
+if not player then
+    player = Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 end
+local playerGui = player:WaitForChild("PlayerGui", 10)
+
+-- ===== LỚP BẢO VỆ NƠI ĐẶT GUI (CHỐNG LỖI EXECUTOR MOBILE/PC) =====
+local targetGui = playerGui
+pcall(function()
+    if gethui then
+        targetGui = gethui()
+    elseif game:GetService("CoreGui") then
+        targetGui = game:GetService("CoreGui")
+    end
+end)
+if not targetGui then targetGui = playerGui end
 
 -- ==================== CONSTANTS ====================
 local C = {
@@ -88,14 +90,17 @@ local function TweenL(p)
 end
 
 -- ==================== SCREEN GUI ====================
-if targetGui:FindFirstChild("ExMenu") then
-    targetGui.ExMenu:Destroy()
-end
+pcall(function()
+    if targetGui:FindFirstChild("ExMenu") then
+        targetGui.ExMenu:Destroy()
+    end
+end)
 
 local gui = New("ScreenGui", {
     Name="ExMenu",
     IgnoreGuiInset=true,
     ResetOnSpawn=false,
+    Enabled=true,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
@@ -122,7 +127,7 @@ local main = New("Frame", {
     BackgroundColor3=Color3.fromRGB(235, 238, 245),
     BackgroundTransparency=0.25,
     BorderSizePixel=0,
-    Visible=false,
+    Visible=true,
     ClipsDescendants=false,
     ZIndex=2,
 }, gui)
@@ -424,20 +429,22 @@ local function UpdChar()
     end
 end
 
--- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
-local oldNamecall
-if hookmetamethod then
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if S.blockServer then
-            if method == "Kick" or method == "kick" then
-                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
-                return nil
+-- ==================== CHẶN SERVER TÁC ĐỘNG (SAFE HOOK) ====================
+pcall(function()
+    if hookmetamethod then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if S.blockServer then
+                if method == "Kick" or method == "kick" then
+                    warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
+                    return nil
+                end
             end
-        end
-        return oldNamecall(self, ...)
-    end)
-end
+            return oldNamecall(self, ...)
+        end)
+    end
+end)
 
 -- ==================== VÒNG LẶP STEPPED: FREEZE OTHERS & ANTI-SERVER ====================
 RunService.Stepped:Connect(function()
@@ -476,8 +483,10 @@ end
 -- ==================== ANTI AFK ====================
 player.Idled:Connect(function()
     if S.antiAfk then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
     end
 end)
 
@@ -531,7 +540,7 @@ local function DisNC()
     end
 end
 
--- ==================== FLY TO PLAYER LOGIC (MỚI) ====================
+-- ==================== FLY TO PLAYER LOGIC ====================
 local heightVisualPart = nil
 local heightVisualConn = nil
 local currentFlyTween = nil
@@ -1511,18 +1520,20 @@ RebuildScripts = function()
             Corner(copyBtn, UDim.new(0,5))
 
             copyBtn.Activated:Connect(function()
-                if setclipboard then
-                    setclipboard(d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                elseif toclipboard then
-                    toclipboard(d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                else
-                    codeLbl:CaptureFocus()
-                    codeLbl.SelectionStart = 1
-                    codeLbl.CursorPosition = #d.code + 1
-                    copyBtn.Text = "⚠️ Đã Bôi Đen Code"
-                end
+                pcall(function()
+                    if setclipboard then
+                        setclipboard(d.code)
+                        copyBtn.Text = "✅ Đã Sao Chép!"
+                    elseif toclipboard then
+                        toclipboard(d.code)
+                        copyBtn.Text = "✅ Đã Sao Chép!"
+                    else
+                        codeLbl:CaptureFocus()
+                        codeLbl.SelectionStart = 1
+                        codeLbl.CursorPosition = #d.code + 1
+                        copyBtn.Text = "⚠️ Đã Bôi Đen Code"
+                    end
+                end)
                 task.delay(1.5, function()
                     if copyBtn and copyBtn.Parent then
                         copyBtn.Text = "📋 Sao Chép Code"
@@ -1768,11 +1779,10 @@ py = py + 32
 Label(playerTab, "━━━━━━━━━━━━━━━━━━━━━━", py)
 py = py + 16
 
--- ==================== [MỚI] BAY ĐẾN NGƯỜI CHƠI (FLY TO PLAYER) ====================
+-- ==================== BAY ĐẾN NGƯỜI CHƠI (FLY TO PLAYER) ====================
 Label(playerTab, "🛸 Bay Đến Người Chơi (Bất Tử / Gục / Chết)", py)
 py = py + 16
 
--- Search Box & Refresh Button
 local flySearchBox = New("TextBox", {
     Size=UDim2.new(1,-88,0,24), Position=UDim2.new(0,8,0,py), Text="",
     PlaceholderText="🔍 Tìm tên...", PlaceholderColor3=Color3.fromRGB(150,150,150),
@@ -1789,7 +1799,6 @@ flyRefreshBtn.Position = UDim2.new(1, -78, 0, py)
 
 py = py + 28
 
--- Scrolling Player List Frame
 local flyPlayerListFrame = New("ScrollingFrame", {
     Size=UDim2.new(1,-16,0,100), Position=UDim2.new(0,8,0,py),
     BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0.3,
@@ -1805,7 +1814,6 @@ local flyListLayout = New("UIListLayout", {
 
 py = py + 104
 
--- Height & Speed Controls
 Label(playerTab, "Chiều cao:", py)
 
 local flyHeightBox = New("TextBox", {
@@ -1830,7 +1838,6 @@ Corner(flySpeedBox, UDim.new(0,4)); Stroke(flySpeedBox)
 
 py = py + 48
 
--- Status Label
 local flyStatusLabel = New("TextLabel", {
     Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,py),
     Text="Đã chọn: Chưa chọn ai", BackgroundTransparency=1,
@@ -1840,12 +1847,10 @@ local flyStatusLabel = New("TextLabel", {
 
 py = py + 18
 
--- Start/Stop Fly Button
 local startFlyToBtn = Button(playerTab, "🚀 BẮT ĐẦU BAY TO PLAYER", 8, py, 230, 28, C.GREEN)
 
 py = py + 34
 
--- Update Player List Function
 local function updateFlyPlayerList()
     for _, child in pairs(flyPlayerListFrame:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
@@ -1920,7 +1925,6 @@ Players.PlayerAdded:Connect(updateFlyPlayerList)
 Players.PlayerRemoving:Connect(updateFlyPlayerList)
 task.spawn(updateFlyPlayerList)
 
--- Height Visual Toggle
 heightPillarBtn.Activated:Connect(function()
     S.showHeightPillar = not S.showHeightPillar
     if S.showHeightPillar then
@@ -1945,7 +1949,6 @@ flySpeedBox.FocusLost:Connect(function()
     if n and n > 0 then S.flyToSpeed = n else flySpeedBox.Text = tostring(S.flyToSpeed) end
 end)
 
--- Main Fly To Exec
 local function startFlyToPlayer()
     if S.isFlyingTo then return end
 
@@ -1969,12 +1972,10 @@ local function startFlyToPlayer()
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
-    -- Phase 1: Fly Up
     flyStatusLabel.Text = "Đang bay lên..."
     local skyPos = hrp.Position + Vector3.new(0, S.flyToHeight, 0)
     local success1 = tweenToTarget(hrp, CFrame.new(skyPos), S.flyToSpeed)
 
-    -- Phase 2: Fly Overhead
     if success1 and not S.stopFlyToRequested then
         targetPart = getTargetPart(S.selectedFlyPlayer)
         if targetPart then
@@ -1982,7 +1983,6 @@ local function startFlyToPlayer()
             local targetOverhead = targetPart.Position + Vector3.new(0, S.flyToHeight, 0)
             local success2 = tweenToTarget(hrp, CFrame.new(targetOverhead), S.flyToSpeed)
 
-            -- Phase 3: Land
             if success2 and not S.stopFlyToRequested then
                 targetPart = getTargetPart(S.selectedFlyPlayer)
                 if targetPart then
@@ -2036,15 +2036,17 @@ serverHopBtn.Activated:Connect(function()
     local servers = {}
     local req = request or http_request or (syn and syn.request)
     if req then
-        local res = req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
-        local body = HttpService:JSONDecode(res.Body)
-        if body and body.data then
-            for _, s in ipairs(body.data) do
-                if type(s) == "table" and s.playing < s.maxPlayers and s.id ~= game.JobId then
-                    table.insert(servers, s.id)
+        pcall(function()
+            local res = req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
+            local body = HttpService:JSONDecode(res.Body)
+            if body and body.data then
+                for _, s in ipairs(body.data) do
+                    if type(s) == "table" and s.playing < s.maxPlayers and s.id ~= game.JobId then
+                        table.insert(servers, s.id)
+                    end
                 end
             end
-        end
+        end)
     end
     if #servers > 0 then
         TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], player)
@@ -2457,4 +2459,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã tích hợp thành công tính năng 'Fly To Player' vào Tab 'Người Chơi' nằm phía trên phần 'Chuyển máy chủ'!")
+print("✅ Banana Cat Hub đã tải thành công 100%!")
