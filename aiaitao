@@ -1,10 +1,10 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (DRAGGABLE INNER SPLITTER EDITION)
+    FLY TO PLAYER & SAVED LOCATIONS (ONLY 1 RESIZE CORNER EDITION)
+    - CHỈ SỬ DỤNG 1 GÓC DƯỚI BÊN PHẢI (BR) ĐỂ KÉO CO GIÃN (3 GÓC CÒN LẠI ĐÃ XÓA TẮT)
+    - KÉO DI CHUYỂN MENU BẰNG THANH TIÊU ĐỀ (SMOOTH NO-GLITCH DRAG)
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
     - TÍNH NĂNG ĐỊNH VỊ TỌA ĐỘ ĐÃ LƯU (ESP ALL LOCATIONS / ESP LẺ THEO CHỌN + KHOẢNG CÁCH Realtime)
     - NÚT TOGGLE "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
-    - RESIZABLE 4 GÓC MENU VÀ THANH KÉO DÃN GIỮA HAI CỘT
-    - BAY TỚI PLAYER / TỌA ĐỘ ĐÃ LƯU
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -33,13 +33,13 @@ local maxSplit = 0.80
 -- Player ESP / Tracker Variables
 local espAllActive = false
 local espSingleActive = false
-local espStorage = {}          -- Lưu BillboardGui của từng người chơi
-local downedTimeTracker = {}   -- Lưu thời gian bắt đầu bị gục [Player] = timestamp
+local espStorage = {}          
+local downedTimeTracker = {}   
 
 -- Location ESP Variables
 local locEspAllActive = false
 local locEspSingleActive = false
-local locEspStorage = {}       -- Lưu BillboardGui của từng vị trí đã lưu [item] = {Gui, Label, Attachment}
+local locEspStorage = {}       
 
 -- Visual Height Pillar Variables
 local heightVisualPart = nil
@@ -76,7 +76,7 @@ MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = false
 MainFrame.ClipsDescendants = false
 MainFrame.Parent = ScreenGui
 
@@ -84,7 +84,7 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
--- Title Bar
+-- Title Bar (Kéo di chuyển Menu)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
@@ -95,11 +95,40 @@ Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Active = true
 Title.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
+
+---------------------------------------------------------
+-- CƠ CHẾ KÉO MENU (SMOOTH DRAG TITLE BAR)
+---------------------------------------------------------
+local draggingMain = false
+local dragStartMouse, dragStartPos
+
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingMain = true
+        dragStartMouse = UserInputService:GetMouseLocation()
+        dragStartPos = MainFrame.AbsolutePosition
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingMain = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingMain and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentMouse = UserInputService:GetMouseLocation()
+        local delta = currentMouse - dragStartMouse
+        MainFrame.Position = UDim2.new(0, dragStartPos.X + delta.X, 0, dragStartPos.Y + delta.Y)
+    end
+end)
 
 -- Minimize Button (-)
 local MinimizeBtn = Instance.new("TextButton")
@@ -143,13 +172,39 @@ PersistentToggleBtn.TextColor3 = TEXT_DARK
 PersistentToggleBtn.Font = Enum.Font.SourceSansBold
 PersistentToggleBtn.TextSize = 13
 PersistentToggleBtn.Visible = true
-PersistentToggleBtn.Draggable = true
+PersistentToggleBtn.Active = true
 PersistentToggleBtn.ZIndex = 100
 PersistentToggleBtn.Parent = ScreenGui
 
 local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 8)
 ToggleCorner.Parent = PersistentToggleBtn
+
+-- Di chuyển nút PersistentToggle
+local dragToggle = false
+local dragToggleStartMouse, dragToggleStartPos
+
+PersistentToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragToggle = true
+        dragToggleStartMouse = UserInputService:GetMouseLocation()
+        dragToggleStartPos = PersistentToggleBtn.AbsolutePosition
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragToggle = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentMouse = UserInputService:GetMouseLocation()
+        local delta = currentMouse - dragToggleStartMouse
+        PersistentToggleBtn.Position = UDim2.new(0, dragToggleStartPos.X + delta.X, 0, dragToggleStartPos.Y + delta.Y)
+    end
+end)
 
 local function setMenuVisible(visible)
     MainFrame.Visible = visible
@@ -171,95 +226,59 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU
+-- CƠ CHẾ KÉO CO GIÃN DUY NHẤT 1 GÓC DƯỚI BÊN PHẢI (BOTTOM-RIGHT)
 ---------------------------------------------------------
 local minSize = Vector2.new(480, 280)
 local maxSize = Vector2.new(950, 600)
 
-local corners = {
-    {Name = "TL", Cursor = "◤", Pos = UDim2.new(0, 0, 0, 0)},
-    {Name = "TR", Cursor = "◥", Pos = UDim2.new(1, -14, 0, 0)},
-    {Name = "BL", Cursor = "◣", Pos = UDim2.new(0, 0, 1, -14)},
-    {Name = "BR", Cursor = "◢", Pos = UDim2.new(1, -14, 1, -14)}
-}
+local ResizeHandle = Instance.new("TextButton")
+ResizeHandle.Name = "Resize_BR_Only"
+ResizeHandle.Size = UDim2.new(0, 16, 0, 16)
+ResizeHandle.Position = UDim2.new(1, -16, 1, -16)
+ResizeHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ResizeHandle.BackgroundTransparency = 0.4
+ResizeHandle.Text = "◢"
+ResizeHandle.TextColor3 = TEXT_DARK
+ResizeHandle.Font = Enum.Font.SourceSansBold
+ResizeHandle.TextSize = 11
+ResizeHandle.ZIndex = 10
+ResizeHandle.Parent = MainFrame
 
-for _, cornerInfo in ipairs(corners) do
-    local handle = Instance.new("TextButton")
-    handle.Name = "Resize_" .. cornerInfo.Name
-    handle.Size = UDim2.new(0, 14, 0, 14)
-    handle.Position = cornerInfo.Pos
-    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    handle.BackgroundTransparency = 0.5
-    handle.Text = cornerInfo.Cursor
-    handle.TextColor3 = TEXT_DARK
-    handle.Font = Enum.Font.SourceSansBold
-    handle.TextSize = 10
-    handle.ZIndex = 10
-    handle.Parent = MainFrame
+local HandleCorner = Instance.new("UICorner")
+HandleCorner.CornerRadius = UDim.new(0, 4)
+HandleCorner.Parent = ResizeHandle
 
-    local handleCorner = Instance.new("UICorner")
-    handleCorner.CornerRadius = UDim.new(0, 3)
-    handleCorner.Parent = handle
+local isResizing = false
+local startMousePos, startSize
 
-    local isDragging = false
-    local startMousePos, startSize, startPos
+ResizeHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isResizing = true
+        startMousePos = UserInputService:GetMouseLocation()
+        startSize = MainFrame.AbsoluteSize
+    end
+end)
 
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = true
-            startMousePos = UserInputService:GetMouseLocation()
-            startSize = MainFrame.AbsoluteSize
-            startPos = MainFrame.AbsolutePosition
-        end
-    end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isResizing = false
+    end
+end)
 
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = false
-        end
-    end)
+UserInputService.InputChanged:Connect(function(input)
+    if isResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local delta = currentMousePos - startMousePos
 
-    UserInputService.InputChanged:Connect(function(input)
-        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local currentMousePos = UserInputService:GetMouseLocation()
-            local delta = currentMousePos - startMousePos
+        local newWidth = math.clamp(startSize.X + delta.X, minSize.X, maxSize.X)
+        local newHeight = math.clamp(startSize.Y + delta.Y, minSize.Y, maxSize.Y)
 
-            local newW = startSize.X
-            local newH = startSize.Y
-            local newX = startPos.X
-            local newY = startPos.Y
-
-            if cornerInfo.Name == "BR" then
-                newW = startSize.X + delta.X
-                newH = startSize.Y + delta.Y
-            elseif cornerInfo.Name == "BL" then
-                newW = startSize.X - delta.X
-                newH = startSize.Y + delta.Y
-                newX = startPos.X + delta.X
-            elseif cornerInfo.Name == "TR" then
-                newW = startSize.X + delta.X
-                newH = startSize.Y - delta.Y
-                newY = startPos.Y + delta.Y
-            elseif cornerInfo.Name == "TL" then
-                newW = startSize.X - delta.X
-                newH = startSize.Y - delta.Y
-                newX = startPos.X + delta.X
-                newY = startPos.Y + delta.Y
-            end
-
-            newW = math.clamp(newW, minSize.X, maxSize.X)
-            newH = math.clamp(newH, minSize.Y, maxSize.Y)
-
-            MainFrame.Size = UDim2.new(0, newW, 0, newH)
-            if cornerInfo.Name == "BL" or cornerInfo.Name == "TL" or cornerInfo.Name == "TR" then
-                MainFrame.Position = UDim2.new(0, newX, 0, newY)
-            end
-        end
-    end)
-end
+        MainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+    end
+end)
 
 ---------------------------------------------------------
--- THANH TAB BAR TRONG SUỐT
+-- THANH TAB BAR
 ---------------------------------------------------------
 local TabBarFrame = Instance.new("Frame")
 TabBarFrame.Size = UDim2.new(1, -24, 0, 30)
@@ -368,7 +387,7 @@ local P_PanelCorner = Instance.new("UICorner")
 P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
--- 1. Nút Định vị Tất cả (ESP Player All)
+-- Nút ESP Player
 local EspAllBtn = Instance.new("TextButton")
 EspAllBtn.Size = UDim2.new(1, -10, 0, 24)
 EspAllBtn.Position = UDim2.new(0, 5, 0, 6)
@@ -384,7 +403,6 @@ local EspAllCorner = Instance.new("UICorner")
 EspAllCorner.CornerRadius = UDim.new(0, 4)
 EspAllCorner.Parent = EspAllBtn
 
--- 2. Nút Định vị Lẻ (ESP Player Single)
 local EspSingleBtn = Instance.new("TextButton")
 EspSingleBtn.Size = UDim2.new(1, -10, 0, 24)
 EspSingleBtn.Position = UDim2.new(0, 5, 0, 34)
@@ -522,7 +540,6 @@ LocationsPage.BackgroundTransparency = 1
 LocationsPage.Visible = false
 LocationsPage.Parent = MainFrame
 
--- HÀNG 1: Nhập tên & Nút Lưu
 local PosNameBox = Instance.new("TextBox")
 PosNameBox.Size = UDim2.new(0.68, 0, 0, 24)
 PosNameBox.Position = UDim2.new(0, 0, 0, 0)
@@ -551,9 +568,7 @@ local SaveCorner = Instance.new("UICorner")
 SaveCorner.CornerRadius = UDim.new(0, 4)
 SaveCorner.Parent = SavePosBtn
 
----------------------------------------------------------
--- HÀNG 2: BẢNG ĐỊNH VỊ TỌA ĐỘ (NẰM Ở GIỮA NHẬP/LƯU VÀ DANH SÁCH)
----------------------------------------------------------
+-- BẢNG ĐỊNH VỊ TỌA ĐỘ
 local LocEspAllBtn = Instance.new("TextButton")
 LocEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
 LocEspAllBtn.Position = UDim2.new(0, 0, 0, 28)
@@ -584,7 +599,6 @@ local LocEspSingleCorner = Instance.new("UICorner")
 LocEspSingleCorner.CornerRadius = UDim.new(0, 4)
 LocEspSingleCorner.Parent = LocEspSingleBtn
 
--- DANH SÁCH TỌA ĐỘ
 local SavedList = Instance.new("ScrollingFrame")
 SavedList.Size = UDim2.new(1, 0, 1, -58)
 SavedList.Position = UDim2.new(0, 0, 0, 58)
@@ -729,7 +743,7 @@ local function createLocESP(item)
     txt.TextSize = 13
     txt.TextStrokeTransparency = 0
     txt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    txt.TextColor3 = Color3.fromRGB(255, 215, 0) -- Màu Vàng Kim
+    txt.TextColor3 = Color3.fromRGB(255, 215, 0)
     txt.Parent = bbg
 
     bbg.Parent = ScreenGui
@@ -752,13 +766,13 @@ local function removeAllLocESP()
 end
 
 ---------------------------------------------------------
--- VÒNG LẶP CẬP NHẬT REALTIME CHO CẢ ESP NGƯỜI CHƠI VÀ ESP TỌA ĐỘ
+-- VÒNG LẶP CẬP NHẬT REALTIME CHO CẢ ESP
 ---------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     local myChar = LocalPlayer.Character
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
-    -- A. Xử lý ESP Player
+    -- ESP Player
     if espAllActive or espSingleActive then
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer then
@@ -809,7 +823,7 @@ RunService.RenderStepped:Connect(function()
         if next(espStorage) ~= nil then removeAllESP() end
     end
 
-    -- B. Xử lý ESP Location (Tọa Độ)
+    -- ESP Location
     if locEspAllActive or locEspSingleActive then
         for _, item in ipairs(savedLocations) do
             local shouldTrackLoc = false
@@ -1217,11 +1231,10 @@ local function tweenToTarget(hrp, targetCFrame, flySpeed)
         task.wait()
     end
 
-    if connection then connection:Disconnect() end
+    if connection meDisconnect() end
     return true
 end
 
--- Hàm Dừng Bay
 stopFly = function()
     stopRequested = true
     if currentTween then currentTween:Cancel() end
@@ -1231,7 +1244,6 @@ stopFly = function()
     updateSavedList()
 end
 
--- Core Flying
 startFly = function(mode, targetObj)
     if isFlying then return end
 
