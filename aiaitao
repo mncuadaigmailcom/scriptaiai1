@@ -1,0 +1,245 @@
+--[[
+    FLY TO PLAYER SCRIPT (BLACK & WHITE THEME)
+    Features: Sky-Fly approach, Speed & Height control, Noclip while flying.
+--]]
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- Variables
+local selectedPlayer = nil
+local isFlying = false
+local noclipConnection = nil
+
+-- UI Construction
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlyToPlayerBW"
+ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 350, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -210)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- Black background
+MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255) -- White border
+MainFrame.BorderSizePixel = 2
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Title.BorderColor3 = Color3.fromRGB(255, 255, 255)
+Title.BorderSizePixel = 1
+Title.Text = "FLY TO PLAYER"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+-- Player List (ScrollingFrame)
+local PlayerList = Instance.new("ScrollingFrame")
+PlayerList.Size = UDim2.new(0.9, 0, 0, 150)
+PlayerList.Position = UDim2.new(0.05, 0, 0.12, 0)
+PlayerList.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+PlayerList.BorderColor3 = Color3.fromRGB(200, 200, 200)
+PlayerList.ScrollBarThickness = 6
+PlayerList.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = PlayerList
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 2)
+
+-- Height Input Label & Box
+local HeightLabel = Instance.new("TextLabel")
+HeightLabel.Size = UDim2.new(0.4, 0, 0, 30)
+HeightLabel.Position = UDim2.new(0.05, 0, 0.52, 0)
+HeightLabel.BackgroundTransparency = 1
+HeightLabel.Text = "Chiều cao (Height):"
+HeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
+HeightLabel.Font = Enum.Font.SourceSans
+HeightLabel.TextSize = 14
+HeightLabel.Parent = MainFrame
+
+local HeightBox = Instance.new("TextBox")
+HeightBox.Size = UDim2.new(0.45, 0, 0, 30)
+HeightBox.Position = UDim2.new(0.5, 0, 0.52, 0)
+HeightBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+HeightBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+HeightBox.Text = "150" -- Default height
+HeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeightBox.Font = Enum.Font.SourceSans
+HeightBox.TextSize = 14
+HeightBox.Parent = MainFrame
+
+-- Speed Input Label & Box
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0.4, 0, 0, 30)
+SpeedLabel.Position = UDim2.new(0.05, 0, 0.62, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Tốc độ (Speed):"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Font = Enum.Font.SourceSans
+SpeedLabel.TextSize = 14
+SpeedLabel.Parent = MainFrame
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Size = UDim2.new(0.45, 0, 0, 30)
+SpeedBox.Position = UDim2.new(0.5, 0, 0.62, 0)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SpeedBox.BorderColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.Text = "100" -- Default speed
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.Font = Enum.Font.SourceSans
+SpeedBox.TextSize = 14
+SpeedBox.Parent = MainFrame
+
+-- Target Status
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.72, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Đã chọn: Chưa chọn ai"
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+StatusLabel.Font = Enum.Font.SourceSansItalic
+StatusLabel.TextSize = 14
+StatusLabel.Parent = MainFrame
+
+-- Start Button
+local StartBtn = Instance.new("TextButton")
+StartBtn.Size = UDim2.new(0.9, 0, 0, 40)
+StartBtn.Position = UDim2.new(0.05, 0, 0.82, 0)
+StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+StartBtn.Text = "BẮT ĐẦU BAY"
+StartBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+StartBtn.Font = Enum.Font.SourceSansBold
+StartBtn.TextSize = 16
+StartBtn.Parent = MainFrame
+
+-- Function to Update Player List
+local function updatePlayerList()
+    for _, child in pairs(PlayerList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local Btn = Instance.new("TextButton")
+            Btn.Size = UDim2.new(1, 0, 0, 25)
+            Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+            Btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+            Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Btn.Font = Enum.Font.SourceSans
+            Btn.TextSize = 14
+            Btn.Parent = PlayerList
+
+            Btn.MouseButton1Click:Connect(function()
+                selectedPlayer = plr
+                StatusLabel.Text = "Đã chọn: " .. plr.DisplayName
+            end)
+        end
+    end
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, #PlayerList:GetChildren() * 27)
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+
+-- Enable/Disable Noclip
+local function setNoclip(state)
+    if state then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+-- Flying Function
+local function startFly()
+    if isFlying then return end
+    if not selectedPlayer or not selectedPlayer.Character or not selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        StatusLabel.Text = "Lỗi: Người chơi không tồn tại!"
+        return
+    end
+
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+    local targetHrp = selectedPlayer.Character.HumanoidRootPart
+
+    local flyHeight = tonumber(HeightBox.Text) or 150
+    local flySpeed = tonumber(SpeedBox.Text) or 100
+
+    isFlying = true
+    StartBtn.Text = "ĐANG BAY..."
+    StartBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    setNoclip(true)
+
+    -- Lock Physics
+    local oldGravity = workspace.Gravity
+    workspace.Gravity = 0
+
+    -- Phase 1: Fly Straight Up
+    local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
+    local dist1 = (skyPos - hrp.Position).Magnitude
+    local time1 = dist1 / flySpeed
+    local tween1 = TweenService:Create(hrp, TweenInfo.new(time1, Enum.EasingStyle.Linear), {CFrame = CFrame.new(skyPos)})
+    
+    tween1:Play()
+    tween1.Completed:Wait()
+
+    -- Phase 2: Fly Horizontally to Target Overhead
+    local targetOverhead = targetHrp.Position + Vector3.new(0, flyHeight, 0)
+    local dist2 = (targetOverhead - hrp.Position).Magnitude
+    local time2 = dist2 / flySpeed
+    local tween2 = TweenService:Create(hrp, TweenInfo.new(time2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetOverhead)})
+    
+    tween2:Play()
+    tween2.Completed:Wait()
+
+    -- Phase 3: Fly Down to Target Position
+    local targetLandPos = targetHrp.Position + Vector3.new(0, 3, 0)
+    local dist3 = (targetLandPos - hrp.Position).Magnitude
+    local time3 = dist3 / flySpeed
+    local tween3 = TweenService:Create(hrp, TweenInfo.new(time3, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetLandPos)})
+    
+    tween3:Play()
+    tween3.Completed:Wait()
+
+    -- Reset State
+    workspace.Gravity = oldGravity
+    setNoclip(false)
+    isFlying = false
+    StartBtn.Text = "BẮT ĐẦU BAY"
+    StartBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    StatusLabel.Text = "Đã đến nơi!"
+end
+
+StartBtn.MouseButton1Click:Connect(startFly)
