@@ -1,7 +1,7 @@
 --[[
-    FLY TO PLAYER & SAVED LOCATIONS (FIXED VISUAL PILLAR OVERFLOW)
-    - ĐÃ SỬA LỖI TRỤ VISUAL BỊ LỒI RA NGOÀI KHUNG KI THU NHỎ MENU
-    - CỘT PHẢI TỰ ĐỘNG CHUYỂN THÀNH THANH CUỘN MƯỢT MÀ NẾU KÍCH THƯỚC MENU QUÁ NHỎ
+    FLY TO PLAYER & SAVED LOCATIONS (FIXED ALL SYNTAX ERRORS)
+    - ĐÃ SỬA HOÀN TOÀN LỖI CÚ PHÁP LÀM MENU KHÔNG HIỂN THỊ
+    - ĐÃ SỬA LỖI TRỤ VISUAL BỊ LỒI RA NGOÀI KHUNG (CỘT PHẢI TỰ ĐỘNG CUỘN NẾU THU NHỎ)
     - TÍNH NĂNG PHÁT SÁNG BẢN THÂN (SELF GLOW) DỊU MẮT, KHÔNG CHÓI, CHỈNH BÁN KÍNH SÁNG
     - 4 GÓC KÉO CO GIÃN TĂNG KÍCH THƯỚC (CHỈ KÍCH HOẠT GÓC ĐANG BẤM GIỮ)
     - TÍNH NĂNG ĐỊNH VỊ NGƯỜI CHƠI (ESP ALL / ESP LẺ + THỜI GIAN GỤC + TỰ RESET CỨU)
@@ -434,7 +434,7 @@ P_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
 P_RightPanel.ScrollBarThickness = 4
 P_RightPanel.ScrollBarImageColor3 = Color3.fromRGB(180, 185, 195)
 P_RightPanel.BorderSizePixel = 0
-P_RightPanel.ClipsDescendants = true -- GIỮ TẤT CẢ PHẦN TỬ KHÔNG BỊ LỒI RA NGOÀI
+P_RightPanel.ClipsDescendants = true
 P_RightPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
 P_RightPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
 P_RightPanel.Parent = PlayersPage
@@ -572,7 +572,7 @@ P_SpeedBox.Font = Enum.Font.SourceSansBold
 P_SpeedBox.TextSize = 11
 P_SpeedBox.Parent = P_RightPanel
 
--- 7. Visual Height Button (NẰM TRONG BẢNG CÓ THANH CUỘN KHÔNG BAO GIỜ BỊ LỒI)
+-- 7. Visual Height Button
 local HeightVisualBtn = Instance.new("TextButton")
 HeightVisualBtn.LayoutOrder = 10
 HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -1421,7 +1421,7 @@ startFly = function(mode, targetObj)
             return p and p.Position
         end
     elseif mode == "Location" then
-        if not targetObj me return end
+        if not targetObj then return end
         selectedLocation = targetObj
         getTargetPos = function()
             return targetObj.pos
