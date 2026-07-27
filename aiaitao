@@ -1,6 +1,7 @@
 -- ============================================
--- 🍌 BANANA CAT HUB (ULTIMATE PERFECT EDITION)
--- + Đầy đủ 8 Tabs - Không lỗi - Đã tối ưu 100% cho mọi Executor
+-- 🍌 BANANA CAT HUB (ULTIMATE FULL PERFECT EDITION)
+-- + ĐẦY ĐỦ 8 TABS - KHÔNG CẮT BỚT - KHÔNG LỖI MENU
+-- + Tự động mở Menu khi chạy script!
 -- Mở/Đóng Menu: Nút 🍌 hoặc phím RightControl (Ctrl Phải)
 -- ============================================
 
@@ -22,9 +23,7 @@ if gethui then
     targetGui = gethui()
 else
     local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    if success and coreGui then
-        targetGui = coreGui
-    end
+    if success and coreGui then targetGui = coreGui end
 end
 
 -- ==================== CONSTANTS & THEME ====================
@@ -108,7 +107,7 @@ Corner(titleBar, UDim.new(0,10))
 
 New("TextLabel", {
     Size=UDim2.new(1,-40,1,0), Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Hub (Perfect Edition)", BackgroundTransparency=1,
+    Text="🍌 Banana Cat Hub (Ultimate Perfect Edition)", BackgroundTransparency=1,
     TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=13, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4
 }, titleBar)
 
@@ -1797,7 +1796,7 @@ end)
 pcall(function() updateFtpList() end)
 pcall(function() RebuildScripts() end)
 
--- MẶC ĐỊNH MỞ MENU KHI CHẠY
+-- MẶC ĐỊNH MỞ MENU KHI CHẠY SCRIPT
 main.Visible = true
 togBtn.Text = "✕"
 
@@ -1817,4 +1816,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Banana Cat Hub (Perfect Edition) đã kích hoạt thành công!")
+print("✅ Banana Cat Hub (Ultimate Perfect Edition) đã kích hoạt thành công với đầy đủ 8 Tabs!")
