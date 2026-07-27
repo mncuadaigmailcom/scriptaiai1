@@ -1,6 +1,8 @@
 --[[
     FLY TO PLAYER & SAVED LOCATIONS (DRAGGABLE INNER SPLITTER EDITION)
-    - ĐÃ XÓA TÍNH NĂNG ĐỊNH VỊ (NO TRACKER / NO ESP)
+    - TÍNH NĂNG ĐỊNH VỊ (ESP TẤT CẢ / ESP LẺ THEO CHỌN)
+    - TỰ ĐỘNG THEO DÕI NGƯỜI CHƠI MỚI VÀO SERVER
+    - HIỂN THỊ TÊN, MÁU (HP), KHOẢNG CÁCH, THỜI GIAN BỊ GỤC (ĐẾM GIÂY TỰ RESET KHI ĐƯỢC CỨU)
     - NÚT TOGGLE "🍌 ẨN/MỞ MENU" LUÔN HIỂN THỊ
     - RESIZABLE 4 GÓC MENU VÀ THANH KÉO DÃN GIỮA HAI CỘT
     - BAY TỚI PLAYER / TỌA ĐỘ ĐÃ LƯU
@@ -28,6 +30,12 @@ local noclipConnection = nil
 local splitRatio = 0.60 
 local minSplit = 0.30
 local maxSplit = 0.80
+
+-- ESP / Tracker Variables
+local espAllActive = false
+local espSingleActive = false
+local espStorage = {}          -- Lưu BillboardGui của từng người chơi
+local downedTimeTracker = {}   -- Lưu thời gian bắt đầu bị gục [Player] = timestamp
 
 -- Visual Height Pillar Variables
 local heightVisualPart = nil
@@ -57,8 +65,8 @@ ScreenGui.DisplayOrder = 999
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 560, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -280, 0.5, -180)
+MainFrame.Size = UDim2.new(0, 580, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -190)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
 MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
@@ -78,7 +86,7 @@ Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
-Title.Text = "  🍌 BANANA FLY - SPLITTER RESIZABLE"
+Title.Text = "  🍌 BANANA FLY & ESP TRACKER"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -161,7 +169,7 @@ end)
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN MAIN MENU
 ---------------------------------------------------------
-local minSize = Vector2.new(460, 250)
+local minSize = Vector2.new(480, 270)
 local maxSize = Vector2.new(950, 600)
 
 local corners = {
@@ -356,53 +364,92 @@ local P_PanelCorner = Instance.new("UICorner")
 P_PanelCorner.CornerRadius = UDim.new(0, 6)
 P_PanelCorner.Parent = P_RightPanel
 
+---------------------------------------------------------
+-- THÊM CÁC CÔNG CỤ ĐỊNH VỊ VÀO BÊN TRÊN CHIỀU CAO
+---------------------------------------------------------
+
+-- 1. Nút Định vị Tất cả (ESP All)
+local EspAllBtn = Instance.new("TextButton")
+EspAllBtn.Size = UDim2.new(1, -10, 0, 24)
+EspAllBtn.Position = UDim2.new(0, 5, 0, 6)
+EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+EspAllBtn.BackgroundTransparency = 0.3
+EspAllBtn.Text = "📡 ESP Tất Cả: OFF"
+EspAllBtn.TextColor3 = TEXT_DARK
+EspAllBtn.Font = Enum.Font.SourceSansBold
+EspAllBtn.TextSize = 11
+EspAllBtn.Parent = P_RightPanel
+
+local EspAllCorner = Instance.new("UICorner")
+EspAllCorner.CornerRadius = UDim.new(0, 4)
+EspAllCorner.Parent = EspAllBtn
+
+-- 2. Nút Định vị Lẻ (ESP Single)
+local EspSingleBtn = Instance.new("TextButton")
+EspSingleBtn.Size = UDim2.new(1, -10, 0, 24)
+EspSingleBtn.Position = UDim2.new(0, 5, 0, 34)
+EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+EspSingleBtn.BackgroundTransparency = 0.3
+EspSingleBtn.Text = "🎯 ESP Lẻ (Theo Chọn): OFF"
+EspSingleBtn.TextColor3 = TEXT_DARK
+EspSingleBtn.Font = Enum.Font.SourceSansBold
+EspSingleBtn.TextSize = 11
+EspSingleBtn.Parent = P_RightPanel
+
+local EspSingleCorner = Instance.new("UICorner")
+EspSingleCorner.CornerRadius = UDim.new(0, 4)
+EspSingleCorner.Parent = EspSingleBtn
+
+-- Chiều cao (Pushed Down)
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.Size = UDim2.new(1, -10, 0, 18)
-P_HeightLabel.Position = UDim2.new(0, 5, 0, 6)
+P_HeightLabel.Size = UDim2.new(1, -10, 0, 16)
+P_HeightLabel.Position = UDim2.new(0, 5, 0, 64)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
 P_HeightLabel.TextColor3 = TEXT_DARK
 P_HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_HeightLabel.Font = Enum.Font.SourceSansBold
-P_HeightLabel.TextSize = 12
+P_HeightLabel.TextSize = 11
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.Size = UDim2.new(1, -10, 0, 24)
-P_HeightBox.Position = UDim2.new(0, 5, 0, 26)
+P_HeightBox.Size = UDim2.new(1, -10, 0, 22)
+P_HeightBox.Position = UDim2.new(0, 5, 0, 82)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
 P_HeightBox.TextColor3 = TEXT_DARK
 P_HeightBox.Font = Enum.Font.SourceSansBold
-P_HeightBox.TextSize = 13
+P_HeightBox.TextSize = 12
 P_HeightBox.Parent = P_RightPanel
 
+-- Tốc độ (Pushed Down)
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.Size = UDim2.new(1, -10, 0, 18)
-P_SpeedLabel.Position = UDim2.new(0, 5, 0, 56)
+P_SpeedLabel.Size = UDim2.new(1, -10, 0, 16)
+P_SpeedLabel.Position = UDim2.new(0, 5, 0, 108)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
 P_SpeedLabel.TextColor3 = TEXT_DARK
 P_SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 P_SpeedLabel.Font = Enum.Font.SourceSansBold
-P_SpeedLabel.TextSize = 12
+P_SpeedLabel.TextSize = 11
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.Size = UDim2.new(1, -10, 0, 24)
-P_SpeedBox.Position = UDim2.new(0, 5, 0, 76)
+P_SpeedBox.Size = UDim2.new(1, -10, 0, 22)
+P_SpeedBox.Position = UDim2.new(0, 5, 0, 126)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
 P_SpeedBox.TextColor3 = TEXT_DARK
 P_SpeedBox.Font = Enum.Font.SourceSansBold
-P_SpeedBox.TextSize = 13
+P_SpeedBox.TextSize = 12
 P_SpeedBox.Parent = P_RightPanel
 
+-- Visual Height Button (Pushed Down)
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.Size = UDim2.new(1, -10, 0, 28)
-HeightVisualBtn.Position = UDim2.new(0, 5, 0, 108)
+HeightVisualBtn.Size = UDim2.new(1, -10, 0, 24)
+HeightVisualBtn.Position = UDim2.new(0, 5, 0, 154)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
 HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
@@ -517,21 +564,6 @@ UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
--- EVENT XÓA MENU & PHÍM TẮT
----------------------------------------------------------
-CloseBtn.MouseButton1Click:Connect(function()
-    if heightVisualPart then heightVisualPart:Destroy() end
-    if heightVisualConn then heightVisualConn:Disconnect() end
-    ScreenGui:Destroy()
-end)
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
-        setMenuVisible(not MainFrame.Visible)
-    end
-end)
-
----------------------------------------------------------
 -- CHUYỂN TAB
 ---------------------------------------------------------
 local function switchTab(tabName)
@@ -592,8 +624,144 @@ local function isPlayerDeadOrKnocked(plr)
     if plr.Character:FindFirstChild("Knocked") or plr.Character:FindFirstChild("Downed") or plr.Character:FindFirstChild("Ragdoll") or plr.Character:FindFirstChild("Dead") then
         return true
     end
+    if plr:FindFirstChild("DataFolder") and plr.DataFolder:FindFirstChild("Information") and plr.DataFolder.Information:FindFirstChild("IsKnocked") then
+        if plr.DataFolder.Information.IsKnocked.Value == true then return true end
+    end
     return false
 end
+
+---------------------------------------------------------
+-- HỆ THỐNG ĐỊNH VỊ (ESP / TRACKER CORE)
+---------------------------------------------------------
+local function createESP(plr)
+    if espStorage[plr] then return end
+
+    local bbg = Instance.new("BillboardGui")
+    bbg.Name = "ESP_BananaTracker"
+    bbg.Size = UDim2.new(0, 220, 0, 50)
+    bbg.AlwaysOnTop = true
+    bbg.ExtentsOffset = Vector3.new(0, 3, 0)
+
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Font = Enum.Font.SourceSansBold
+    txt.TextSize = 13
+    txt.TextStrokeTransparency = 0
+    txt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    txt.TextColor3 = Color3.fromRGB(0, 255, 128)
+    txt.Parent = bbg
+
+    espStorage[plr] = {Gui = bbg, Label = txt}
+end
+
+local function removeESP(plr)
+    if espStorage[plr] then
+        if espStorage[plr].Gui then
+            espStorage[plr].Gui:Destroy()
+        end
+        espStorage[plr] = nil
+    end
+end
+
+local function removeAllESP()
+    for plr, data in pairs(espStorage) do
+        removeESP(plr)
+    end
+    downedTimeTracker = {}
+end
+
+-- Vòng lặp cập nhật ESP realtime
+RunService.RenderStepped:Connect(function()
+    if not espAllActive and not espSingleActive then
+        if next(espStorage) ~= nil then removeAllESP() end
+        return
+    end
+
+    local myChar = LocalPlayer.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local shouldTrack = false
+
+            if espAllActive then
+                shouldTrack = true
+            elseif espSingleActive and selectedPlayer == plr then
+                shouldTrack = true
+            end
+
+            if shouldTrack and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                createESP(plr)
+                local data = espStorage[plr]
+                local targetHrp = plr.Character.HumanoidRootPart
+                local head = plr.Character:FindFirstChild("Head") or targetHrp
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+
+                data.Gui.Adornee = head
+                data.Gui.Parent = ScreenGui
+
+                local dist = myHrp and math.floor((targetHrp.Position - myHrp.Position).Magnitude) or 0
+                local hp = hum and math.floor(hum.Health) or 0
+                local maxHp = hum and math.floor(hum.MaxHealth) or 100
+
+                local isKnocked = isPlayerDeadOrKnocked(plr)
+
+                if isKnocked then
+                    -- Bắt đầu tính giờ hạ gục
+                    if not downedTimeTracker[plr] then
+                        downedTimeTracker[plr] = tick()
+                    end
+
+                    local elapsed = math.floor(tick() - downedTimeTracker[plr])
+                    data.Label.TextColor3 = COLOR_DEAD -- Đỏ
+                    data.Label.Text = string.format("🔴 [%s]\n⚡ BỊ HẠ GỤC (%ds) | HP: %d/%d\n📏 Khoảng cách: %dm", plr.DisplayName, elapsed, hp, maxHp, dist)
+                else
+                    -- Cứu thành công -> Reset đồng hồ đếm thời gian
+                    downedTimeTracker[plr] = nil
+
+                    data.Label.TextColor3 = Color3.fromRGB(0, 255, 128) -- Xanh lá
+                    data.Label.Text = string.format("👤 [%s]\n💚 HP: %d/%d\n📏 Khoảng cách: %dm", plr.DisplayName, hp, maxHp, dist)
+                end
+            else
+                removeESP(plr)
+                downedTimeTracker[plr] = nil
+            end
+        else
+            removeESP(plr)
+        end
+    end
+end)
+
+-- Nút ESP Tất Cả
+EspAllBtn.MouseButton1Click:Connect(function()
+    espAllActive = not espAllActive
+    if espAllActive then
+        EspAllBtn.Text = "📡 ESP Tất Cả: ON"
+        EspAllBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        EspAllBtn.Text = "📡 ESP Tất Cả: OFF"
+        EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        removeAllESP()
+    end
+end)
+
+-- Nút ESP Lẻ
+EspSingleBtn.MouseButton1Click:Connect(function()
+    espSingleActive = not espSingleActive
+    if espSingleActive then
+        EspSingleBtn.Text = "🎯 ESP Lẻ: ON"
+        EspSingleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        EspSingleBtn.Text = "🎯 ESP Lẻ: OFF"
+        EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        removeAllESP()
+    end
+end)
+
+---------------------------------------------------------
+-- UI LIST LOGIC
+---------------------------------------------------------
 
 -- Render Danh Sách Người Chơi
 updatePlayerList = function()
@@ -639,16 +807,8 @@ updatePlayerList = function()
                 end
 
                 NameBtn.MouseButton1Click:Connect(function()
-                    if selectedPlayer == plr then
-                        if isFlying then
-                            stopFly()
-                        else
-                            startFly("Player", plr)
-                        end
-                    else
-                        selectedPlayer = plr
-                        updatePlayerList()
-                    end
+                    selectedPlayer = plr
+                    updatePlayerList()
                 end)
 
                 if isSelected then
@@ -794,15 +954,23 @@ end)
 RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
-Players.PlayerAdded:Connect(updatePlayerList)
+-- Tự động cập nhật danh sách & định vị khi người chơi mới tham gia server
+Players.PlayerAdded:Connect(function(plr)
+    updatePlayerList()
+end)
+
 Players.PlayerRemoving:Connect(function(plr)
     if selectedPlayer == plr then selectedPlayer = nil end
+    removeESP(plr)
+    downedTimeTracker[plr] = nil
     updatePlayerList()
 end)
 
 updatePlayerList()
 
--- Trụ Visual
+---------------------------------------------------------
+-- TRỤ VISUAL HEIGHT
+---------------------------------------------------------
 local function updateHeightVisual()
     if not showHeightVisual then
         if heightVisualPart then heightVisualPart:Destroy() heightVisualPart = nil end
@@ -852,7 +1020,9 @@ P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
     if showHeightVisual then updateHeightVisual() end
 end)
 
--- Reset Physics Safe
+---------------------------------------------------------
+-- CƠ CHẾ BAY & PHẬT TỰ ĐỘNG NOCLIP
+---------------------------------------------------------
 local function resetCharacterPhysics()
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
     local char = LocalPlayer.Character
@@ -1000,3 +1170,19 @@ startFly = function(mode, targetObj)
     updatePlayerList()
     updateSavedList()
 end
+
+---------------------------------------------------------
+-- CLEANUP & KEYBINDS
+---------------------------------------------------------
+CloseBtn.MouseButton1Click:Connect(function()
+    removeAllESP()
+    if heightVisualPart then heightVisualPart:Destroy() end
+    if heightVisualConn then heightVisualConn:Disconnect() end
+    ScreenGui:Destroy()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
+        setMenuVisible(not MainFrame.Visible)
+    end
+end)
