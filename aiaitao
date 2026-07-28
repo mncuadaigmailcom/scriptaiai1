@@ -1,9 +1,9 @@
 --[[
-    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - ĐÃ CHUYỂN "TẠO TƯỜNG TRONG SUỐT" THÀNH TAB THỨ 3 NẰM BÊN PHẢI TAB TỌA ĐỘ
-    - GIAO DIỆN NGUYÊN BẢN, ĐỒNG BỘ NGUYÊN MẪU VỚI CÁC TAB KHÁC
-    - TÙY CHỈNH BỨC TƯỜNG: CHIỀU DÀI (X), CHIỀU CAO (Y), ĐỘ DÀY (Z), ĐỘ TRONG SUỐT, BẬT/TẮT VA CHẠM
-    - GIỮ NGUYÊN TOÀN BỘ TÍNH NĂNG FLY, ESP PLAYER, ESP LOCATIONS, SELF GLOW, RESIZABLE 4 GÓC
+    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR (WITH WALL LIST & ESP)
+    - TAB 3 ĐƯỢC CHIA THÀNH 2 CỘT: CỘT TRÁI CHỈNH KÍCH THƯỚC, CỘT PHẢI HIỂN THỊ DANH SÁCH TƯỜNG KÍNH
+    - ĐỊNH VỊ TƯỜNG KÍNH (WALL ESP ALL / WALL ESP SINGLE) CẬP NHẬT KHOẢNG CÁCH REALTIME
+    - NÚT BAY TỚI BỨC TƯỜNG KÍNH & XÓA LẺ TỪNG BỨC TƯỜNG
+    - GIỮ NGUYÊN TẤT CẢ TÍNH NĂNG: FLY, ESP PLAYER, ESP LOCATIONS, SELF GLOW, RESIZABLE 4 GÓC
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -16,8 +16,11 @@ local CoreGui = game:GetService("CoreGui")
 -- Variables
 local selectedPlayer = nil
 local selectedLocation = nil
+local selectedWall = nil
+
 local savedLocations = {}
-local spawnedWalls = {} -- Danh sách các tường đã tạo
+local spawnedWalls = {} -- Danh sách các tường đã tạo: {id, name, part, sizeStr}
+local wallCounter = 0
 local activeTab = "Players"
 
 local isFlying = false
@@ -25,12 +28,12 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
--- Splitter Ratio
+-- Splitter Ratio (Tab Players)
 local splitRatio = 0.60 
 local minSplit = 0.30
 local maxSplit = 0.80
 
--- Player ESP / Tracker Variables
+-- Player ESP Variables
 local espAllActive = false
 local espSingleActive = false
 local espStorage = {}          
@@ -40,6 +43,11 @@ local downedTimeTracker = {}
 local locEspAllActive = false
 local locEspSingleActive = false
 local locEspStorage = {}       
+
+-- Wall ESP Variables (MỚI)
+local wallEspAllActive = false
+local wallEspSingleActive = false
+local wallEspStorage = {}
 
 -- Glow / Light Variables
 local glowActive = false
@@ -88,7 +96,7 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
--- Title Bar (Kéo di chuyển Menu)
+-- Title Bar
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
@@ -323,7 +331,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- THANH TAB BAR (3 TAB BẰNG NHAU)
+-- THANH TAB BAR (3 TAB NẰM NGANG)
 ---------------------------------------------------------
 local TabBarFrame = Instance.new("Frame")
 TabBarFrame.Size = UDim2.new(1, -24, 0, 30)
@@ -331,7 +339,7 @@ TabBarFrame.Position = UDim2.new(0, 12, 0, 40)
 TabBarFrame.BackgroundTransparency = 1
 TabBarFrame.Parent = MainFrame
 
--- TAB 1 BUTTON
+-- TAB 1
 local PlayersTabBtn = Instance.new("TextButton")
 PlayersTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 PlayersTabBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -347,7 +355,7 @@ local PlayersTabCorner = Instance.new("UICorner")
 PlayersTabCorner.CornerRadius = UDim.new(0, 6)
 PlayersTabCorner.Parent = PlayersTabBtn
 
--- TAB 2 BUTTON
+-- TAB 2
 local LocationsTabBtn = Instance.new("TextButton")
 LocationsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 LocationsTabBtn.Position = UDim2.new(0.34, 0, 0, 0)
@@ -363,13 +371,13 @@ local LocationsTabCorner = Instance.new("UICorner")
 LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
--- TAB 3 BUTTON (MỚI)
+-- TAB 3
 local WallsTabBtn = Instance.new("TextButton")
 WallsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 WallsTabBtn.Position = UDim2.new(0.68, 0, 0, 0)
 WallsTabBtn.BackgroundColor3 = COLOR_TAB_INACTIVE
 WallsTabBtn.BackgroundTransparency = 0.5
-WallsTabBtn.Text = "🧱 TẠO TƯỜNG"
+WallsTabBtn.Text = "🧱 TẠO TƯỜNG KÍNH"
 WallsTabBtn.TextColor3 = TEXT_DARK
 WallsTabBtn.Font = Enum.Font.SourceSansBold
 WallsTabBtn.TextSize = 12
@@ -737,165 +745,161 @@ UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
--- TAB 3: TẠO TƯỜNG TRONG SUỐT (WALL CREATOR PAGE)
+-- TAB 3: TẠO TƯỜNG KÍNH (WALL CREATOR & LIST PAGE)
 ---------------------------------------------------------
-local WallsPage = Instance.new("ScrollingFrame")
+local WallsPage = Instance.new("Frame")
 WallsPage.Name = "WallsPage"
 WallsPage.Size = UDim2.new(1, -24, 1, -80)
 WallsPage.Position = UDim2.new(0, 12, 0, 75)
-WallsPage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallsPage.BackgroundTransparency = 0.75
-WallsPage.BorderColor3 = Color3.fromRGB(220, 225, 235)
-WallsPage.ScrollBarThickness = 5
-WallsPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
-WallsPage.CanvasSize = UDim2.new(0, 0, 0, 0)
+WallsPage.BackgroundTransparency = 1
 WallsPage.Visible = false
 WallsPage.Parent = MainFrame
 
-local WallsListLayout = Instance.new("UIListLayout")
-WallsListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-WallsListLayout.Padding = UDim.new(0, 6)
-WallsListLayout.Parent = WallsPage
+-- CỘT TRÁI (BẢNG THÔNG SỐ ĐẶT TƯỜNG)
+local W_LeftPanel = Instance.new("ScrollingFrame")
+W_LeftPanel.Name = "W_LeftPanel"
+W_LeftPanel.Size = UDim2.new(0.49, 0, 1, 0)
+W_LeftPanel.Position = UDim2.new(0, 0, 0, 0)
+W_LeftPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+W_LeftPanel.BackgroundTransparency = 0.65
+W_LeftPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
+W_LeftPanel.ScrollBarThickness = 4
+W_LeftPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+W_LeftPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
+W_LeftPanel.Parent = WallsPage
 
-local WallsPadding = Instance.new("UIPadding")
-WallsPadding.PaddingTop = UDim.new(0, 8)
-WallsPadding.PaddingBottom = UDim.new(0, 8)
-WallsPadding.PaddingLeft = UDim.new(0, 8)
-WallsPadding.PaddingRight = UDim.new(0, 8)
-WallsPadding.Parent = WallsPage
+local W_LeftCorner = Instance.new("UICorner")
+W_LeftCorner.CornerRadius = UDim.new(0, 6)
+W_LeftCorner.Parent = W_LeftPanel
+
+local W_LeftLayout = Instance.new("UIListLayout")
+W_LeftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+W_LeftLayout.Padding = UDim.new(0, 4)
+W_LeftLayout.Parent = W_LeftPanel
+
+local W_LeftPadding = Instance.new("UIPadding")
+W_LeftPadding.PaddingTop = UDim.new(0, 4)
+W_LeftPadding.PaddingBottom = UDim.new(0, 6)
+W_LeftPadding.PaddingLeft = UDim.new(0, 4)
+W_LeftPadding.PaddingRight = UDim.new(0, 6)
+W_LeftPadding.Parent = W_LeftPanel
 
 -- Header
 local WallHeader = Instance.new("TextLabel")
 WallHeader.LayoutOrder = 1
-WallHeader.Size = UDim2.new(1, 0, 0, 20)
+WallHeader.Size = UDim2.new(1, 0, 0, 16)
 WallHeader.BackgroundTransparency = 1
-WallHeader.Text = "🧱 TẠO KHỐI / BỨC TƯỜNG TRONG SUỐT"
+WallHeader.Text = "⚙️ THÔNG SỐ ĐẶT TƯỜNG"
 WallHeader.TextColor3 = TEXT_DARK
 WallHeader.Font = Enum.Font.SourceSansBold
-WallHeader.TextSize = 13
+WallHeader.TextSize = 11
 WallHeader.TextXAlignment = Enum.TextXAlignment.Left
-WallHeader.Parent = WallsPage
+WallHeader.Parent = W_LeftPanel
 
 -- 1. Chiều dài (X)
 local WallLenLabel = Instance.new("TextLabel")
 WallLenLabel.LayoutOrder = 2
-WallLenLabel.Size = UDim2.new(1, 0, 0, 14)
+WallLenLabel.Size = UDim2.new(1, 0, 0, 12)
 WallLenLabel.BackgroundTransparency = 1
-WallLenLabel.Text = "📏 Chiều dài (Size X):"
+WallLenLabel.Text = "📏 Chiều dài (X):"
 WallLenLabel.TextColor3 = TEXT_DARK
 WallLenLabel.TextXAlignment = Enum.TextXAlignment.Left
 WallLenLabel.Font = Enum.Font.SourceSansBold
-WallLenLabel.TextSize = 11
-WallLenLabel.Parent = WallsPage
+WallLenLabel.TextSize = 10
+WallLenLabel.Parent = W_LeftPanel
 
 local WallLenBox = Instance.new("TextBox")
 WallLenBox.LayoutOrder = 3
-WallLenBox.Size = UDim2.new(1, 0, 0, 24)
+WallLenBox.Size = UDim2.new(1, 0, 0, 20)
 WallLenBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 WallLenBox.BackgroundTransparency = 0.3
 WallLenBox.Text = "15"
 WallLenBox.TextColor3 = TEXT_DARK
 WallLenBox.Font = Enum.Font.SourceSansBold
-WallLenBox.TextSize = 12
-WallLenBox.Parent = WallsPage
-
-local WallLenCorner = Instance.new("UICorner")
-WallLenCorner.CornerRadius = UDim.new(0, 4)
-WallLenCorner.Parent = WallLenBox
+WallLenBox.TextSize = 11
+WallLenBox.Parent = W_LeftPanel
 
 -- 2. Chiều cao (Y)
 local WallHeightLabel = Instance.new("TextLabel")
 WallHeightLabel.LayoutOrder = 4
-WallHeightLabel.Size = UDim2.new(1, 0, 0, 14)
+WallHeightLabel.Size = UDim2.new(1, 0, 0, 12)
 WallHeightLabel.BackgroundTransparency = 1
-WallHeightLabel.Text = "📐 Chiều cao (Size Y):"
+WallHeightLabel.Text = "📐 Chiều cao (Y):"
 WallHeightLabel.TextColor3 = TEXT_DARK
 WallHeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 WallHeightLabel.Font = Enum.Font.SourceSansBold
-WallHeightLabel.TextSize = 11
-WallHeightLabel.Parent = WallsPage
+WallHeightLabel.TextSize = 10
+WallHeightLabel.Parent = W_LeftPanel
 
 local WallHeightBox = Instance.new("TextBox")
 WallHeightBox.LayoutOrder = 5
-WallHeightBox.Size = UDim2.new(1, 0, 0, 24)
+WallHeightBox.Size = UDim2.new(1, 0, 0, 20)
 WallHeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 WallHeightBox.BackgroundTransparency = 0.3
 WallHeightBox.Text = "10"
 WallHeightBox.TextColor3 = TEXT_DARK
 WallHeightBox.Font = Enum.Font.SourceSansBold
-WallHeightBox.TextSize = 12
-WallHeightBox.Parent = WallsPage
-
-local WallHeightCorner = Instance.new("UICorner")
-WallHeightCorner.CornerRadius = UDim.new(0, 4)
-WallHeightCorner.Parent = WallHeightBox
+WallHeightBox.TextSize = 11
+WallHeightBox.Parent = W_LeftPanel
 
 -- 3. Chiều rộng / Độ dày (Z)
 local WallThickLabel = Instance.new("TextLabel")
 WallThickLabel.LayoutOrder = 6
-WallThickLabel.Size = UDim2.new(1, 0, 0, 14)
+WallThickLabel.Size = UDim2.new(1, 0, 0, 12)
 WallThickLabel.BackgroundTransparency = 1
-WallThickLabel.Text = "📦 Độ dày / Rộng (Size Z):"
+WallThickLabel.Text = "📦 Độ dày / Rộng (Z):"
 WallThickLabel.TextColor3 = TEXT_DARK
 WallThickLabel.TextXAlignment = Enum.TextXAlignment.Left
 WallThickLabel.Font = Enum.Font.SourceSansBold
-WallThickLabel.TextSize = 11
-WallThickLabel.Parent = WallsPage
+WallThickLabel.TextSize = 10
+WallThickLabel.Parent = W_LeftPanel
 
 local WallThickBox = Instance.new("TextBox")
 WallThickBox.LayoutOrder = 7
-WallThickBox.Size = UDim2.new(1, 0, 0, 24)
+WallThickBox.Size = UDim2.new(1, 0, 0, 20)
 WallThickBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 WallThickBox.BackgroundTransparency = 0.3
 WallThickBox.Text = "1"
 WallThickBox.TextColor3 = TEXT_DARK
 WallThickBox.Font = Enum.Font.SourceSansBold
-WallThickBox.TextSize = 12
-WallThickBox.Parent = WallsPage
-
-local WallThickCorner = Instance.new("UICorner")
-WallThickCorner.CornerRadius = UDim.new(0, 4)
-WallThickCorner.Parent = WallThickBox
+WallThickBox.TextSize = 11
+WallThickBox.Parent = W_LeftPanel
 
 -- 4. Độ trong suốt
 local WallTransLabel = Instance.new("TextLabel")
 WallTransLabel.LayoutOrder = 8
-WallTransLabel.Size = UDim2.new(1, 0, 0, 14)
+WallTransLabel.Size = UDim2.new(1, 0, 0, 12)
 WallTransLabel.BackgroundTransparency = 1
-WallTransLabel.Text = "👁️ Độ trong suốt (Transparency từ 0 đến 1):"
+WallTransLabel.Text = "👁️ Trong suốt (0 = Hiện, 1 = Ẩn):"
 WallTransLabel.TextColor3 = TEXT_DARK
 WallTransLabel.TextXAlignment = Enum.TextXAlignment.Left
 WallTransLabel.Font = Enum.Font.SourceSansBold
-WallTransLabel.TextSize = 11
-WallTransLabel.Parent = WallsPage
+WallTransLabel.TextSize = 10
+WallTransLabel.Parent = W_LeftPanel
 
 local WallTransBox = Instance.new("TextBox")
 WallTransBox.LayoutOrder = 9
-WallTransBox.Size = UDim2.new(1, 0, 0, 24)
+WallTransBox.Size = UDim2.new(1, 0, 0, 20)
 WallTransBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 WallTransBox.BackgroundTransparency = 0.3
 WallTransBox.Text = "0.5"
 WallTransBox.TextColor3 = TEXT_DARK
 WallTransBox.Font = Enum.Font.SourceSansBold
-WallTransBox.TextSize = 12
-WallTransBox.Parent = WallsPage
+WallTransBox.TextSize = 11
+WallTransBox.Parent = W_LeftPanel
 
-local WallTransCorner = Instance.new("UICorner")
-WallTransCorner.CornerRadius = UDim.new(0, 4)
-WallTransCorner.Parent = WallTransBox
-
--- 5. Toggle Va chạm (CanCollide)
+-- 5. Toggle Va chạm
 local wallCanCollide = true
 local WallCollideBtn = Instance.new("TextButton")
 WallCollideBtn.LayoutOrder = 10
-WallCollideBtn.Size = UDim2.new(1, 0, 0, 26)
+WallCollideBtn.Size = UDim2.new(1, 0, 0, 22)
 WallCollideBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 WallCollideBtn.BackgroundTransparency = 0.3
-WallCollideBtn.Text = "🧱 Va Chạm Vật Lý (Đứng Lên Được): ON"
+WallCollideBtn.Text = "🧱 Va Chạm Vật Lý: ON"
 WallCollideBtn.TextColor3 = TEXT_DARK
 WallCollideBtn.Font = Enum.Font.SourceSansBold
-WallCollideBtn.TextSize = 11
-WallCollideBtn.Parent = WallsPage
+WallCollideBtn.TextSize = 10
+WallCollideBtn.Parent = W_LeftPanel
 
 local CollideCorner = Instance.new("UICorner")
 CollideCorner.CornerRadius = UDim.new(0, 4)
@@ -904,25 +908,25 @@ CollideCorner.Parent = WallCollideBtn
 WallCollideBtn.MouseButton1Click:Connect(function()
     wallCanCollide = not wallCanCollide
     if wallCanCollide then
-        WallCollideBtn.Text = "🧱 Va Chạm Vật Lý (Đứng Lên Được): ON"
+        WallCollideBtn.Text = "🧱 Va Chạm Vật Lý: ON"
         WallCollideBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     else
-        WallCollideBtn.Text = "🧱 Va Chạm Vật Lý (Đi Xuyên QUA): OFF"
+        WallCollideBtn.Text = "🧱 Va Chạm Vật Lý: OFF"
         WallCollideBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
     end
 end)
 
--- 6. Nút Đặt Khối Tường Phía Trước
+-- 6. Nút Đặt Khối Tường
 local SpawnWallBtn = Instance.new("TextButton")
 SpawnWallBtn.LayoutOrder = 11
-SpawnWallBtn.Size = UDim2.new(1, 0, 0, 28)
+SpawnWallBtn.Size = UDim2.new(1, 0, 0, 24)
 SpawnWallBtn.BackgroundColor3 = COLOR_GREEN
 SpawnWallBtn.BackgroundTransparency = 0.2
-SpawnWallBtn.Text = "➕ ĐẶT BỨC TƯỜNG TRƯỚC MẶT"
+SpawnWallBtn.Text = "➕ ĐẶT TƯỜNG TRƯỚC MẶT"
 SpawnWallBtn.TextColor3 = TEXT_LIGHT
 SpawnWallBtn.Font = Enum.Font.SourceSansBold
-SpawnWallBtn.TextSize = 12
-SpawnWallBtn.Parent = WallsPage
+SpawnWallBtn.TextSize = 11
+SpawnWallBtn.Parent = W_LeftPanel
 
 local SpawnCorner = Instance.new("UICorner")
 SpawnCorner.CornerRadius = UDim.new(0, 4)
@@ -931,22 +935,206 @@ SpawnCorner.Parent = SpawnWallBtn
 -- 7. Nút Xóa Tất Cả Tường
 local ClearWallsBtn = Instance.new("TextButton")
 ClearWallsBtn.LayoutOrder = 12
-ClearWallsBtn.Size = UDim2.new(1, 0, 0, 26)
+ClearWallsBtn.Size = UDim2.new(1, 0, 0, 22)
 ClearWallsBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
 ClearWallsBtn.BackgroundTransparency = 0.2
-ClearWallsBtn.Text = "🗑️ XÓA TẤT CẢ TƯỜNG ĐÃ TẠO"
+ClearWallsBtn.Text = "🗑️ XÓA TẤT CẢ TƯỜNG"
 ClearWallsBtn.TextColor3 = TEXT_LIGHT
 ClearWallsBtn.Font = Enum.Font.SourceSansBold
-ClearWallsBtn.TextSize = 11
-ClearWallsBtn.Parent = WallsPage
+ClearWallsBtn.TextSize = 10
+ClearWallsBtn.Parent = W_LeftPanel
 
 local ClearCorner = Instance.new("UICorner")
 ClearCorner.CornerRadius = UDim.new(0, 4)
 ClearCorner.Parent = ClearWallsBtn
 
+-- CỘT PHẢI (DANH SÁCH TƯỜNG KÍNH VÀ BẢNG ĐỊNH VỊ ESP)
+local W_RightPanel = Instance.new("Frame")
+W_RightPanel.Name = "W_RightPanel"
+W_RightPanel.Size = UDim2.new(0.49, 0, 1, 0)
+W_RightPanel.Position = UDim2.new(0.51, 0, 0, 0)
+W_RightPanel.BackgroundTransparency = 1
+W_RightPanel.Parent = WallsPage
+
+-- Nút ESP All Wall
+local WallEspAllBtn = Instance.new("TextButton")
+WallEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
+WallEspAllBtn.Position = UDim2.new(0, 0, 0, 0)
+WallEspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+WallEspAllBtn.BackgroundTransparency = 0.3
+WallEspAllBtn.Text = "📡 Wall ESP Tất Cả: OFF"
+WallEspAllBtn.TextColor3 = TEXT_DARK
+WallEspAllBtn.Font = Enum.Font.SourceSansBold
+WallEspAllBtn.TextSize = 10
+WallEspAllBtn.Parent = W_RightPanel
+
+local WallEspAllCorner = Instance.new("UICorner")
+WallEspAllCorner.CornerRadius = UDim.new(0, 4)
+WallEspAllCorner.Parent = WallEspAllBtn
+
+-- Nút ESP Single Wall
+local WallEspSingleBtn = Instance.new("TextButton")
+WallEspSingleBtn.Size = UDim2.new(0.49, 0, 0, 24)
+WallEspSingleBtn.Position = UDim2.new(0.51, 0, 0, 0)
+WallEspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+WallEspSingleBtn.BackgroundTransparency = 0.3
+WallEspSingleBtn.Text = "🎯 Wall ESP Lẻ: OFF"
+WallEspSingleBtn.TextColor3 = TEXT_DARK
+WallEspSingleBtn.Font = Enum.Font.SourceSansBold
+WallEspSingleBtn.TextSize = 10
+WallEspSingleBtn.Parent = W_RightPanel
+
+local WallEspSingleCorner = Instance.new("UICorner")
+WallEspSingleCorner.CornerRadius = UDim.new(0, 4)
+WallEspSingleCorner.Parent = WallEspSingleBtn
+
+-- Danh Sách Tường
+local W_SavedList = Instance.new("ScrollingFrame")
+W_SavedList.Size = UDim2.new(1, 0, 1, -28)
+W_SavedList.Position = UDim2.new(0, 0, 0, 28)
+W_SavedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+W_SavedList.BackgroundTransparency = 0.75
+W_SavedList.BorderColor3 = Color3.fromRGB(220, 225, 235)
+W_SavedList.ScrollBarThickness = 5
+W_SavedList.Parent = W_RightPanel
+
+local UIListLayoutWall = Instance.new("UIListLayout")
+UIListLayoutWall.Parent = W_SavedList
+UIListLayoutWall.SortOrder = Enum.SortOrder.LayoutOrder
+
 ---------------------------------------------------------
--- LOGIC TẠO & XÓA TƯỜNG TRONG SUỐT
+-- LOGIC ESP TƯỜNG KÍNH (WALL ESP LOGIC)
 ---------------------------------------------------------
+local function createWallESP(item)
+    if wallEspStorage[item] or not item.part or not item.part.Parent then return end
+
+    local bbg = Instance.new("BillboardGui")
+    bbg.Name = "ESP_WallTracker"
+    bbg.Size = UDim2.new(0, 200, 0, 40)
+    bbg.AlwaysOnTop = true
+    bbg.Adornee = item.part
+    bbg.ExtentsOffset = Vector3.new(0, (item.part.Size.Y / 2) + 1.5, 0)
+
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Font = Enum.Font.SourceSansBold
+    txt.TextSize = 12
+    txt.TextStrokeTransparency = 0
+    txt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    txt.TextColor3 = Color3.fromRGB(0, 220, 255)
+    txt.Parent = bbg
+
+    bbg.Parent = ScreenGui
+
+    wallEspStorage[item] = {Gui = bbg, Label = txt}
+end
+
+local function removeWallESP(item)
+    if wallEspStorage[item] then
+        if wallEspStorage[item].Gui then wallEspStorage[item].Gui:Destroy() end
+        wallEspStorage[item] = nil
+    end
+end
+
+local function removeAllWallESP()
+    for item, _ in pairs(wallEspStorage) do
+        removeWallESP(item)
+    end
+end
+
+---------------------------------------------------------
+-- LOGIC RENDER DANH SÁCH TƯỜNG & THAO TÁC
+---------------------------------------------------------
+local updateWallList
+
+updateWallList = function()
+    for _, child in pairs(W_SavedList:GetChildren()) do
+        if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
+    end
+
+    for idx, item in ipairs(spawnedWalls) do
+        local isEven = (idx % 2 == 0)
+        local isSelected = (selectedWall == item)
+
+        local Container = Instance.new("Frame")
+        Container.Size = UDim2.new(1, 0, 0, 28)
+        Container.BackgroundColor3 = isSelected and COLOR_GREEN or (isEven and COLOR_STRIPE_EVEN or COLOR_STRIPE_ODD)
+        Container.BackgroundTransparency = isSelected and 0.25 or 0.45
+        Container.BorderSizePixel = 0
+        Container.Parent = W_SavedList
+
+        local SelectBtn = Instance.new("TextButton")
+        SelectBtn.Size = UDim2.new(0.52, 0, 1, 0)
+        SelectBtn.BackgroundTransparency = 1
+        SelectBtn.Text = string.format(" 🧱 %s", item.name)
+        SelectBtn.TextColor3 = isSelected and TEXT_LIGHT or TEXT_DARK
+        SelectBtn.Font = Enum.Font.SourceSansBold
+        SelectBtn.TextSize = 10
+        SelectBtn.TextXAlignment = Enum.TextXAlignment.Left
+        SelectBtn.Parent = Container
+
+        local FlyDirectBtn = Instance.new("TextButton")
+        FlyDirectBtn.Size = UDim2.new(0.26, 0, 0.8, 0)
+        FlyDirectBtn.Position = UDim2.new(0.53, 0, 0.1, 0)
+        FlyDirectBtn.Font = Enum.Font.SourceSansBold
+        FlyDirectBtn.TextSize = 10
+        FlyDirectBtn.TextColor3 = TEXT_LIGHT
+        FlyDirectBtn.Parent = Container
+
+        local FlyCorner = Instance.new("UICorner")
+        FlyCorner.CornerRadius = UDim.new(0, 4)
+        FlyCorner.Parent = FlyDirectBtn
+
+        if isFlying and selectedWall == item then
+            FlyDirectBtn.Text = "🛑 Dừng"
+            FlyDirectBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        else
+            FlyDirectBtn.Text = "🚀 Bay"
+            FlyDirectBtn.BackgroundColor3 = COLOR_GREEN
+        end
+
+        local DeleteBtn = Instance.new("TextButton")
+        DeleteBtn.Size = UDim2.new(0.18, -4, 0.8, 0)
+        DeleteBtn.Position = UDim2.new(0.80, 0, 0.1, 0)
+        DeleteBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+        DeleteBtn.BackgroundTransparency = 0.2
+        DeleteBtn.Text = "Xóa"
+        DeleteBtn.TextColor3 = TEXT_LIGHT
+        DeleteBtn.Font = Enum.Font.SourceSansBold
+        DeleteBtn.TextSize = 10
+        DeleteBtn.Parent = Container
+
+        local DelCorner = Instance.new("UICorner")
+        DelCorner.CornerRadius = UDim.new(0, 4)
+        DelCorner.Parent = DeleteBtn
+
+        SelectBtn.MouseButton1Click:Connect(function()
+            selectedWall = item
+            updateWallList()
+        end)
+
+        FlyDirectBtn.MouseButton1Click:Connect(function()
+            selectedWall = item
+            if isFlying then
+                stopFly()
+            else
+                startFly("Wall", item)
+            end
+        end)
+
+        DeleteBtn.MouseButton1Click:Connect(function()
+            if selectedWall == item then selectedWall = nil end
+            removeWallESP(item)
+            if item.part and item.part.Parent then item.part:Destroy() end
+            table.remove(spawnedWalls, idx)
+            updateWallList()
+        end)
+    end
+    W_SavedList.CanvasSize = UDim2.new(0, 0, 0, #spawnedWalls * 28)
+end
+
+-- Event Đặt Tường
 SpawnWallBtn.MouseButton1Click:Connect(function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -962,11 +1150,12 @@ SpawnWallBtn.MouseButton1Click:Connect(function()
     sizeZ = math.clamp(sizeZ, 0.1, 100)
     trans = math.clamp(trans, 0, 1)
 
+    wallCounter = wallCounter + 1
     local wall = Instance.new("Part")
-    wall.Name = "BananaTransparentWall"
+    wall.Name = "BananaTransparentWall_" .. wallCounter
     wall.Size = Vector3.new(sizeX, sizeY, sizeZ)
     
-    -- Tạo bức tường đứng trước mặt nhân vật 4 studs
+    -- Đặt tường trước mặt nhân vật
     wall.CFrame = hrp.CFrame * CFrame.new(0, (sizeY / 2) - 3, -(sizeZ / 2 + 4))
     wall.Anchored = true
     wall.CanCollide = wallCanCollide
@@ -975,16 +1164,50 @@ SpawnWallBtn.MouseButton1Click:Connect(function()
     wall.Color = Color3.fromRGB(0, 170, 255)
     wall.Parent = workspace
 
-    table.insert(spawnedWalls, wall)
+    local wallData = {
+        id = wallCounter,
+        name = string.format("Tường #%d (%dx%d)", wallCounter, sizeX, sizeY),
+        part = wall
+    }
+
+    table.insert(spawnedWalls, wallData)
+    updateWallList()
 end)
 
+-- Event Xóa Tất Cả Tường
 ClearWallsBtn.MouseButton1Click:Connect(function()
-    for _, wall in ipairs(spawnedWalls) do
-        if wall and wall.Parent then
-            wall:Destroy()
-        end
+    removeAllWallESP()
+    for _, item in ipairs(spawnedWalls) do
+        if item.part and item.part.Parent then item.part:Destroy() end
     end
     spawnedWalls = {}
+    selectedWall = nil
+    updateWallList()
+end)
+
+-- Event Toggle Wall ESP Buttons
+WallEspAllBtn.MouseButton1Click:Connect(function()
+    wallEspAllActive = not wallEspAllActive
+    if wallEspAllActive then
+        WallEspAllBtn.Text = "📡 Wall ESP Tất Cả: ON"
+        WallEspAllBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        WallEspAllBtn.Text = "📡 Wall ESP Tất Cả: OFF"
+        WallEspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        removeAllWallESP()
+    end
+end)
+
+WallEspSingleBtn.MouseButton1Click:Connect(function()
+    wallEspSingleActive = not wallEspSingleActive
+    if wallEspSingleActive then
+        WallEspSingleBtn.Text = "🎯 Wall ESP Lẻ: ON"
+        WallEspSingleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        WallEspSingleBtn.Text = "🎯 Wall ESP Lẻ: OFF"
+        WallEspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        removeAllWallESP()
+    end
 end)
 
 ---------------------------------------------------------
@@ -997,15 +1220,12 @@ local function switchTab(tabName)
     LocationsPage.Visible = (tabName == "Locations")
     WallsPage.Visible = (tabName == "Walls")
 
-    -- Cập nhật màu sắc Tab Players
     PlayersTabBtn.BackgroundColor3 = (tabName == "Players") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
     PlayersTabBtn.BackgroundTransparency = (tabName == "Players") and 0.2 or 0.5
 
-    -- Cập nhật màu sắc Tab Locations
     LocationsTabBtn.BackgroundColor3 = (tabName == "Locations") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
     LocationsTabBtn.BackgroundTransparency = (tabName == "Locations") and 0.2 or 0.5
 
-    -- Cập nhật màu sắc Tab Walls
     WallsTabBtn.BackgroundColor3 = (tabName == "Walls") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
     WallsTabBtn.BackgroundTransparency = (tabName == "Walls") and 0.2 or 0.5
 end
@@ -1191,7 +1411,7 @@ local function removeAllLocESP()
 end
 
 ---------------------------------------------------------
--- VÒNG LẶP CẬP NHẬT REALTIME CHO CẢ ESP
+-- VÒNG LẶP CẬP NHẬT REALTIME CHO CẢ ESP (PLAYER, LOC, WALL)
 ---------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     local myChar = LocalPlayer.Character
@@ -1273,6 +1493,36 @@ RunService.RenderStepped:Connect(function()
     else
         if next(locEspStorage) ~= nil then removeAllLocESP() end
     end
+
+    -- ESP Wall (Tường Kính)
+    if wallEspAllActive or wallEspSingleActive then
+        for _, item in ipairs(spawnedWalls) do
+            if item.part and item.part.Parent then
+                local shouldTrackWall = false
+                if wallEspAllActive then
+                    shouldTrackWall = true
+                elseif wallEspSingleActive and selectedWall == item then
+                    shouldTrackWall = true
+                end
+
+                if shouldTrackWall then
+                    createWallESP(item)
+                    local data = wallEspStorage[item]
+                    if data then
+                        data.Gui.Adornee = item.part
+                        local dist = myHrp and math.floor((item.part.Position - myHrp.Position).Magnitude) or 0
+                        data.Label.Text = string.format("🧱 [%s]\n📏 Khoảng cách: %dm", item.name, dist)
+                    end
+                else
+                    removeWallESP(item)
+                end
+            else
+                removeWallESP(item)
+            end
+        end
+    else
+        if next(wallEspStorage) ~= nil then removeAllWallESP() end
+    end
 end)
 
 -- Event Bật/Tắt ESP Player
@@ -1326,7 +1576,7 @@ LocEspSingleBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- UI LIST LOGIC
+-- UI LIST LOGIC (PLAYERS & LOCATIONS)
 ---------------------------------------------------------
 
 -- Render Danh Sách Người Chơi
@@ -1667,6 +1917,7 @@ stopFly = function()
     isFlying = false
     updatePlayerList()
     updateSavedList()
+    updateWallList()
 end
 
 startFly = function(mode, targetObj)
@@ -1687,6 +1938,12 @@ startFly = function(mode, targetObj)
         getTargetPos = function()
             return targetObj.pos
         end
+    elseif mode == "Wall" then
+        if not targetObj or not targetObj.part then return end
+        selectedWall = targetObj
+        getTargetPos = function()
+            return targetObj.part and targetObj.part.Position
+        end
     end
 
     if not getTargetPos or not getTargetPos() then return end
@@ -1703,6 +1960,7 @@ startFly = function(mode, targetObj)
     
     updatePlayerList()
     updateSavedList()
+    updateWallList()
 
     setNoclip(true)
     local oldGravity = workspace.Gravity
@@ -1733,6 +1991,7 @@ startFly = function(mode, targetObj)
     
     updatePlayerList()
     updateSavedList()
+    updateWallList()
 end
 
 ---------------------------------------------------------
@@ -1741,10 +2000,11 @@ end
 CloseBtn.MouseButton1Click:Connect(function()
     removeAllESP()
     removeAllLocESP()
+    removeAllWallESP()
 
-    -- Xóa các tường đã tạo khi tắt menu
-    for _, wall in ipairs(spawnedWalls) do
-        if wall and wall.Parent then wall:Destroy() end
+    -- Xóa các tường đã tạo khi thoát
+    for _, item in ipairs(spawnedWalls) do
+        if item.part and item.part.Parent then item.part:Destroy() end
     end
     spawnedWalls = {}
 
