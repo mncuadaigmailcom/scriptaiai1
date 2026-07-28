@@ -1,7 +1,6 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS, TRANSPARENT WALL CREATOR & GLASS CARPET NOCLIP
-    - [Nâng Cấp] BU NGƯỜI CHƠI BẰNG CƠ CHẾ BAY LIÊN TỤC (FLY FOLLOW)
-    - [Mới] ĐI XUYÊN TƯỜNG + THẢM KÍNH DI CHUYỂN DƯỚI CHÂN & BẢNG ĐIỀU KHIỂN BAY NỔI
+    - FIXED: SỬA LỖI MENU KHÔNG HIỆN VÀ TƯƠNG THÍCH TẤT CẢ EXECUTOR (SOLARA, DELTA, WAVE, FLUXUS, STUDIO...)
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -9,7 +8,29 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+
+-- TỰ ĐỘNG TÌM PARENT PHÙ HỢP CHO EXECUTOR
+local function getParentGui()
+    if gethui then
+        return gethui()
+    elseif RunService:IsStudio() then
+        return LocalPlayer:WaitForChild("PlayerGui")
+    else
+        local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+        if success and coreGui then
+            return coreGui
+        else
+            return LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end
+end
+
+local ParentTarget = getParentGui()
+
+-- TỰ XÓA MENU CŨ NẾU ĐÃ TỒN TẠI
+if ParentTarget:FindFirstChild("FlyBananaCatResizableSplitter") then
+    ParentTarget["FlyBananaCatResizableSplitter"]:Destroy()
+end
 
 -- Variables
 local selectedPlayer = nil
@@ -86,9 +107,10 @@ local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FlyBananaCatResizableSplitter"
-ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
+ScreenGui.Enabled = true
+ScreenGui.Parent = ParentTarget
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
@@ -96,11 +118,12 @@ MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 580, 0, 420)
 MainFrame.Position = UDim2.new(0.5, -290, 0.5, -210)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
-MainFrame.BackgroundTransparency = 0.55
+MainFrame.BackgroundTransparency = 0.15
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
 MainFrame.Draggable = false
+MainFrame.Visible = true
 MainFrame.ClipsDescendants = false
 MainFrame.Parent = ScreenGui
 
@@ -113,7 +136,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
-Title.BackgroundTransparency = 0.4
+Title.BackgroundTransparency = 0.2
 Title.Text = "  🍌 BANANA FLY & ESP LOCATIONS"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
@@ -188,7 +211,7 @@ PersistentToggleBtn.Name = "PersistentToggleBtn"
 PersistentToggleBtn.Size = UDim2.new(0, 115, 0, 32)
 PersistentToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
 PersistentToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PersistentToggleBtn.BackgroundTransparency = 0.35
+PersistentToggleBtn.BackgroundTransparency = 0.2
 PersistentToggleBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
 PersistentToggleBtn.BorderSizePixel = 1
 PersistentToggleBtn.Text = "🍌 Ẩn Menu"
@@ -485,9 +508,7 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
----------------------------------------------------------
--- 1. [MỚI] BẢNG TÍNH NĂNG ĐI XUYÊN TƯỜNG + THẢM KÍNH (TRÊN BU NGƯỜI)
----------------------------------------------------------
+-- THẢM KÍNH NOCLIP BUTTON
 local CarpetNoclipBtn = Instance.new("TextButton")
 CarpetNoclipBtn.LayoutOrder = 1
 CarpetNoclipBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -503,7 +524,6 @@ local CarpetCorner = Instance.new("UICorner")
 CarpetCorner.CornerRadius = UDim.new(0, 4)
 CarpetCorner.Parent = CarpetNoclipBtn
 
--- Ô nhập Dài (X), Dày (Y), Rộng (Z) cho thảm kính
 local CarpetSizeLabel = Instance.new("TextLabel")
 CarpetSizeLabel.LayoutOrder = 2
 CarpetSizeLabel.Size = UDim2.new(1, 0, 0, 14)
@@ -554,9 +574,7 @@ CarpetZBox.Font = Enum.Font.SourceSansBold
 CarpetZBox.TextSize = 11
 CarpetZBox.Parent = CarpetSizeContainer
 
----------------------------------------------------------
--- 2. NÚT BU NGƯỜI CHƠI (CẢI TIẾN THÀNH BAY LIÊN TỤC KHÔNG DỪNG)
----------------------------------------------------------
+-- BU NGƯỜI CHƠI BUTTON
 local FollowPlayerBtn = Instance.new("TextButton")
 FollowPlayerBtn.LayoutOrder = 4
 FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -572,7 +590,6 @@ local FollowCorner = Instance.new("UICorner")
 FollowCorner.CornerRadius = UDim.new(0, 4)
 FollowCorner.Parent = FollowPlayerBtn
 
--- Các nút tiếp theo trong P_RightPanel
 local EspAllBtn = Instance.new("TextButton")
 EspAllBtn.LayoutOrder = 5
 EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -750,7 +767,7 @@ MainFrame:GetPropertyChangedSignal("Size"):Connect(updatePlayersLayout)
 updatePlayersLayout()
 
 ---------------------------------------------------------
--- BẢNG ĐIỀU KHIỂN BAY TẤM THẢM KÍNH TRÊN MÀN HÌNH (FLOATING OVERLAY)
+-- BẢNG ĐIỀU KHIỂN BAY THẢM KÍNH
 ---------------------------------------------------------
 local CarpetControlFrame = Instance.new("Frame")
 CarpetControlFrame.Name = "CarpetControlFrame"
@@ -777,7 +794,6 @@ CarpetCtrlTitle.Font = Enum.Font.SourceSansBold
 CarpetCtrlTitle.TextSize = 11
 CarpetCtrlTitle.Parent = CarpetControlFrame
 
--- Nút Bay Lên
 local CarpetUpBtn = Instance.new("TextButton")
 CarpetUpBtn.Size = UDim2.new(0.9, 0, 0, 24)
 CarpetUpBtn.Position = UDim2.new(0.05, 0, 0, 24)
@@ -793,7 +809,6 @@ local UpCorner = Instance.new("UICorner")
 UpCorner.CornerRadius = UDim.new(0, 4)
 UpCorner.Parent = CarpetUpBtn
 
--- Nút Bay Xuống
 local CarpetDownBtn = Instance.new("TextButton")
 CarpetDownBtn.Size = UDim2.new(0.9, 0, 0, 24)
 CarpetDownBtn.Position = UDim2.new(0.05, 0, 0, 52)
@@ -809,7 +824,6 @@ local DownCorner = Instance.new("UICorner")
 DownCorner.CornerRadius = UDim.new(0, 4)
 DownCorner.Parent = CarpetDownBtn
 
--- Nút Tắt Tính Năng
 local CarpetOffBtn = Instance.new("TextButton")
 CarpetOffBtn.Size = UDim2.new(0.9, 0, 0, 22)
 CarpetOffBtn.Position = UDim2.new(0.05, 0, 0, 80)
@@ -825,7 +839,6 @@ local OffCorner = Instance.new("UICorner")
 OffCorner.CornerRadius = UDim.new(0, 4)
 OffCorner.Parent = CarpetOffBtn
 
--- Cho phép kéo bảng điều khiển thảm
 local dragCtrl = false
 local dragCtrlStartMouse, dragCtrlStartPos
 
@@ -852,7 +865,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- TAB 2: TỌA ĐỘ ĐÃ LƯU (LOCATIONS PAGE)
+-- TAB 2 & 3 FRAMES (LOCATIONS & WALLS)
 ---------------------------------------------------------
 local LocationsPage = Instance.new("Frame")
 LocationsPage.Size = UDim2.new(1, -24, 1, -80)
@@ -932,9 +945,6 @@ local UIListLayout2 = Instance.new("UIListLayout")
 UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
----------------------------------------------------------
--- TAB 3: TẠO TƯỜNG KÍNH (WALL CREATOR & LIST PAGE)
----------------------------------------------------------
 local WallsPage = Instance.new("Frame")
 WallsPage.Name = "WallsPage"
 WallsPage.Size = UDim2.new(1, -24, 1, -80)
@@ -1078,7 +1088,6 @@ end)
 MainFrame:GetPropertyChangedSignal("Size"):Connect(updateWallsLayout)
 updateWallsLayout()
 
--- Wall Settings Header & Controls
 local WallHeader = Instance.new("TextLabel")
 WallHeader.LayoutOrder = 1
 WallHeader.Size = UDim2.new(1, 0, 0, 16)
@@ -1624,7 +1633,7 @@ local function setNoclip(state)
 end
 
 ---------------------------------------------------------
--- 1. LOGIC XUYÊN TƯỜNG CÓ THẢM KÍNH TRONG SUỐT (CARPET NOCLIP)
+-- LOGIC XUYÊN TƯỜNG CÓ THẢM KÍNH TRONG SUỐT (CARPET NOCLIP)
 ---------------------------------------------------------
 local stopCarpetNoclip
 
@@ -1640,7 +1649,6 @@ local function startCarpetNoclip()
     CarpetNoclipBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     CarpetControlFrame.Visible = true
 
-    -- Tạo thảm kính
     if not carpetPart then
         carpetPart = Instance.new("Part")
         carpetPart.Name = "BananaGlassCarpet"
@@ -1665,7 +1673,6 @@ local function startCarpetNoclip()
         local myChar = LocalPlayer.Character
         local myHrp = myChar:FindFirstChild("HumanoidRootPart")
 
-        -- Xuyên tất cả vật thể trừ thảm kính
         for _, part in pairs(myChar:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -1673,7 +1680,6 @@ local function startCarpetNoclip()
         end
 
         if myHrp and carpetPart then
-            -- Tùy chỉnh độ cao thảm nếu bấm nút Bay Lên / Bay Xuống
             local speed = 0.8
             if flyUpHolding then
                 carpetYLevel = carpetYLevel + speed
@@ -1688,10 +1694,8 @@ local function startCarpetNoclip()
             carpetPart.Size = Vector3.new(sizeX, sizeY, sizeZ)
             carpetPart.CanCollide = true
             
-            -- Tấm thảm đi theo vị trí X, Z của nhân vật
             carpetPart.CFrame = CFrame.new(myHrp.Position.X, carpetYLevel, myHrp.Position.Z)
 
-            -- Đỡ nhân vật đứng trên tấm thảm không bị rơi
             local targetY = carpetYLevel + (sizeY / 2) + 3.1
             if myHrp.Position.Y < targetY then
                 myHrp.CFrame = CFrame.new(myHrp.Position.X, targetY, myHrp.Position.Z)
@@ -1728,7 +1732,6 @@ CarpetNoclipBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Sự kiện nhấn giữ nút Bay Lên / Bay Xuống trên Bảng Điều Khiển Nổi
 CarpetUpBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         flyUpHolding = true
@@ -1754,7 +1757,7 @@ end)
 CarpetOffBtn.MouseButton1Click:Connect(stopCarpetNoclip)
 
 ---------------------------------------------------------
--- 2. HỆ THỐNG BU NGƯỜI CHƠI (BAY ĐUỔI LIÊN TỤC THEO MỤC TIÊU)
+-- LOGIC BU NGƯỜI CHƠI (BAY ĐUỔI LIÊN TỤC)
 ---------------------------------------------------------
 local stopFollow
 
@@ -1795,7 +1798,6 @@ local function startFollow()
             local currentPos = myHrp.Position
             local dist = (targetPos - currentPos).Magnitude
 
-            -- Bay đuổi theo mục tiêu liên tục theo thời gian thực
             if dist > 1.5 then
                 local moveDir = (targetPos - currentPos).Unit
                 local step = math.min(dist, flySpeed * dt)
@@ -2261,7 +2263,8 @@ SavePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-RefreshBtn.MouseButton1Click(updatePlayerList)
+-- ĐÃ FIX CÂU LỆNH TẢI LẠI TRÁNH NỔ LỖI
+RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
 Players.PlayerAdded:Connect(function(plr) updatePlayerList() end)
@@ -2331,7 +2334,7 @@ P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ BAY 1 LẦN & TWEEN TỚI ĐÍCH (BAY TỚI / BAY ĐIỂM)
+-- CƠ CHẾ BAY 1 LẦN & TWEEN TỚI ĐÍCH
 ---------------------------------------------------------
 local function tweenToTarget(hrp, targetCFrame, flySpeed)
     if stopRequested then return false end
