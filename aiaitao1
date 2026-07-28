@@ -1,262 +1,168 @@
--- [[ GRAI HUB - AI SCRIPT COLLECTION ]] --
-repeat task.wait() until game:IsLoaded()
+-- Khởi tạo các dịch vụ cần thiết
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
+-- Tạo ScreenGui chứa giao diện
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ScriptHubUI"
+ScreenGui.ResetOnSpawn = false
 
--- 1. TÌM KHU VỰC LƯU GUI AN TOÀN TUYỆT ĐỐI
-local SafeParent = LocalPlayer:WaitForChild("PlayerGui")
-pcall(function()
-    SafeParent = gethui() or game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+-- Gán ScreenGui vào CoreGui (hoặc PlayerGui nếu không chạy qua executor hỗ trợ CoreGui)
+local success, _ = pcall(function()
+    ScreenGui.Parent = CoreGui
 end)
-
--- Dọn dẹp Gui cũ nếu đã chạy trước đó
-if SafeParent:FindFirstChild("GraiAIScriptHub") then
-    SafeParent.GraiAIScriptHub:Destroy()
+if not success then
+    ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- 2. TẠO SCREEN GUI CHÍNH
-local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "GraiAIScriptHub"
-MainGui.ResetOnSpawn = false
-MainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-MainGui.Parent = SafeParent
-
--- 3. HỆ THỐNG THÔNG BÁO (NOTIFICATION)
-local function SendNotify(title, text)
-    task.spawn(function()
-        local Card = Instance.new("Frame")
-        Card.Size = UDim2.new(0, 220, 0, 45)
-        Card.Position = UDim2.new(1, -230, 0.85, 0)
-        Card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-        Card.BorderSizePixel = 0
-        Card.Parent = MainGui
-
-        local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(0, 8)
-        Corner.Parent = Card
-
-        local Stroke = Instance.new("UIStroke")
-        Stroke.Color = Color3.fromRGB(255, 215, 0)
-        Stroke.Thickness = 1
-        Stroke.Parent = Card
-
-        local TxtTitle = Instance.new("TextLabel")
-        TxtTitle.Size = UDim2.new(1, -10, 0, 20)
-        TxtTitle.Position = UDim2.new(0, 8, 0, 3)
-        TxtTitle.BackgroundTransparency = 1
-        TxtTitle.Text = title
-        TxtTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
-        TxtTitle.Font = Enum.Font.GothamBold
-        TxtTitle.TextSize = 12
-        TxtTitle.TextXAlignment = Enum.TextXAlignment.Left
-        TxtTitle.Parent = Card
-
-        local TxtMsg = Instance.new("TextLabel")
-        TxtMsg.Size = UDim2.new(1, -10, 0, 20)
-        TxtMsg.Position = UDim2.new(0, 8, 0, 20)
-        TxtMsg.BackgroundTransparency = 1
-        TxtMsg.Text = text
-        TxtMsg.TextColor3 = Color3.fromRGB(220, 220, 220)
-        TxtMsg.Font = Enum.Font.Gotham
-        TxtMsg.TextSize = 11
-        TxtMsg.TextXAlignment = Enum.TextXAlignment.Left
-        TxtMsg.Parent = Card
-
-        task.wait(3)
-        Card:Destroy()
-    end)
-end
-
-------------------------------------------------------------
--- 🎛 4. NÚT CHUỐI ĐỘI VƯƠNG MIỆN (TOGGLE BUTTON)
-------------------------------------------------------------
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "BananaCrownBtn"
-ToggleBtn.Parent = MainGui
-ToggleBtn.Size = UDim2.new(0, 52, 0, 52)
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-ToggleBtn.Text = "👑\n🍌"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
-ToggleBtn.Font = Enum.Font.GothamBlack
-ToggleBtn.TextSize = 15
-ToggleBtn.Active = true
-ToggleBtn.Draggable = true
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(1, 0)
-ToggleCorner.Parent = ToggleBtn
-
-local ToggleStroke = Instance.new("UIStroke")
-ToggleStroke.Color = Color3.fromRGB(255, 215, 0)
-ToggleStroke.Thickness = 2
-ToggleStroke.Parent = ToggleBtn
-
-------------------------------------------------------------
--- 📦 5. KHUNG MENU CHÍNH (MAIN FRAME)
-------------------------------------------------------------
+-- Khung giao diện chính (Main Frame)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Parent = MainGui
-MainFrame.Size = UDim2.new(0, 360, 0, 220)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -110)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+MainFrame.Size = UDim2.new(0, 320, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -110)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = true -- Cho phép di chuyển menu bằng chuột
+MainFrame.Parent = ScreenGui
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 10)
-MainCorner.Parent = MainFrame
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(40, 40, 50)
-MainStroke.Thickness = 1
-MainStroke.Parent = MainFrame
-
--- Thanh Tiêu Đề TopBar
-local TopBar = Instance.new("Frame")
-TopBar.Parent = MainFrame
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-TopBar.BorderSizePixel = 0
-
-local TopCorner = Instance.new("UICorner")
-TopCorner.CornerRadius = UDim.new(0, 10)
-TopCorner.Parent = TopBar
-
+-- Thanh tiêu đề (Title)
 local Title = Instance.new("TextLabel")
-Title.Parent = TopBar
-Title.Size = UDim2.new(1, -50, 1, 0)
-Title.Position = UDim2.new(0, 12, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "GRAI HUB  |  AI Script"
-Title.TextColor3 = Color3.fromRGB(0, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+Title.Text = "  Menu Tổng Hợp Script"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+Title.Font = Enum.Font.SourceSansBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Parent = TopBar
-CloseBtn.Size = UDim2.new(0, 26, 0, 26)
-CloseBtn.Position = UDim2.new(1, -32, 0, 7)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 13
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = Title
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
-CloseCorner.Parent = CloseBtn
+-- Nút Bật/Tắt Script 1
+local Toggle1 = Instance.new("TextButton")
+Toggle1.Name = "Toggle1"
+Toggle1.Size = UDim2.new(0.9, 0, 0, 40)
+Toggle1.Position = UDim2.new(0.05, 0, 0.25, 0)
+Toggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+Toggle1.Text = "Script 1: TẮT"
+Toggle1.TextColor3 = Color3.fromRGB(255, 100, 100)
+Toggle1.TextSize = 14
+Toggle1.Font = Enum.Font.SourceSansBold
+Toggle1.Parent = MainFrame
 
--- Sự kiện Bật / Ẩn
-ToggleBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
+local Toggle1Corner = Instance.new("UICorner")
+Toggle1Corner.CornerRadius = UDim.new(0, 6)
+Toggle1Corner.Parent = Toggle1
+
+-- Nút Bật/Tắt Script 2
+local Toggle2 = Instance.new("TextButton")
+Toggle2.Name = "Toggle2"
+Toggle2.Size = UDim2.new(0.9, 0, 0, 40)
+Toggle2.Position = UDim2.new(0.05, 0, 0.50, 0)
+Toggle2.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+Toggle2.Text = "Script 2: TẮT"
+Toggle2.TextColor3 = Color3.fromRGB(255, 100, 100)
+Toggle2.TextSize = 14
+Toggle2.Font = Enum.Font.SourceSansBold
+Toggle2.Parent = MainFrame
+
+local Toggle2Corner = Instance.new("UICorner")
+Toggle2Corner.CornerRadius = UDim.new(0, 6)
+Toggle2Corner.Parent = Toggle2
+
+-- Nút Bật/Ẩn Menu nhanh (Nút nhỏ trên góc màn hình)
+local ToggleMenuBtn = Instance.new("TextButton")
+ToggleMenuBtn.Name = "ToggleMenuBtn"
+ToggleMenuBtn.Size = UDim2.new(0, 100, 0, 30)
+ToggleMenuBtn.Position = UDim2.new(0, 10, 0, 10)
+ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+ToggleMenuBtn.Text = "Ẩn/Hiện Menu (K)"
+ToggleMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleMenuBtn.TextSize = 12
+ToggleMenuBtn.Font = Enum.Font.SourceSansBold
+ToggleMenuBtn.Parent = ScreenGui
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = ToggleMenuBtn
+
+-- Hàm xử lý Ẩn/Hiện Menu
+local isMenuVisible = true
+local function toggleMenu()
+    isMenuVisible = not isMenuVisible
+    MainFrame.Visible = isMenuVisible
+end
+
+ToggleMenuBtn.MouseButton1Click:Connect(toggleMenu)
+
+-- Phím tắt клавиатура: Bấm phím 'K' để ẩn/hiện Menu
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.K then
+        toggleMenu()
+    end
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-end)
-
-------------------------------------------------------------
--- 📑 6. DANH SÁCH SCRIPT (CONTAINER)
-------------------------------------------------------------
-local Container = Instance.new("ScrollingFrame")
-Container.Parent = MainFrame
-Container.Size = UDim2.new(1, -20, 1, -55)
-Container.Position = UDim2.new(0, 10, 0, 48)
-Container.BackgroundTransparency = 1
-Container.CanvasSize = UDim2.new(0, 0, 0, 0)
-Container.ScrollBarThickness = 4
-Container.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 255)
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Parent = Container
-ListLayout.Padding = UDim.new(0, 10)
-ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    Container.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
-end)
-
--- Hàm tạo Nút Script
-local function AddScriptButton(name, desc, scriptUrl)
-    local BtnFrame = Instance.new("Frame")
-    BtnFrame.Size = UDim2.new(1, 0, 0, 55)
-    BtnFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-    BtnFrame.BorderSizePixel = 0
-    BtnFrame.Parent = Container
-
-    local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 8)
-    BtnCorner.Parent = BtnFrame
-
-    local BtnStroke = Instance.new("UIStroke")
-    BtnStroke.Color = Color3.fromRGB(45, 45, 58)
-    BtnStroke.Thickness = 1
-    BtnStroke.Parent = BtnFrame
-
-    local TxtName = Instance.new("TextLabel")
-    TxtName.Size = UDim2.new(1, -110, 0, 25)
-    TxtName.Position = UDim2.new(0, 12, 0, 5)
-    TxtName.BackgroundTransparency = 1
-    TxtName.Text = "⚡ " .. name
-    TxtName.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TxtName.Font = Enum.Font.GothamBold
-    TxtName.TextSize = 13
-    TxtName.TextXAlignment = Enum.TextXAlignment.Left
-    TxtName.Parent = BtnFrame
-
-    local TxtDesc = Instance.new("TextLabel")
-    TxtDesc.Size = UDim2.new(1, -110, 0, 20)
-    TxtDesc.Position = UDim2.new(0, 12, 0, 28)
-    TxtDesc.BackgroundTransparency = 1
-    TxtDesc.Text = desc
-    TxtDesc.TextColor3 = Color3.fromRGB(150, 150, 160)
-    TxtDesc.Font = Enum.Font.Gotham
-    TxtDesc.TextSize = 10
-    TxtDesc.TextXAlignment = Enum.TextXAlignment.Left
-    TxtDesc.Parent = BtnFrame
-
-    local RunBtn = Instance.new("TextButton")
-    RunBtn.Size = UDim2.new(0, 85, 0, 35)
-    RunBtn.Position = UDim2.new(1, -95, 0.5, -17)
-    RunBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    RunBtn.Text = "CHẠY"
-    RunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    RunBtn.Font = Enum.Font.GothamBold
-    RunBtn.TextSize = 12
-    RunBtn.Parent = BtnFrame
-
-    local RunCorner = Instance.new("UICorner")
-    RunCorner.CornerRadius = UDim.new(0, 6)
-    RunCorner.Parent = RunBtn
-
-    RunBtn.MouseButton1Click:Connect(function()
-        SendNotify("Grai Hub", "Đang nạp " .. name .. "...")
-        pcall(function()
-            loadstring(game:HttpGet(scriptUrl))()
+-- Hàm tải và thực thi URL an toàn (không làm gián đoạn game khi gặp lỗi)
+local function executeUrlScript(url)
+    task.spawn(function()
+        local success, response = pcall(function()
+            return game:HttpGet(url)
         end)
+        
+        if success and response then
+            local funcSuccess, loadedFunc = pcall(function()
+                return loadstring(response)
+            end)
+            
+            if funcSuccess and loadedFunc then
+                loadedFunc()
+            else
+                warn("[Lỗi] Không thể biên dịch script từ URL: " .. url)
+            end
+        else
+            warn("[Lỗi] Không thể tải dữ liệu từ URL: " .. url)
+        end
     end)
 end
 
-------------------------------------------------------------
--- 📌 7. THÊM 2 SCRIPT THEO YÊU CẦU
-------------------------------------------------------------
-AddScriptButton(
-    "Script AI 1", 
-    "Bấm để chạy scriptaiai", 
-    "https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiai/refs/heads/main/scriptaiai"
-)
+-- Trạng thái On/Off của 2 script
+local script1State = false
+local script2State = false
 
-AddScriptButton(
-    "Script AI 2", 
-    "Bấm để chạy scriptaiaiaiha", 
-    "https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiaiai/refs/heads/main/scriptaiaiaiha"
-)
+-- Xử lý nút bấm Script 1
+Toggle1.MouseButton1Click:Connect(function()
+    script1State = not script1State
+    if script1State then
+        Toggle1.Text = "Script 1: BẬT"
+        Toggle1.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+        Toggle1.TextColor3 = Color3.fromRGB(255, 255, 255)
+        executeUrlScript("https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiai/refs/heads/main/scriptaiai")
+    else
+        Toggle1.Text = "Script 1: TẮT"
+        Toggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        Toggle1.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
 
--- Thông báo khi tải hoàn tất
-SendNotify("Grai Hub", "Đã nạp Menu thành công!")
+-- Xử lý nút bấm Script 2
+Toggle2.MouseButton1Click:Connect(function()
+    script2State = not script2State
+    if script2State then
+        Toggle2.Text = "Script 2: BẬT"
+        Toggle2.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+        Toggle2.TextColor3 = Color3.fromRGB(255, 255, 255)
+        executeUrlScript("https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiaiai/refs/heads/main/scriptaiaiaiha")
+    else
+        Toggle2.Text = "Script 2: TẮT"
+        Toggle2.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        Toggle2.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
