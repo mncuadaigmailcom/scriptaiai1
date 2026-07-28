@@ -7,10 +7,9 @@
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 
 -- Variables
 local selectedPlayer = nil
@@ -82,12 +81,26 @@ local COLOR_DEAD = Color3.fromRGB(230, 30, 30)
 local TEXT_DARK = Color3.fromRGB(15, 15, 25)
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
--- UI Construction
+-- UI Construction & Safe Parenting Fix
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FlyBananaCatResizableSplitter"
-ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
+
+local function getSafeGuiParent()
+    if RunService:IsStudio() then
+        return LocalPlayer:WaitForChild("PlayerGui")
+    end
+    if gethui then
+        local success, result = pcall(gethui)
+        if success and result then return result end
+    end
+    local success, core = pcall(function() return game:GetService("CoreGui") end)
+    if success and core then return core end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+ScreenGui.Parent = getSafeGuiParent()
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
@@ -101,6 +114,7 @@ MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
 MainFrame.Draggable = false
 MainFrame.ClipsDescendants = false
+MainFrame.Visible = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
