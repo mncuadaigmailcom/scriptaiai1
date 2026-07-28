@@ -1,8 +1,15 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - ĐÃ XÓA: TÍNH NĂNG XUYÊN TƯỜNG THẢM KÍNH & BẢNG ĐIỀU KHIỂN HUD
-    - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, BU NGƯỜI CHƠI, ESP REALTIME, WALL CREATOR, GLOW
+    - TÍNH NĂNG MỚI: XUYÊN TƯỜNG TƯỜNG KÍNH (GLASS PLATFORM NOCLIP)
+      + HIỆN BẢNG 4 NÚT: BAY LÊN, BAY XUỐNG, BAY THẲNG, TẮT.
+      + TỰ ĐỘNG TẠO TẤM KÍNH DƯỚI CHÂN GIÚP BẠN ĐỨNG VỮNG VÀ XUYÊN QUA MỌI LOẠI TƯỜNG (VUÔNG, TRÒN, TAM GIÁC...).
+    - GIỮ NGUYÊN TOÀN BỘ TÍNH NĂNG: DRAG HANDLE, RESIZE 4 GÓC, ESP REALTIME, WALL CREATOR, GLOW, TRỤ VISUAL.
 --]]
+
+-- Đảm bảo game đã load
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -10,6 +17,10 @@ local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+
+-- Debug
+print("🚀 Banana Fly Script Starting...")
+print("👤 Player:", LocalPlayer.Name)
 
 -- Variables
 local selectedPlayer = nil
@@ -25,6 +36,12 @@ local isFlying = false
 local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
+
+-- Glass Noclip Variables (Xuyên Tường Tường Kính)
+local glassNoclipActive = false
+local glassNoclipMode = "OFF" -- "UP", "DOWN", "FORWARD", "OFF"
+local glassPlatformPart = nil
+local glassNoclipConn = nil
 
 -- Follow / Bu Người Variables
 local followPlayerActive = false
@@ -81,9 +98,21 @@ local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 -- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FlyBananaCatResizableSplitter"
-ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
+ScreenGui.Enabled = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local success, err = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+
+if not success then
+    warn("Không thể đặt vào CoreGui:", err)
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+print("✅ ScreenGui Parent:", ScreenGui.Parent.Name)
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
@@ -97,6 +126,7 @@ MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
 MainFrame.Draggable = false
 MainFrame.ClipsDescendants = false
+MainFrame.Visible = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
@@ -105,7 +135,7 @@ MainCorner.Parent = MainFrame
 
 -- Title Bar
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -60, 0, 34)
+Title.Size = UDim2.new(1, -150, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
 Title.BackgroundTransparency = 0.4
@@ -114,40 +144,30 @@ Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Active = true
+Title.Active = false
 Title.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
 
----------------------------------------------------------
--- CƠ CHẾ KÉO MENU (SMOOTH DRAG TITLE BAR)
----------------------------------------------------------
-local draggingMain = false
-local dragStartMouse, dragStartPos
+-- NÚT GIỮ ĐỂ DI CHUYỂN MENU
+local DragHandleBtn = Instance.new("TextButton")
+DragHandleBtn.Name = "DragHandleBtn"
+DragHandleBtn.Size = UDim2.new(0, 85, 0, 24)
+DragHandleBtn.Position = UDim2.new(1, -145, 0, 5)
+DragHandleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+DragHandleBtn.BackgroundTransparency = 0.3
+DragHandleBtn.Text = "🖐️ Di Chuyển"
+DragHandleBtn.TextColor3 = TEXT_DARK
+DragHandleBtn.Font = Enum.Font.SourceSansBold
+DragHandleBtn.TextSize = 11
+DragHandleBtn.ZIndex = 5
+DragHandleBtn.Parent = MainFrame
 
-Title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingMain = true
-        dragStartMouse = UserInputService:GetMouseLocation()
-        dragStartPos = MainFrame.AbsolutePosition
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingMain = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if draggingMain and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local currentMouse = UserInputService:GetMouseLocation()
-        local delta = currentMouse - dragStartMouse
-        MainFrame.Position = UDim2.new(0, dragStartPos.X + delta.X, 0, dragStartPos.Y + delta.Y)
-    end
-end)
+local DragCorner = Instance.new("UICorner")
+DragCorner.CornerRadius = UDim.new(0, 4)
+DragCorner.Parent = DragHandleBtn
 
 -- Minimize Button (-)
 local MinimizeBtn = Instance.new("TextButton")
@@ -176,7 +196,42 @@ CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
 ---------------------------------------------------------
--- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ
+-- CƠ CHẾ KÉO MENU
+---------------------------------------------------------
+local draggingMain = false
+local dragStartMouse, dragStartPos
+
+DragHandleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingMain = true
+        dragStartMouse = UserInputService:GetMouseLocation()
+        dragStartPos = MainFrame.AbsolutePosition
+        
+        DragHandleBtn.BackgroundColor3 = COLOR_GREEN
+        DragHandleBtn.TextColor3 = TEXT_LIGHT
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if draggingMain then
+            draggingMain = false
+            DragHandleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+            DragHandleBtn.TextColor3 = TEXT_DARK
+        end
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingMain and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentMouse = UserInputService:GetMouseLocation()
+        local delta = currentMouse - dragStartMouse
+        MainFrame.Position = UDim2.new(0, dragStartPos.X + delta.X, 0, dragStartPos.Y + delta.Y)
+    end
+end)
+
+---------------------------------------------------------
+-- NÚT BẬT / ẨN MENU
 ---------------------------------------------------------
 local PersistentToggleBtn = Instance.new("TextButton")
 PersistentToggleBtn.Name = "PersistentToggleBtn"
@@ -199,7 +254,6 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 8)
 ToggleCorner.Parent = PersistentToggleBtn
 
--- Di chuyển nút PersistentToggle
 local dragToggle = false
 local dragToggleStartMouse, dragToggleStartPos
 
@@ -236,20 +290,14 @@ local function setMenuVisible(visible)
     end
 end
 
-PersistentToggleBtn.MouseButton1Click:Connect(function()
-    setMenuVisible(not MainFrame.Visible)
-end)
-
-MinimizeBtn.MouseButton1Click:Connect(function()
-    setMenuVisible(false)
-end)
+PersistentToggleBtn.MouseButton1Click:Connect(function() setMenuVisible(not MainFrame.Visible) end)
+MinimizeBtn.MouseButton1Click:Connect(function() setMenuVisible(false) end)
 
 ---------------------------------------------------------
 -- TÍNH NĂNG 4 GÓC KÉO CO GIÃN
 ---------------------------------------------------------
 local minSize = Vector2.new(480, 280)
 local maxSize = Vector2.new(950, 650)
-
 local activeResizeCorner = nil 
 local resizeStartMousePos, resizeStartSize, resizeStartPos
 
@@ -325,12 +373,8 @@ UserInputService.InputChanged:Connect(function(input)
         local newX = resizeStartPos.X
         local newY = resizeStartPos.Y
 
-        if activeResizeCorner == "BL" or activeResizeCorner == "TL" then
-            newX = resizeStartPos.X - deltaW
-        end
-        if activeResizeCorner == "TR" or activeResizeCorner == "TL" then
-            newY = resizeStartPos.Y - deltaH
-        end
+        if activeResizeCorner == "BL" or activeResizeCorner == "TL" then newX = resizeStartPos.X - deltaW end
+        if activeResizeCorner == "TR" or activeResizeCorner == "TL" then newY = resizeStartPos.Y - deltaH end
 
         MainFrame.Size = UDim2.new(0, actualW, 0, actualH)
         MainFrame.Position = UDim2.new(0, newX, 0, newY)
@@ -346,7 +390,6 @@ TabBarFrame.Position = UDim2.new(0, 12, 0, 40)
 TabBarFrame.BackgroundTransparency = 1
 TabBarFrame.Parent = MainFrame
 
--- TAB 1
 local PlayersTabBtn = Instance.new("TextButton")
 PlayersTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 PlayersTabBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -362,7 +405,6 @@ local PlayersTabCorner = Instance.new("UICorner")
 PlayersTabCorner.CornerRadius = UDim.new(0, 6)
 PlayersTabCorner.Parent = PlayersTabBtn
 
--- TAB 2
 local LocationsTabBtn = Instance.new("TextButton")
 LocationsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 LocationsTabBtn.Position = UDim2.new(0.34, 0, 0, 0)
@@ -378,7 +420,6 @@ local LocationsTabCorner = Instance.new("UICorner")
 LocationsTabCorner.CornerRadius = UDim.new(0, 6)
 LocationsTabCorner.Parent = LocationsTabBtn
 
--- TAB 3
 local WallsTabBtn = Instance.new("TextButton")
 WallsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 WallsTabBtn.Position = UDim2.new(0.68, 0, 0, 0)
@@ -404,7 +445,6 @@ PlayersPage.BackgroundTransparency = 1
 PlayersPage.Visible = true
 PlayersPage.Parent = MainFrame
 
--- Ô Tìm kiếm
 local SearchBox = Instance.new("TextBox")
 SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SearchBox.BackgroundTransparency = 0.4
@@ -416,7 +456,6 @@ SearchBox.Font = Enum.Font.SourceSans
 SearchBox.TextSize = 12
 SearchBox.Parent = PlayersPage
 
--- Nút Tải lại
 local RefreshBtn = Instance.new("TextButton")
 RefreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 RefreshBtn.BackgroundTransparency = 0.4
@@ -454,9 +493,6 @@ local SplitterCorner = Instance.new("UICorner")
 SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
----------------------------------------------------------
--- CỘT PHẢI TAB PLAYERS
----------------------------------------------------------
 local P_RightPanel = Instance.new("ScrollingFrame")
 P_RightPanel.Name = "P_RightPanel"
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -486,9 +522,27 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
--- 1. NÚT BU NGƯỜI CHƠI (BAY BÁM ĐUỔI REALTIME)
+---------------------------------------------------------
+-- CONTROLS CỘT PHẢI TAB 1 (NGƯỜI CHƠI)
+---------------------------------------------------------
+-- NÚT XUYÊN TƯỜNG TƯỜNG KÍNH (GLASS PLATFORM NOCLIP)
+local GlassNoclipBtn = Instance.new("TextButton")
+GlassNoclipBtn.LayoutOrder = 1
+GlassNoclipBtn.Size = UDim2.new(1, 0, 0, 24)
+GlassNoclipBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+GlassNoclipBtn.BackgroundTransparency = 0.3
+GlassNoclipBtn.Text = "🔮 Xuyên Tường Tường Kính: OFF"
+GlassNoclipBtn.TextColor3 = TEXT_DARK
+GlassNoclipBtn.Font = Enum.Font.SourceSansBold
+GlassNoclipBtn.TextSize = 11
+GlassNoclipBtn.Parent = P_RightPanel
+
+local GlassNoclipCorner = Instance.new("UICorner")
+GlassNoclipCorner.CornerRadius = UDim.new(0, 4)
+GlassNoclipCorner.Parent = GlassNoclipBtn
+
 local FollowPlayerBtn = Instance.new("TextButton")
-FollowPlayerBtn.LayoutOrder = 1
+FollowPlayerBtn.LayoutOrder = 2
 FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
 FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 FollowPlayerBtn.BackgroundTransparency = 0.3
@@ -502,9 +556,8 @@ local FollowCorner = Instance.new("UICorner")
 FollowCorner.CornerRadius = UDim.new(0, 4)
 FollowCorner.Parent = FollowPlayerBtn
 
--- 2. ESP Player All
 local EspAllBtn = Instance.new("TextButton")
-EspAllBtn.LayoutOrder = 2
+EspAllBtn.LayoutOrder = 3
 EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspAllBtn.BackgroundTransparency = 0.3
@@ -518,9 +571,8 @@ local EspAllCorner = Instance.new("UICorner")
 EspAllCorner.CornerRadius = UDim.new(0, 4)
 EspAllCorner.Parent = EspAllBtn
 
--- 3. ESP Player Single
 local EspSingleBtn = Instance.new("TextButton")
-EspSingleBtn.LayoutOrder = 3
+EspSingleBtn.LayoutOrder = 4
 EspSingleBtn.Size = UDim2.new(1, 0, 0, 24)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspSingleBtn.BackgroundTransparency = 0.3
@@ -534,9 +586,8 @@ local EspSingleCorner = Instance.new("UICorner")
 EspSingleCorner.CornerRadius = UDim.new(0, 4)
 EspSingleCorner.Parent = EspSingleBtn
 
--- 4. Nút Phát Sáng
 local GlowToggleBtn = Instance.new("TextButton")
-GlowToggleBtn.LayoutOrder = 4
+GlowToggleBtn.LayoutOrder = 5
 GlowToggleBtn.Size = UDim2.new(1, 0, 0, 24)
 GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 GlowToggleBtn.BackgroundTransparency = 0.3
@@ -550,9 +601,8 @@ local GlowCorner = Instance.new("UICorner")
 GlowCorner.CornerRadius = UDim.new(0, 4)
 GlowCorner.Parent = GlowToggleBtn
 
--- 5. Bán Kính Phát Sáng Label & Box
 local GlowRangeLabel = Instance.new("TextLabel")
-GlowRangeLabel.LayoutOrder = 5
+GlowRangeLabel.LayoutOrder = 6
 GlowRangeLabel.Size = UDim2.new(1, 0, 0, 14)
 GlowRangeLabel.BackgroundTransparency = 1
 GlowRangeLabel.Text = "💡 Bán kính sáng (Studs):"
@@ -563,7 +613,7 @@ GlowRangeLabel.TextSize = 10
 GlowRangeLabel.Parent = P_RightPanel
 
 local GlowRangeBox = Instance.new("TextBox")
-GlowRangeBox.LayoutOrder = 6
+GlowRangeBox.LayoutOrder = 7
 GlowRangeBox.Size = UDim2.new(1, 0, 0, 22)
 GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 GlowRangeBox.BackgroundTransparency = 0.3
@@ -573,9 +623,8 @@ GlowRangeBox.Font = Enum.Font.SourceSansBold
 GlowRangeBox.TextSize = 11
 GlowRangeBox.Parent = P_RightPanel
 
--- 6. Chiều cao Label & Box
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.LayoutOrder = 7
+P_HeightLabel.LayoutOrder = 8
 P_HeightLabel.Size = UDim2.new(1, 0, 0, 14)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
@@ -586,7 +635,7 @@ P_HeightLabel.TextSize = 10
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.LayoutOrder = 8
+P_HeightBox.LayoutOrder = 9
 P_HeightBox.Size = UDim2.new(1, 0, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
@@ -596,9 +645,8 @@ P_HeightBox.Font = Enum.Font.SourceSansBold
 P_HeightBox.TextSize = 11
 P_HeightBox.Parent = P_RightPanel
 
--- 7. Tốc độ Label & Box
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.LayoutOrder = 9
+P_SpeedLabel.LayoutOrder = 10
 P_SpeedLabel.Size = UDim2.new(1, 0, 0, 14)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
@@ -609,7 +657,7 @@ P_SpeedLabel.TextSize = 10
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.LayoutOrder = 10
+P_SpeedBox.LayoutOrder = 11
 P_SpeedBox.Size = UDim2.new(1, 0, 0, 22)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
@@ -619,9 +667,8 @@ P_SpeedBox.Font = Enum.Font.SourceSansBold
 P_SpeedBox.TextSize = 11
 P_SpeedBox.Parent = P_RightPanel
 
--- 8. Visual Height Button
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.LayoutOrder = 11
+HeightVisualBtn.LayoutOrder = 12
 HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
@@ -658,7 +705,7 @@ end
 local isDraggingSplit = false
 
 SplitDivider.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
         isDraggingSplit = true
     end
 end)
@@ -684,6 +731,115 @@ end)
 
 MainFrame:GetPropertyChangedSignal("Size"):Connect(updatePlayersLayout)
 updatePlayersLayout()
+
+---------------------------------------------------------
+-- BẢNG 4 NÚT ĐIỀU KHIỂN XUYÊN TƯỜNG TƯỜNG KÍNH (GLASS NOCLIP CONTROLLER)
+---------------------------------------------------------
+local GlassControlFrame = Instance.new("Frame")
+GlassControlFrame.Name = "GlassControlFrame"
+GlassControlFrame.Size = UDim2.new(0, 180, 0, 145)
+GlassControlFrame.Position = UDim2.new(0.02, 0, 0.40, 0)
+GlassControlFrame.BackgroundColor3 = COLOR_MAIN_BG
+GlassControlFrame.BackgroundTransparency = 0.25
+GlassControlFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+GlassControlFrame.BorderSizePixel = 1
+GlassControlFrame.Visible = false
+GlassControlFrame.Active = true
+GlassControlFrame.ZIndex = 120
+GlassControlFrame.Parent = ScreenGui
+
+local GlassControlCorner = Instance.new("UICorner")
+GlassControlCorner.CornerRadius = UDim.new(0, 8)
+GlassControlCorner.Parent = GlassControlFrame
+
+local GlassControlHeader = Instance.new("TextLabel")
+GlassControlHeader.Size = UDim2.new(1, 0, 0, 24)
+GlassControlHeader.BackgroundColor3 = COLOR_TITLE_BG
+GlassControlHeader.BackgroundTransparency = 0.3
+GlassControlHeader.Text = "🔮 ĐIỀU KHIỂN TẤM KÍNH"
+GlassControlHeader.TextColor3 = TEXT_DARK
+GlassControlHeader.Font = Enum.Font.SourceSansBold
+GlassControlHeader.TextSize = 11
+GlassControlHeader.Parent = GlassControlFrame
+
+local GlassHeaderCorner = Instance.new("UICorner")
+GlassHeaderCorner.CornerRadius = UDim.new(0, 8)
+GlassHeaderCorner.Parent = GlassControlHeader
+
+-- Kéo thả Bảng Điều Khiển
+local dragGlassCtrl = false
+local dragGlassStartMouse, dragGlassStartPos
+
+GlassControlHeader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragGlassCtrl = true
+        dragGlassStartMouse = UserInputService:GetMouseLocation()
+        dragGlassStartPos = GlassControlFrame.AbsolutePosition
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragGlassCtrl = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragGlassCtrl and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentMouse = UserInputService:GetMouseLocation()
+        local delta = currentMouse - dragGlassStartMouse
+        GlassControlFrame.Position = UDim2.new(0, dragGlassStartPos.X + delta.X, 0, dragGlassStartPos.Y + delta.Y)
+    end
+end)
+
+-- 4 NÚT ĐIỀU KHIỂN
+local BtnUp = Instance.new("TextButton")
+BtnUp.Size = UDim2.new(0.9, 0, 0, 24)
+BtnUp.Position = UDim2.new(0.05, 0, 0, 30)
+BtnUp.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+BtnUp.BackgroundTransparency = 0.2
+BtnUp.Text = "⬆️ Bay Lên"
+BtnUp.TextColor3 = TEXT_DARK
+BtnUp.Font = Enum.Font.SourceSansBold
+BtnUp.TextSize = 11
+BtnUp.Parent = GlassControlFrame
+Instance.new("UICorner", {CornerRadius = UDim.new(0, 4)}).Parent = BtnUp
+
+local BtnDown = Instance.new("TextButton")
+BtnDown.Size = UDim2.new(0.9, 0, 0, 24)
+BtnDown.Position = UDim2.new(0.05, 0, 0, 58)
+BtnDown.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+BtnDown.BackgroundTransparency = 0.2
+BtnDown.Text = "⬇️ Bay Xuống"
+BtnDown.TextColor3 = TEXT_DARK
+BtnDown.Font = Enum.Font.SourceSansBold
+BtnDown.TextSize = 11
+BtnDown.Parent = GlassControlFrame
+Instance.new("UICorner", {CornerRadius = UDim.new(0, 4)}).Parent = BtnDown
+
+local BtnForward = Instance.new("TextButton")
+BtnForward.Size = UDim2.new(0.9, 0, 0, 24)
+BtnForward.Position = UDim2.new(0.05, 0, 0, 86)
+BtnForward.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+BtnForward.BackgroundTransparency = 0.2
+BtnForward.Text = "➡️ Bay Thẳng (Xuyên Mọi Tường)"
+BtnForward.TextColor3 = TEXT_DARK
+BtnForward.Font = Enum.Font.SourceSansBold
+BtnForward.TextSize = 10
+BtnForward.Parent = GlassControlFrame
+Instance.new("UICorner", {CornerRadius = UDim.new(0, 4)}).Parent = BtnForward
+
+local BtnStopGlass = Instance.new("TextButton")
+BtnStopGlass.Size = UDim2.new(0.9, 0, 0, 24)
+BtnStopGlass.Position = UDim2.new(0.05, 0, 0, 114)
+BtnStopGlass.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
+BtnStopGlass.BackgroundTransparency = 0.2
+BtnStopGlass.Text = "🛑 Tắt Xuyên Tường"
+BtnStopGlass.TextColor3 = TEXT_LIGHT
+BtnStopGlass.Font = Enum.Font.SourceSansBold
+BtnStopGlass.TextSize = 11
+BtnStopGlass.Parent = GlassControlFrame
+Instance.new("UICorner", {CornerRadius = UDim.new(0, 4)}).Parent = BtnStopGlass
 
 ---------------------------------------------------------
 -- TAB 2: TỌA ĐỘ ĐÃ LƯU (LOCATIONS PAGE)
@@ -723,7 +879,6 @@ local SaveCorner = Instance.new("UICorner")
 SaveCorner.CornerRadius = UDim.new(0, 4)
 SaveCorner.Parent = SavePosBtn
 
--- BẢNG ĐỊNH VỊ TỌA ĐỘ
 local LocEspAllBtn = Instance.new("TextButton")
 LocEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
 LocEspAllBtn.Position = UDim2.new(0, 0, 0, 28)
@@ -768,7 +923,7 @@ UIListLayout2.Parent = SavedList
 UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
--- TAB 3: TẠO TƯỜNG KÍNH (WALL CREATOR & LIST PAGE)
+-- TAB 3: TẠO TƯỜNG KÍNH (WALL CREATOR PAGE)
 ---------------------------------------------------------
 local WallsPage = Instance.new("Frame")
 WallsPage.Name = "WallsPage"
@@ -778,15 +933,11 @@ WallsPage.BackgroundTransparency = 1
 WallsPage.Visible = false
 WallsPage.Parent = MainFrame
 
----------------------------------------------------------
--- CỘT BÊN TRÁI: DANH SÁCH TƯỜNG KÍNH VÀ ESP
----------------------------------------------------------
 local W_LeftPanel = Instance.new("Frame")
 W_LeftPanel.Name = "W_LeftPanel"
 W_LeftPanel.BackgroundTransparency = 1
 W_LeftPanel.Parent = WallsPage
 
--- Nút ESP All Wall
 local WallEspAllBtn = Instance.new("TextButton")
 WallEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
 WallEspAllBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -802,7 +953,6 @@ local WallEspAllCorner = Instance.new("UICorner")
 WallEspAllCorner.CornerRadius = UDim.new(0, 4)
 WallEspAllCorner.Parent = WallEspAllBtn
 
--- Nút ESP Single Wall
 local WallEspSingleBtn = Instance.new("TextButton")
 WallEspSingleBtn.Size = UDim2.new(0.49, 0, 0, 24)
 WallEspSingleBtn.Position = UDim2.new(0.51, 0, 0, 0)
@@ -818,7 +968,6 @@ local WallEspSingleCorner = Instance.new("UICorner")
 WallEspSingleCorner.CornerRadius = UDim.new(0, 4)
 WallEspSingleCorner.Parent = WallEspSingleBtn
 
--- Danh Sách Tường
 local W_SavedList = Instance.new("ScrollingFrame")
 W_SavedList.Size = UDim2.new(1, 0, 1, -28)
 W_SavedList.Position = UDim2.new(0, 0, 0, 28)
@@ -832,9 +981,6 @@ local UIListLayoutWall = Instance.new("UIListLayout")
 UIListLayoutWall.Parent = W_SavedList
 UIListLayoutWall.SortOrder = Enum.SortOrder.LayoutOrder
 
----------------------------------------------------------
--- THANH KÉO CO GIÃN TAB 3 (WALL SPLITTER DIVIDER)
----------------------------------------------------------
 local WallSplitDivider = Instance.new("TextButton")
 WallSplitDivider.Name = "WallSplitDivider"
 WallSplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
@@ -852,9 +998,6 @@ local WallSplitterCorner = Instance.new("UICorner")
 WallSplitterCorner.CornerRadius = UDim.new(0, 4)
 WallSplitterCorner.Parent = WallSplitDivider
 
----------------------------------------------------------
--- CỘT BÊN PHẢI: BẢNG CẤU HÌNH ĐẶT TƯỜNG (CÓ TÊN)
----------------------------------------------------------
 local W_RightPanel = Instance.new("ScrollingFrame")
 W_RightPanel.Name = "W_RightPanel"
 W_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -881,9 +1024,6 @@ W_RightPadding.PaddingLeft = UDim.new(0, 4)
 W_RightPadding.PaddingRight = UDim.new(0, 6)
 W_RightPadding.Parent = W_RightPanel
 
----------------------------------------------------------
--- CẬP NHẬT GIAO DIỆN CO GIÃN REALTIME CHO TAB 3
----------------------------------------------------------
 local function updateWallsLayout()
     local leftRatio = math.clamp(wallSplitRatio, minWallSplit, maxWallSplit)
     local rightRatio = 1 - leftRatio - 0.02
@@ -928,7 +1068,7 @@ end)
 MainFrame:GetPropertyChangedSignal("Size"):Connect(updateWallsLayout)
 updateWallsLayout()
 
--- Header
+-- Controls Tab 3
 local WallHeader = Instance.new("TextLabel")
 WallHeader.LayoutOrder = 1
 WallHeader.Size = UDim2.new(1, 0, 0, 16)
@@ -940,7 +1080,6 @@ WallHeader.TextSize = 11
 WallHeader.TextXAlignment = Enum.TextXAlignment.Left
 WallHeader.Parent = W_RightPanel
 
--- Ô ĐẶT TÊN TƯỜNG
 local WallNameLabel = Instance.new("TextLabel")
 WallNameLabel.LayoutOrder = 2
 WallNameLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -965,7 +1104,6 @@ WallNameBox.Font = Enum.Font.SourceSansBold
 WallNameBox.TextSize = 11
 WallNameBox.Parent = W_RightPanel
 
--- 1. Chiều dài (X)
 local WallLenLabel = Instance.new("TextLabel")
 WallLenLabel.LayoutOrder = 4
 WallLenLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -988,7 +1126,6 @@ WallLenBox.Font = Enum.Font.SourceSansBold
 WallLenBox.TextSize = 11
 WallLenBox.Parent = W_RightPanel
 
--- 2. Chiều cao (Y)
 local WallHeightLabel = Instance.new("TextLabel")
 WallHeightLabel.LayoutOrder = 6
 WallHeightLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -1011,7 +1148,6 @@ WallHeightBox.Font = Enum.Font.SourceSansBold
 WallHeightBox.TextSize = 11
 WallHeightBox.Parent = W_RightPanel
 
--- 3. Chiều rộng / Độ dày (Z)
 local WallThickLabel = Instance.new("TextLabel")
 WallThickLabel.LayoutOrder = 8
 WallThickLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -1034,7 +1170,6 @@ WallThickBox.Font = Enum.Font.SourceSansBold
 WallThickBox.TextSize = 11
 WallThickBox.Parent = W_RightPanel
 
--- 4. Độ trong suốt
 local WallTransLabel = Instance.new("TextLabel")
 WallTransLabel.LayoutOrder = 10
 WallTransLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -1057,7 +1192,6 @@ WallTransBox.Font = Enum.Font.SourceSansBold
 WallTransBox.TextSize = 11
 WallTransBox.Parent = W_RightPanel
 
--- 5. Toggle Va chạm
 local wallCanCollide = true
 local WallCollideBtn = Instance.new("TextButton")
 WallCollideBtn.LayoutOrder = 12
@@ -1085,7 +1219,6 @@ WallCollideBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- 6. Nút Đặt Khối Tường
 local SpawnWallBtn = Instance.new("TextButton")
 SpawnWallBtn.LayoutOrder = 13
 SpawnWallBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -1101,7 +1234,6 @@ local SpawnCorner = Instance.new("UICorner")
 SpawnCorner.CornerRadius = UDim.new(0, 4)
 SpawnCorner.Parent = SpawnWallBtn
 
--- 7. Nút Xóa Tất Cả Tường
 local ClearWallsBtn = Instance.new("TextButton")
 ClearWallsBtn.LayoutOrder = 14
 ClearWallsBtn.Size = UDim2.new(1, 0, 0, 22)
@@ -1249,7 +1381,6 @@ updateWallList = function()
     W_SavedList.CanvasSize = UDim2.new(0, 0, 0, #spawnedWalls * 28)
 end
 
--- Event Đặt Tường
 SpawnWallBtn.MouseButton1Click:Connect(function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1276,7 +1407,6 @@ SpawnWallBtn.MouseButton1Click:Connect(function()
     wall.Name = "BananaTransparentWall_" .. wallCounter
     wall.Size = Vector3.new(sizeX, sizeY, sizeZ)
     
-    -- Đặt tường đứng trước mặt nhân vật
     wall.CFrame = hrp.CFrame * CFrame.new(0, (sizeY / 2) - 3, -(sizeZ / 2 + 4))
     wall.Anchored = true
     wall.CanCollide = wallCanCollide
@@ -1296,7 +1426,6 @@ SpawnWallBtn.MouseButton1Click:Connect(function()
     updateWallList()
 end)
 
--- Event Xóa Tất Cả Tường
 ClearWallsBtn.MouseButton1Click:Connect(function()
     removeAllWallESP()
     for _, item in ipairs(spawnedWalls) do
@@ -1307,7 +1436,6 @@ ClearWallsBtn.MouseButton1Click:Connect(function()
     updateWallList()
 end)
 
--- Event Toggle Wall ESP Buttons
 WallEspAllBtn.MouseButton1Click:Connect(function()
     wallEspAllActive = not wallEspAllActive
     if wallEspAllActive then
@@ -1333,7 +1461,7 @@ WallEspSingleBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------
--- CHUYỂN ĐỔI TAB (SWITCH TAB LOGIC FOR 3 TABS)
+-- CHUYỂN ĐỔI TAB (SWITCH TAB)
 ---------------------------------------------------------
 local function switchTab(tabName)
     activeTab = tabName
@@ -1357,7 +1485,7 @@ LocationsTabBtn.MouseButton1Click:Connect(function() switchTab("Locations") end)
 WallsTabBtn.MouseButton1Click:Connect(function() switchTab("Walls") end)
 
 ---------------------------------------------------------
--- LOGIC PHÁT SÁNG BẢN THÂN (SELF GLOW LOGIC)
+-- LOGIC PHÁT SÁNG BẢN THÂN
 ---------------------------------------------------------
 local function updateGlow()
     local char = LocalPlayer.Character
@@ -1400,23 +1528,21 @@ GlowToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 GlowRangeBox:GetPropertyChangedSignal("Text"):Connect(function()
-    if glowActive then
-        updateGlow()
-    end
+    if glowActive then updateGlow() end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
-    if glowActive then
-        updateGlow()
-    end
+    if glowActive then updateGlow() end
 end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM
+-- QUẢN LÝ NOCLIP CHUẨN & LOGIC XUYÊN TƯỜNG TƯỜNG KÍNH
 ---------------------------------------------------------
 local startFly
 local stopFly
+local startFollow
+local stopFollow
 local updatePlayerList
 local updateSavedList
 
@@ -1446,7 +1572,7 @@ local function isPlayerDeadOrKnocked(plr)
     return false
 end
 
--- KHÔI PHỤC VẬT LÝ CHUẨN ROBLOX
+-- KHÔI PHỤC VA CHẠM VẬT LÝ VỀ TRẠNG THÁI GỐC
 local function resetCharacterPhysics()
     if noclipConnection then
         noclipConnection:Disconnect()
@@ -1456,7 +1582,6 @@ local function resetCharacterPhysics()
     local char = LocalPlayer.Character
     if not char then return end
 
-    -- Khôi phục va chạm chuẩn của Roblox
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             if part.Name == "HumanoidRootPart" then
@@ -1474,7 +1599,7 @@ local function resetCharacterPhysics()
     end
 end
 
--- CẬP NHẬT TRẠNG THÁI NOCLIP TỔNG TỂ
+-- BẬT / TẮT NOCLIP BAY HOẶC BU NGƯỜI
 local function updateNoclipState()
     local shouldNoclip = followPlayerActive or isFlying
 
@@ -1492,21 +1617,311 @@ local function updateNoclipState()
             end)
         end
     else
-        resetCharacterPhysics()
+        if not glassNoclipActive then
+            resetCharacterPhysics()
+        end
     end
 end
 
 ---------------------------------------------------------
--- HỆ THỐNG BU NGƯỜI CHƠI (SMOOTH REALTIME FLY FOLLOW)
+-- CƠ CHẾ XUYÊN TƯỜNG TƯỜNG KÍNH (GLASS PLATFORM NOCLIP)
 ---------------------------------------------------------
-local function stopFollow()
+local function stopGlassNoclip()
+    glassNoclipActive = false
+    glassNoclipMode = "OFF"
+    
+    if glassNoclipConn then
+        glassNoclipConn:Disconnect()
+        glassNoclipConn = nil
+    end
+
+    if glassPlatformPart then
+        glassPlatformPart:Destroy()
+        glassPlatformPart = nil
+    end
+
+    resetCharacterPhysics()
+
+    GlassNoclipBtn.Text = "🔮 Xuyên Tường Tường Kính: OFF"
+    GlassNoclipBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    GlassControlFrame.Visible = false
+
+    BtnUp.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    BtnDown.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    BtnForward.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+end
+
+local function setGlassMode(mode)
+    if not glassNoclipActive then return end
+    glassNoclipMode = mode
+
+    -- Đổi màu highlight các nút
+    BtnUp.BackgroundColor3 = (mode == "UP") and COLOR_GREEN or Color3.fromRGB(220, 225, 235)
+    BtnUp.TextColor3 = (mode == "UP") and TEXT_LIGHT or TEXT_DARK
+
+    BtnDown.BackgroundColor3 = (mode == "DOWN") and COLOR_GREEN or Color3.fromRGB(220, 225, 235)
+    BtnDown.TextColor3 = (mode == "DOWN") and TEXT_LIGHT or TEXT_DARK
+
+    BtnForward.BackgroundColor3 = (mode == "FORWARD") and COLOR_GREEN or Color3.fromRGB(220, 225, 235)
+    BtnForward.TextColor3 = (mode == "FORWARD") and TEXT_LIGHT or TEXT_DARK
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Tạo tấm kính nếu chưa có
+    if not glassPlatformPart or not glassPlatformPart.Parent then
+        glassPlatformPart = Instance.new("Part")
+        glassPlatformPart.Name = "BananaGlassNoclipPlatform"
+        glassPlatformPart.Size = Vector3.new(7, 1, 7)
+        glassPlatformPart.Material = Enum.Material.SmoothPlastic
+        glassPlatformPart.Transparency = 0.45
+        glassPlatformPart.Color = Color3.fromRGB(0, 210, 255)
+        glassPlatformPart.Anchored = true
+        glassPlatformPart.CanCollide = true
+        glassPlatformPart.Parent = workspace
+
+        -- Đặt tấm kính nằm ngay dưới chân
+        local startPos = hrp.Position - Vector3.new(0, 3.2, 0)
+        glassPlatformPart.CFrame = CFrame.new(startPos, startPos + hrp.CFrame.LookVector)
+    end
+end
+
+local function startGlassNoclip()
+    if glassNoclipActive then return end
+    if isFlying then stopFly() end
+    if followPlayerActive then stopFollow() end
+
+    glassNoclipActive = true
+    GlassNoclipBtn.Text = "🔮 Xuyên Tường Tường Kính: ON"
+    GlassNoclipBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    GlassControlFrame.Visible = true
+
+    setGlassMode("OFF")
+
+    if glassNoclipConn then glassNoclipConn:Disconnect() end
+
+    glassNoclipConn = RunService.RenderStepped:Connect(function(dt)
+        if not glassNoclipActive then return end
+
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then return end
+
+        -- ÉP NHÂN VẬT NOCLIP QUA CÁC TƯỜNG KHÁC BẰNG CANCOLLIDE = FALSE
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+
+        if glassNoclipMode ~= "OFF" and glassPlatformPart and glassPlatformPart.Parent then
+            local flySpeed = tonumber(P_SpeedBox.Text) or 100
+            local moveDir = Vector3.zero
+
+            if glassNoclipMode == "UP" then
+                moveDir = Vector3.new(0, 1, 0)
+            elseif glassNoclipMode == "DOWN" then
+                moveDir = Vector3.new(0, -1, 0)
+            elseif glassNoclipMode == "FORWARD" then
+                local cam = workspace.CurrentCamera
+                local look = cam and cam.CFrame.LookVector or hrp.CFrame.LookVector
+                moveDir = Vector3.new(look.X, 0, look.Z)
+                if moveDir.Magnitude > 0 then
+                    moveDir = moveDir.Unit
+                else
+                    moveDir = hrp.CFrame.LookVector
+                end
+            end
+
+            -- Di chuyển CFrame của Tấm Kính
+            local newPlatformPos = glassPlatformPart.Position + (moveDir * flySpeed * dt)
+            glassPlatformPart.CFrame = CFrame.new(newPlatformPos, newPlatformPos + hrp.CFrame.LookVector)
+
+            -- ĐỊNH VỊ NHÂN VẬT ĐỨNG TRÊN TẤM KÍNH (KHÔNG BAO GIỜ BỊ LỌT HOẶC RƠI)
+            local hipOffset = hum.HipHeight + (glassPlatformPart.Size.Y / 2) + 1.2
+            local targetPlayerPos = glassPlatformPart.Position + Vector3.new(0, hipOffset, 0)
+            
+            hrp.CFrame = CFrame.new(targetPlayerPos, targetPlayerPos + hrp.CFrame.LookVector)
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+end
+
+GlassNoclipBtn.MouseButton1Click:Connect(function()
+    if glassNoclipActive then
+        stopGlassNoclip()
+    else
+        startGlassNoclip()
+    end
+end)
+
+BtnUp.MouseButton1Click:Connect(function() setGlassMode("UP") end)
+BtnDown.MouseButton1Click:Connect(function() setGlassMode("DOWN") end)
+BtnForward.MouseButton1Click:Connect(function() setGlassMode("FORWARD") end)
+BtnStopGlass.MouseButton1Click:Connect(function() setGlassMode("OFF") end)
+
+---------------------------------------------------------
+-- CƠ CHẾ TWEEN BAY BASE
+---------------------------------------------------------
+local function tweenToTarget(hrp, targetCFrame, flySpeed)
+    if stopRequested then return false end
+
+    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    local duration = distance / flySpeed
+
+    currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    currentTween:Play()
+
+    local finished = false
+    local connection
+    connection = currentTween.Completed:Connect(function() finished = true end)
+
+    while not finished do
+        if stopRequested then
+            if currentTween then currentTween:Cancel() end
+            if connection then connection:Disconnect() end
+            return false
+        end
+        task.wait()
+    end
+
+    if connection then connection:Disconnect() end
+    return true
+end
+
+---------------------------------------------------------
+-- HỆ THỐNG BAY TỚI TỌA ĐỘ / NGƯỜI CHƠI / TƯỜNG KÍNH
+---------------------------------------------------------
+stopFly = function()
+    stopRequested = true
+    if currentTween then currentTween:Cancel() end
+    isFlying = false
+    
+    workspace.Gravity = 196.2
+    updateNoclipState() -- TỰ ĐỘNG TẮT XUYÊN TƯỜNG
+
+    updatePlayerList()
+    updateSavedList()
+    updateWallList()
+end
+
+startFly = function(mode, targetObj)
+    if isFlying then return end
+    if followPlayerActive then stopFollow() end
+    if glassNoclipActive then stopGlassNoclip() end
+
+    local getTargetCFrame = nil
+
+    if mode == "Player" then
+        if not targetObj then return end
+        selectedPlayer = targetObj
+        getTargetCFrame = function()
+            local p = getTargetPart(targetObj)
+            return p and p.CFrame
+        end
+    elseif mode == "Location" then
+        if not targetObj then return end
+        selectedLocation = targetObj
+        getTargetCFrame = function()
+            return CFrame.new(targetObj.pos)
+        end
+    elseif mode == "Wall" then
+        if not targetObj or not targetObj.part or not targetObj.part.Parent then return end
+        selectedWall = targetObj
+        getTargetCFrame = function()
+            if targetObj and targetObj.part and targetObj.part.Parent then
+                local wallPart = targetObj.part
+                local topPos = wallPart.Position + Vector3.new(0, (wallPart.Size.Y / 2) + 2.5, 0)
+                return CFrame.new(topPos)
+            end
+            return nil
+        end
+    end
+
+    local initialTargetCFrame = getTargetCFrame and getTargetCFrame()
+    if not initialTargetCFrame then return end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local flyHeight = tonumber(P_HeightBox.Text) or 150
+    local flySpeed = tonumber(P_SpeedBox.Text) or 100
+
+    isFlying = true
+    stopRequested = false
+    
+    updatePlayerList()
+    updateSavedList()
+    updateWallList()
+
+    updateNoclipState() -- TỰ ĐỘNG BẬT XUYÊN TƯỜNG KHI BẮT ĐẦU BAY
+    local oldGravity = workspace.Gravity
+    workspace.Gravity = 0
+
+    local currentLook = hrp.CFrame.LookVector
+
+    -- BƯỚC 1: BAY VỌT THẲNG ĐỨNG LÊN TRỜI
+    local startPos = hrp.Position
+    local skyPos = Vector3.new(startPos.X, startPos.Y + flyHeight, startPos.Z)
+    local ok1 = tweenToTarget(hrp, CFrame.new(skyPos, skyPos + currentLook), flySpeed)
+
+    -- BƯỚC 2: BAY THẲNG NGANG TRÊN KHÔNG TỚI ĐỈNH ĐẦU MỤC TIÊU
+    if ok1 and not stopRequested then
+        local liveCFrame = getTargetCFrame()
+        if liveCFrame then
+            local destPos = liveCFrame.Position
+            local overheadPos = Vector3.new(destPos.X, skyPos.Y, destPos.Z)
+            
+            local horizontalLook = (overheadPos - skyPos).Magnitude > 0.1 and (overheadPos - skyPos).Unit or currentLook
+            local ok2 = tweenToTarget(hrp, CFrame.new(overheadPos, overheadPos + horizontalLook), flySpeed)
+
+            -- BƯỚC 3: ĐÁP THẲNG ĐỨNG 90 DEGREES XUỐNG VỊ TRÍ MỤC TIÊU
+            if ok2 and not stopRequested then
+                liveCFrame = getTargetCFrame()
+                if liveCFrame then
+                    local targetFinalCFrame
+                    if mode == "Player" then
+                        targetFinalCFrame = liveCFrame * CFrame.new(0, 0, 2)
+                    else
+                        targetFinalCFrame = liveCFrame
+                    end
+                    
+                    tweenToTarget(hrp, targetFinalCFrame, flySpeed)
+                end
+            end
+        end
+    end
+
+    workspace.Gravity = oldGravity
+    isFlying = false
+    updateNoclipState() -- TỰ ĐỘNG TẮT XUYÊN TƯỜNG KHI BAY TỚI NƠI HOẶC HỦY BỎ
+    
+    updatePlayerList()
+    updateSavedList()
+    updateWallList()
+end
+
+---------------------------------------------------------
+-- HỆ THỐNG BU NGƯỜI CHƠI
+---------------------------------------------------------
+stopFollow = function()
     followPlayerActive = false
+    stopRequested = true
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
     if followConnection then
         followConnection:Disconnect()
         followConnection = nil
     end
 
-    updateNoclipState()
+    workspace.Gravity = 196.2
+    updateNoclipState() -- TỰ ĐỘNG TẮT XUYÊN TƯỜNG KHI TẮT BU NGƯỜI
 
     if FollowPlayerBtn then
         FollowPlayerBtn.Text = "🧲 Bu Người Chơi: OFF"
@@ -1514,53 +1929,75 @@ local function stopFollow()
     end
 end
 
-local function startFollow()
+startFollow = function()
     if not selectedPlayer or not selectedPlayer.Character then
         stopFollow()
         return
     end
 
     if isFlying then stopFly() end
+    if glassNoclipActive then stopGlassNoclip() end
 
     followPlayerActive = true
+    stopRequested = false
     FollowPlayerBtn.Text = "🧲 Bu Người Chơi: ON"
     FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 
-    if followConnection then followConnection:Disconnect() end
+    updateNoclipState() -- TỰ ĐỘNG BẬT XUYÊN TƯỜNG KHI BẬT BU NGƯỜI
 
-    updateNoclipState()
+    task.spawn(function()
+        local oldGravity = workspace.Gravity
+        workspace.Gravity = 0
 
-    followConnection = RunService.Heartbeat:Connect(function(dt)
-        if not followPlayerActive or not selectedPlayer or not selectedPlayer.Character then
-            stopFollow()
-            return
-        end
+        local hasArrived = false
 
-        local myChar = LocalPlayer.Character
-        local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        local targetHrp = getTargetPart(selectedPlayer)
+        while followPlayerActive and not stopRequested and selectedPlayer and selectedPlayer.Character do
+            local myChar = LocalPlayer.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            local targetHrp = getTargetPart(selectedPlayer)
 
-        if myHrp and targetHrp then
-            myHrp.AssemblyLinearVelocity = Vector3.zero
-            myHrp.AssemblyAngularVelocity = Vector3.zero
+            if not myHrp or not targetHrp then break end
 
-            local speed = tonumber(P_SpeedBox.Text) or 100
+            local flyHeight = tonumber(P_HeightBox.Text) or 150
+            local flySpeed = tonumber(P_SpeedBox.Text) or 100
             local targetCFrame = targetHrp.CFrame * CFrame.new(0, 0, 2)
-            local currentPos = myHrp.Position
-            local targetPos = targetCFrame.Position
 
-            local distance = (targetPos - currentPos).Magnitude
+            if not hasArrived then
+                -- LẦN ĐẦU: BAY TRÊN TRỜI
+                local startPos = myHrp.Position
+                local skyPos = Vector3.new(startPos.X, startPos.Y + flyHeight, startPos.Z)
+                local currentLook = myHrp.CFrame.LookVector
 
-            if distance > 0.5 then
-                local moveStep = math.min(distance, speed * dt)
-                local newPos = currentPos + (targetPos - currentPos).Unit * moveStep
-                myHrp.CFrame = CFrame.new(newPos, targetCFrame.Position + targetCFrame.LookVector * 10)
+                local ok1 = tweenToTarget(myHrp, CFrame.new(skyPos, skyPos + currentLook), flySpeed)
+                if not ok1 or not followPlayerActive or stopRequested then break end
+
+                targetHrp = getTargetPart(selectedPlayer)
+                if not targetHrp then break end
+                local destPos = targetHrp.Position
+                local overheadPos = Vector3.new(destPos.X, skyPos.Y, destPos.Z)
+                local ok2 = tweenToTarget(myHrp, CFrame.new(overheadPos, overheadPos + (destPos - startPos).Unit), flySpeed)
+                if not ok2 or not followPlayerActive or stopRequested then break end
+
+                targetHrp = getTargetPart(selectedPlayer)
+                if not targetHrp then break end
+                local ok3 = tweenToTarget(myHrp, targetHrp.CFrame * CFrame.new(0, 0, 2), flySpeed)
+                if not ok3 or not followPlayerActive or stopRequested then break end
+
+                hasArrived = true
             else
-                myHrp.CFrame = targetCFrame
+                -- KHI ĐỊCH DI CHUYỂN: BAY THẲNG TRỰC TIẾP TỚI ĐỊCH
+                local dist = (myHrp.Position - targetCFrame.Position).Magnitude
+                if dist > 1.5 then
+                    local ok = tweenToTarget(myHrp, targetCFrame, flySpeed)
+                    if not ok or not followPlayerActive or stopRequested then break end
+                end
             end
-        else
-            stopFollow()
+
+            task.wait(0.05)
         end
+
+        workspace.Gravity = oldGravity
+        if followPlayerActive then stopFollow() end
     end)
 end
 
@@ -1659,7 +2096,7 @@ local function removeAllLocESP()
 end
 
 ---------------------------------------------------------
--- VÒNG LẶP CẬP NHẬT REALTIME CHO CẢ ESP
+-- VÒNG LẶP CẬP NHẬT REALTIME ESP
 ---------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     local myChar = LocalPlayer.Character
@@ -1693,9 +2130,7 @@ RunService.RenderStepped:Connect(function()
                     local isKnocked = isPlayerDeadOrKnocked(plr)
 
                     if isKnocked then
-                        if not downedTimeTracker[plr] then
-                            downedTimeTracker[plr] = tick()
-                        end
+                        if not downedTimeTracker[plr] then downedTimeTracker[plr] = tick() end
                         local elapsed = math.floor(tick() - downedTimeTracker[plr])
                         data.Label.TextColor3 = COLOR_DEAD
                         data.Label.Text = string.format("🔴 [%s]\n⚡ BỊ HẠ GỤC (%ds) | HP: %d/%d\n📏 Khoảng cách: %dm", plr.DisplayName, elapsed, hp, maxHp, dist)
@@ -1774,7 +2209,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Event Bật/Tắt ESP Player
 EspAllBtn.MouseButton1Click:Connect(function()
     espAllActive = not espAllActive
     if espAllActive then
@@ -1799,7 +2233,6 @@ EspSingleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Event Bật/Tắt ESP Location
 LocEspAllBtn.MouseButton1Click:Connect(function()
     locEspAllActive = not locEspAllActive
     if locEspAllActive then
@@ -1828,7 +2261,6 @@ end)
 -- UI LIST LOGIC (PLAYERS & LOCATIONS)
 ---------------------------------------------------------
 
--- Render Danh Sách Người Chơi
 updatePlayerList = function()
     for _, child in pairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -1873,9 +2305,7 @@ updatePlayerList = function()
 
                 NameBtn.MouseButton1Click:Connect(function()
                     selectedPlayer = plr
-                    if followPlayerActive then
-                        startFollow()
-                    end
+                    if followPlayerActive then startFollow() end
                     updatePlayerList()
                 end)
 
@@ -1914,7 +2344,6 @@ updatePlayerList = function()
     PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 28)
 end
 
--- Render Danh Sách Tọa Độ
 updateSavedList = function()
     for _, child in pairs(SavedList:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end
@@ -2020,12 +2449,10 @@ SavePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-RefreshBtn.MouseButton1Click(updatePlayerList)
+RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
-Players.PlayerAdded:Connect(function(plr)
-    updatePlayerList()
-end)
+Players.PlayerAdded:Connect(function(plr) updatePlayerList() end)
 
 Players.PlayerRemoving:Connect(function(plr)
     if selectedPlayer == plr then
@@ -2091,138 +2518,26 @@ P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
     if showHeightVisual then updateHeightVisual() end
 end)
 
----------------------------------------------------------
--- CƠ CHẾ BAY TỚI MỤC TIÊU (TWEEN FLY)
----------------------------------------------------------
-local function tweenToTarget(hrp, targetCFrame, flySpeed)
-    if stopRequested then return false end
-
-    local distance = (targetCFrame.Position - hrp.Position).Magnitude
-    local duration = distance / flySpeed
-
-    currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    currentTween:Play()
-
-    local finished = false
-    local connection
-    connection = currentTween.Completed:Connect(function() finished = true end)
-
-    while not finished do
-        if stopRequested then
-            if currentTween then currentTween:Cancel() end
-            if connection then connection:Disconnect() end
-            return false
-        end
-        task.wait()
-    end
-
-    if connection then connection:Disconnect() end
-    return true
-end
-
-stopFly = function()
-    stopRequested = true
-    if currentTween then currentTween:Cancel() end
+-- TỰ ĐỘNG KHÔI PHỤC VẬT LÝ KHI RESPAWN
+LocalPlayer.CharacterAdded:Connect(function(char)
     isFlying = false
+    followPlayerActive = false
+    stopGlassNoclip()
     updateNoclipState()
-    updatePlayerList()
-    updateSavedList()
-    updateWallList()
-end
-
-startFly = function(mode, targetObj)
-    if isFlying then return end
-
-    if followPlayerActive then stopFollow() end
-
-    local getTargetPos = nil
-
-    if mode == "Player" then
-        if not targetObj then return end
-        selectedPlayer = targetObj
-        getTargetPos = function()
-            local p = getTargetPart(targetObj)
-            return p and p.Position
-        end
-    elseif mode == "Location" then
-        if not targetObj then return end
-        selectedLocation = targetObj
-        getTargetPos = function()
-            return targetObj.pos
-        end
-    elseif mode == "Wall" then
-        if not targetObj or not targetObj.part or not targetObj.part.Parent then return end
-        selectedWall = targetObj
-        getTargetPos = function()
-            if targetObj and targetObj.part and targetObj.part.Parent then
-                local wallPart = targetObj.part
-                return wallPart.Position + Vector3.new(0, (wallPart.Size.Y / 2) + 2.5, 0)
-            end
-            return nil
-        end
-    end
-
-    if not getTargetPos or not getTargetPos() then return end
-
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local flyHeight = tonumber(P_HeightBox.Text) or 150
-    local flySpeed = tonumber(P_SpeedBox.Text) or 100
-
-    isFlying = true
-    stopRequested = false
-    
-    updatePlayerList()
-    updateSavedList()
-    updateWallList()
-
-    updateNoclipState()
-    local oldGravity = workspace.Gravity
-    workspace.Gravity = 0
-
-    -- Bước 1: Bay vọt lên không trung
-    local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
-    local ok1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
-
-    -- Bước 2: Bay ngang tới vị trí mục tiêu
-    if ok1 and not stopRequested then
-        local dest = getTargetPos()
-        if dest then
-            local overhead = dest + Vector3.new(0, flyHeight, 0)
-            local ok2 = tweenToTarget(hrp, CFrame.new(overhead), flySpeed)
-
-            -- Bước 3: Đáp thẳng xuống vị trí đích
-            if ok2 and not stopRequested then
-                dest = getTargetPos()
-                if dest then
-                    tweenToTarget(hrp, CFrame.new(dest), flySpeed)
-                end
-            end
-        end
-    end
-
-    workspace.Gravity = oldGravity
-    isFlying = false
-    updateNoclipState()
-    
-    updatePlayerList()
-    updateSavedList()
-    updateWallList()
-end
+end)
 
 ---------------------------------------------------------
 -- CLEANUP & KEYBINDS
 ---------------------------------------------------------
 CloseBtn.MouseButton1Click:Connect(function()
     stopFollow()
+    stopFly()
+    stopGlassNoclip()
     updateNoclipState()
     removeAllESP()
     removeAllLocESP()
     removeAllWallESP()
 
-    -- Xóa các tường đã tạo khi thoát
     for _, item in ipairs(spawnedWalls) do
         if item.part and item.part.Parent then item.part:Destroy() end
     end
@@ -2239,3 +2554,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         setMenuVisible(not MainFrame.Visible)
     end
 end)
+
+print("✅ Banana Fly Script đã tải hoàn tất!")
+print("📌 Nhấn RightControl để ẩn/hiện menu")
+print("👤 Người chơi:", LocalPlayer.Name)
