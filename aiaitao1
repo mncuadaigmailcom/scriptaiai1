@@ -1,90 +1,36 @@
--- [[ GRAI2 HUB - NATIVE UI (KHÔNG LỖI - HOẠT ĐỘNG 100%) ]] --
-repeat task.wait() until game:IsLoaded()
+-- [[ GRAI HUB V2 - BUILT FROM SCRATCH ]] --
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 
--- Xác định nơi chứa GUI an toàn nhất
-local TargetParent = player:WaitForChild("PlayerGui")
+-- 1. Tìm vị trí lưu GUI an toàn
+local ParentGui = player:WaitForChild("PlayerGui")
 pcall(function()
-    TargetParent = gethui() or game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
+    ParentGui = gethui() or game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
 end)
 
--- Dọn dẹp GUI cũ nếu có
-if TargetParent:FindFirstChild("GraiMainGui") then
-    TargetParent.GraiMainGui:Destroy()
-end
-if TargetParent:FindFirstChild("GraiIntro") then
-    TargetParent.GraiIntro:Destroy()
+-- Dọn dẹp GUI cũ nếu đã chạy trước đó
+if ParentGui:FindFirstChild("GraiScratchHub") then
+    ParentGui.GraiScratchHub:Destroy()
 end
 
-------------------------------------------------------------
--- 🌌 1. INTRO GUI
-------------------------------------------------------------
-task.spawn(function()
-    local introGui = Instance.new("ScreenGui")
-    introGui.Name = "GraiIntro"
-    introGui.ResetOnSpawn = false
-    introGui.Parent = TargetParent
-
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(1,0,1,0)
-    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    bg.BackgroundTransparency = 0.3
-    bg.Parent = introGui
-
-    local logo = Instance.new("ImageLabel")
-    logo.Parent = introGui
-    logo.AnchorPoint = Vector2.new(0.5,0.5)
-    logo.Position = UDim2.new(0.5,0,0.5,0)
-    logo.Size = UDim2.new(0, 0, 0, 0)
-    logo.BackgroundTransparency = 1
-    logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
-
-    TweenService:Create(logo, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 160, 0, 160)
-    }):Play()
-
-    task.spawn(function()
-        while logo and logo.Parent do
-            logo.Rotation = logo.Rotation + 2
-            task.wait(0.01)
-        end
-    end)
-
-    local msg = Instance.new("TextLabel")
-    msg.Parent = introGui
-    msg.AnchorPoint = Vector2.new(0.5, 0)
-    msg.Position = UDim2.new(0.5, 0, 0.7, 0)
-    msg.Size = UDim2.new(0, 400, 0, 50)
-    msg.BackgroundTransparency = 1
-    msg.Text = "Grai Hub"
-    msg.TextColor3 = Color3.fromRGB(0, 255, 255)
-    msg.Font = Enum.Font.GothamBlack
-    msg.TextSize = 35
-
-    task.wait(2)
-    introGui:Destroy()
-end)
+-- 2. Tạo ScreenGui chính
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "GraiScratchHub"
+Gui.ResetOnSpawn = false
+Gui.Parent = ParentGui
 
 ------------------------------------------------------------
--- 🎛 2. MAIN SCREEN GUI & TOGGLE BUTTON
+-- 🎛 NÚT CHUỐI BẬT / ẨN MENU (KÉO THẢ ĐƯỢC)
 ------------------------------------------------------------
-local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "GraiMainGui"
-MainGui.ResetOnSpawn = false
-MainGui.Parent = TargetParent
-
--- NÚT CHUỐI ĐỘI VƯƠNG MIỆN (BẬT/ẨN)
-local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Name = "ToggleBtn"
-ToggleBtn.Parent = MainGui
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-ToggleBtn.BackgroundTransparency = 0.2
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "BananaToggle"
+ToggleBtn.Parent = Gui
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Image = "rbxassetid://13220409166"
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Màu vàng chuối
+ToggleBtn.Text = "🍌"
+ToggleBtn.TextSize = 28
 ToggleBtn.Active = true
 ToggleBtn.Draggable = true
 
@@ -93,245 +39,253 @@ ToggleCorner.CornerRadius = UDim.new(1, 0)
 ToggleCorner.Parent = ToggleBtn
 
 local ToggleStroke = Instance.new("UIStroke")
-ToggleStroke.Color = Color3.fromRGB(255, 215, 0)
+ToggleStroke.Color = Color3.fromRGB(255, 255, 255)
 ToggleStroke.Thickness = 2
 ToggleStroke.Parent = ToggleBtn
 
 ------------------------------------------------------------
--- 📦 3. CỬA SỔ MENU CHÍNH (MAIN FRAME)
+-- 📦 KHUNG MENU CHÍNH (MAIN WINDOW)
 ------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Parent = MainGui
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-MainFrame.Size = UDim2.new(0, 480, 0, 300)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainFrame.Parent = Gui
+MainFrame.Size = UDim2.new(0, 450, 0, 280)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -140)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.CornerRadius = UDim.new(0, 8)
 MainCorner.Parent = MainFrame
 
--- Thanh Tiêu Đề TopBar
+-- Thanh Tiêu Đề Topbar
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+TopBar.BorderSizePixel = 0
 
-local TopBarCorner = Instance.new("UICorner")
-TopBarCorner.CornerRadius = UDim.new(0, 10)
-TopBarCorner.Parent = TopBar
+local TopCorner = Instance.new("UICorner")
+TopCorner.CornerRadius = UDim.new(0, 8)
+TopCorner.Parent = TopBar
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -50, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Grai2 - Tổng Hợp Script"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TopBar
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "GRAI HUB - TỔNG HỢP SCRIPT"
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
 
+-- Nút Đóng [X]
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
+CloseBtn.Parent = TopBar
+CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Position = UDim2.new(1, -30, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 CloseBtn.Text = "X"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
-CloseBtn.Parent = TopBar
+CloseBtn.TextSize = 12
 
 local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.CornerRadius = UDim.new(0, 5)
 CloseCorner.Parent = CloseBtn
+
+-- Sự kiện Bật/Ẩn
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
 end)
 
-ToggleBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
-end)
-
 ------------------------------------------------------------
--- 📑 4. TABS SYSTEM
+-- 📑 HỆ THỐNG TABS & NỘI DUNG
 ------------------------------------------------------------
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 130, 1, -40)
-Sidebar.Position = UDim2.new(0, 0, 0, 40)
-Sidebar.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
-Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
+Sidebar.Size = UDim2.new(0, 120, 1, -35)
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+Sidebar.BorderSizePixel = 0
 
 local SidebarList = Instance.new("UIListLayout")
 SidebarList.Parent = Sidebar
-SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
 SidebarList.Padding = UDim.new(0, 5)
 
 local Container = Instance.new("Frame")
-Container.Size = UDim2.new(1, -135, 1, -45)
-Container.Position = UDim2.new(0, 132, 0, 42)
-Container.BackgroundTransparency = 1
 Container.Parent = MainFrame
+Container.Size = UDim2.new(1, -125, 1, -40)
+Container.Position = UDim2.new(0, 122, 0, 38)
+Container.BackgroundTransparency = 1
 
-local TabFrames = {}
+local Tabs = {}
 local TabButtons = {}
 
 local function CreateTab(tabName)
-    -- Nút bấm Tab
+    -- Nút Tab
     local TabBtn = Instance.new("TextButton")
-    TabBtn.Size = UDim2.new(1, -10, 0, 35)
-    TabBtn.Position = UDim2.new(0, 5, 0, 0)
-    TabBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-    TabBtn.Text = tabName
-    TabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    TabBtn.Font = Enum.Font.GothamMedium
-    TabBtn.TextSize = 13
     TabBtn.Parent = Sidebar
+    TabBtn.Size = UDim2.new(1, -10, 0, 32)
+    TabBtn.Position = UDim2.new(0, 5, 0, 0)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    TabBtn.Text = tabName
+    TabBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+    TabBtn.Font = Enum.Font.GothamMedium
+    TabBtn.TextSize = 12
 
     local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.CornerRadius = UDim.new(0, 5)
     BtnCorner.Parent = TabBtn
 
-    -- Khung nội dung Tab
-    local TabContent = Instance.new("ScrollingFrame")
-    TabContent.Size = UDim2.new(1, 0, 1, 0)
-    TabContent.BackgroundTransparency = 1
-    TabContent.CanvasSize = UDim2.new(0, 0, 0, 0)
-    TabContent.ScrollBarThickness = 4
-    TabContent.Visible = false
-    TabContent.Parent = Container
+    -- Khung chứa Script của Tab
+    local ContentFrame = Instance.new("ScrollingFrame")
+    ContentFrame.Parent = Container
+    ContentFrame.Size = UDim2.new(1, 0, 1, 0)
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ContentFrame.ScrollBarThickness = 4
+    ContentFrame.Visible = false
 
     local ContentList = Instance.new("UIListLayout")
-    ContentList.Parent = TabContent
-    ContentList.SortOrder = Enum.SortOrder.LayoutOrder
-    ContentList.Padding = UDim.new(0, 6)
+    ContentList.Parent = ContentFrame
+    ContentList.Padding = UDim.new(0, 5)
 
     ContentList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        TabContent.CanvasSize = UDim2.new(0, 0, 0, ContentList.AbsoluteContentSize.Y + 10)
+        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, ContentList.AbsoluteContentSize.Y + 10)
     end)
 
     TabBtn.MouseButton1Click:Connect(function()
-        for _, frame in pairs(TabFrames) do frame.Visible = false end
-        for _, btn in pairs(TabButtons) do 
-            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        for _, f in pairs(Tabs) do f.Visible = false end
+        for _, b in pairs(TabButtons) do 
+            b.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            b.TextColor3 = Color3.fromRGB(180, 180, 180)
         end
-        TabContent.Visible = true
+        ContentFrame.Visible = true
         TabBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
         TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end)
 
-    table.insert(TabFrames, TabContent)
+    table.insert(Tabs, ContentFrame)
     table.insert(TabButtons, TabBtn)
 
-    return TabContent
+    return ContentFrame
 end
 
--- Hàm Thêm Nút Script
-local function AddButton(tab, title, callback)
-    local Btn = Instance.new("TextButton")
-    Btn.Size = UDim2.new(1, -10, 0, 35)
-    Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-    Btn.Text = "  " .. title
-    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Btn.Font = Enum.Font.GothamSemibold
-    Btn.TextSize = 13
-    Btn.TextXAlignment = Enum.TextXAlignment.Left
-    Btn.Parent = tab
+-- Hàm tạo Nút Script
+local function AddScriptButton(tabFrame, btnText, callback)
+    local ScriptBtn = Instance.new("TextButton")
+    ScriptBtn.Parent = tabFrame
+    ScriptBtn.Size = UDim2.new(1, -8, 0, 32)
+    ScriptBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    ScriptBtn.Text = "  ▶ " .. btnText
+    ScriptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ScriptBtn.Font = Enum.Font.GothamSemibold
+    ScriptBtn.TextSize = 12
+    ScriptBtn.TextXAlignment = Enum.TextXAlignment.Left
 
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = Btn
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 5)
+    BtnCorner.Parent = ScriptBtn
 
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Color3.fromRGB(60, 60, 75)
-    Stroke.Thickness = 1
-    Stroke.Parent = Btn
-
-    Btn.MouseButton1Click:Connect(function()
+    ScriptBtn.MouseButton1Click:Connect(function()
         pcall(callback)
     end)
 end
 
 ------------------------------------------------------------
--- 📑 5. KHỞI TẠO TABS & SCRIPT BUTTONS
+-- 📌 KHỞI TẠO TABS & DANH SÁCH SCRIPT
 ------------------------------------------------------------
 local TabInfo = CreateTab("Thông Tin")
-local TabBF = CreateTab("Blox Fruits")
+local TabBloxFruits = CreateTab("Blox Fruits")
 local TabGarden = CreateTab("Grow Garden")
 local TabForest = CreateTab("99 Nights")
 
--- Mặc định chọn Tab đầu tiên
-TabFrames[1].Visible = true
+-- Mặc định mở Tab 1
+Tabs[1].Visible = true
 TabButtons[1].BackgroundColor3 = Color3.fromRGB(0, 170, 255)
 TabButtons[1].TextColor3 = Color3.fromRGB(255, 255, 255)
 
--- Tab Thông Tin
-AddButton(TabInfo, "Youtuber Grai2 (Copy Link)", function()
+-- 1. Tab Thông Tin
+AddScriptButton(TabInfo, "Youtube Grai2 (Copy Link)", function()
     setclipboard("https://youtube.com/@grai2")
 end)
 
--- Tab Blox Fruits
-AddButton(TabBF, "Redz Hub", function()
+-- 2. Tab Blox Fruits
+AddScriptButton(TabBloxFruits, "Redz Hub", function()
     local Settings = {JoinTeam = "Pirates", Translator = true}
     loadstring(game:HttpGet("https://raw.githubusercontent.com/newredz/BloxFruits/refs/heads/main/Source.luau"))(Settings)
 end)
-AddButton(TabBF, "w-azure Hub", function()
+
+AddScriptButton(TabBloxFruits, "w-azure Hub", function()
     loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/85e904ae1ff30824c1aa007fc7324f8f.lua"))()
 end)
-AddButton(TabBF, "Fix Lag", function()
+
+AddScriptButton(TabBloxFruits, "Fix Lag", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/TurboLite/Script/main/FixLag.lua"))()
 end)
-AddButton(TabBF, "Min Hub", function()
+
+AddScriptButton(TabBloxFruits, "Min Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/LuaCrack/Min/refs/heads/main/MinXt2Eng"))()
 end)
-AddButton(TabBF, "Speed Hub X", function()
+
+AddScriptButton(TabBloxFruits, "Speed Hub X", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
 end)
-AddButton(TabBF, "Than Hub", function()
+
+AddScriptButton(TabBloxFruits, "Than Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/thantzy/thanhub/refs/heads/main/thanv1"))()
 end)
-AddButton(TabBF, "BlueX Hub", function()
+
+AddScriptButton(TabBloxFruits, "BlueX Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
 end)
-AddButton(TabBF, "Tsoul Hub", function()
+
+AddScriptButton(TabBloxFruits, "Tsoul Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Tsuo7/TsuoHub/main/Tsuoscripts"))()
 end)
-AddButton(TabBF, "Volcano Hub V3", function()
+
+AddScriptButton(TabBloxFruits, "Volcano Hub V3", function()
     loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/indexeduu/BF-NewVer/refs/heads/main/V3New.lua"))()
 end)
-AddButton(TabBF, "HOHO Hub", function()
+
+AddScriptButton(TabBloxFruits, "HOHO Hub", function()
     loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
 end)
 
--- Tab Grow A Garden
-AddButton(TabGarden, "Nat Hub", function()
+-- 3. Tab Grow A Garden
+AddScriptButton(TabGarden, "Nat Hub", function()
     loadstring(game:HttpGet("https://get.nathub.xyz/loader"))()
 end)
-AddButton(TabGarden, "Speed Hub X", function()
+
+AddScriptButton(TabGarden, "Speed Hub X", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
 end)
-AddButton(TabGarden, "No Lag Hub", function()
+
+AddScriptButton(TabGarden, "No Lag Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/NoLag-id/No-Lag-HUB/refs/heads/main/Loader/Main.lua"))()
 end)
-AddButton(TabGarden, "BlueX Hub", function()
+
+AddScriptButton(TabGarden, "BlueX Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
 end)
 
--- Tab 99 Nights In The Forest
-AddButton(TabForest, "Voidware Hub", function()
+-- 4. Tab 99 Nights In The Forest
+AddScriptButton(TabForest, "Voidware Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
 end)
-AddButton(TabForest, "Speed Hub X", function()
+
+AddScriptButton(TabForest, "Speed Hub X", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
 end)
-AddButton(TabForest, "Pulse Hub", function()
+
+AddScriptButton(TabForest, "Pulse Hub", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
 end)
