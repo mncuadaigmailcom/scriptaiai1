@@ -1,135 +1,235 @@
--- [[ BANANA CAT HUB - FIX MENU NOT SHOWING ]] --
-local HttpService = game:GetService("HttpService")
-local fileName = "BananaCat_Data.json"
-local mySavedScripts = {}
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
 
--- Kiểm tra và tải file an toàn (Không làm lag/văng menu)
-pcall(function()
-    if isfile and readfile and isfile(fileName) then
-        mySavedScripts = HttpService:JSONDecode(readfile(fileName))
+-- 🌌 INTRO GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "GraiIntro"
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Nền tối nhẹ
+local bg = Instance.new("Frame")
+bg.Size = UDim2.new(1,0,1,0)
+bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+bg.BackgroundTransparency = 0.3
+bg.Parent = gui
+
+-- Logo Image
+local logo = Instance.new("ImageLabel")
+logo.Parent = gui
+logo.AnchorPoint = Vector2.new(0.5,0.5)
+logo.Position = UDim2.new(0.5,0,0.5,0)
+logo.Size = UDim2.new(0,0,0,0) -- bắt đầu nhỏ rồi zoom
+logo.BackgroundTransparency = 1
+logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
+logo.ImageTransparency = 1
+
+-- Hiện logo (zoom + fade in)
+TweenService:Create(logo, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+    Size = UDim2.new(0,200,0,200),
+    ImageTransparency = 0
+}):Play()
+
+-- Xoay logo
+task.spawn(function()
+    while logo.Parent do
+        logo.Rotation = logo.Rotation + 0.5
+        task.wait(0.01)
     end
 end)
-if type(mySavedScripts) ~= "table" then mySavedScripts = {} end
 
--- Hàm lưu file an toàn
-local function saveScriptData()
-    pcall(function()
-        if writefile then
-            writefile(fileName, HttpService:JSONEncode(mySavedScripts))
-        end
-    end)
-end
+-- Chữ bên dưới logo
+local msg = Instance.new("TextLabel")
+msg.Parent = gui
+msg.AnchorPoint = Vector2.new(0.5,0)
+msg.Position = UDim2.new(0.5,0,0.75,0)
+msg.Size = UDim2.new(0,600,0,80)
+msg.BackgroundTransparency = 1
+msg.Text = "Grai Hub"
+msg.TextColor3 = Color3.fromRGB(0,255,255)
+msg.Font = Enum.Font.GothamBlack
+msg.TextScaled = true
+msg.TextStrokeTransparency = 0
+msg.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+msg.TextTransparency = 1
 
--- Load Thư Viện Rayfield UI (Hoạt động tốt 100% trên mọi Executor)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Chữ fade in
+TweenService:Create(msg, TweenInfo.new(1.2), {TextTransparency=0}):Play()
 
--- Tạo Cửa Sổ Menu
-local Window = Rayfield:CreateWindow({
-   Name = "🍌 BANANA CAT HUB - CUSTOM",
-   Icon = 0,
-   LoadingTitle = "Banana Cat Hub",
-   LoadingSubtitle = "Đang tải danh sách Script...",
-   Theme = "Default",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = true,
-   ConfigurationSaving = { Enabled = false },
-   KeySystem = false
+-- Giữ intro 4s
+task.wait(4)
+
+-- Fade out tất cả
+TweenService:Create(logo, TweenInfo.new(1.2), {ImageTransparency=1}):Play()
+TweenService:Create(msg, TweenInfo.new(1.2), {TextTransparency=1}):Play()
+TweenService:Create(bg, TweenInfo.new(1.2), {BackgroundTransparency=1}):Play()
+task.wait(1.5)
+
+gui:Destroy()
+
+------------------------------------------------------------
+-- 🎛 MAIN UI BUTTON (NÚT BẬT/ẨN MENU CHUỐI ĐỘI VƯƠNG MIỆN)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local ImageButton = Instance.new("ImageButton")
+ImageButton.Parent = ScreenGui
+ImageButton.BackgroundColor3 = Color3.fromRGB(0,0,0)
+ImageButton.BackgroundTransparency = 1 -- Làm ẩn nền đen để hiện rõ quả chuối
+ImageButton.BorderSizePixel = 0
+ImageButton.Position = UDim2.new(0.1,0,0.15,0)
+ImageButton.Size = UDim2.new(0,50,0,50) -- Chỉnh to hơn chút (50x50) cho dễ bấm
+ImageButton.Draggable = true
+-- ID Ảnh Chuối Đội Vương Miện (Banana Hub Icon):
+ImageButton.Image = "rbxassetid://13220409166"
+
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = ImageButton
+UICorner.CornerRadius = UDim.new(1,0)
+
+ImageButton.MouseButton1Down:Connect(function()
+    game:GetService("VirtualInputManager"):SendKeyEvent(true,Enum.KeyCode.End,false,game)
+end)
+
+------------------------------------------------------------
+-- 📦 LOAD FLUENT
+repeat task.wait() until game:IsLoaded()
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title="Grai2",
+    SubTitle="Tổng Hợp Script",
+    TabWidth=157,
+    Size=UDim2.fromOffset(450,300),
+    Acrylic=true,
+    Theme="Dark",
+    MinimizeKey=Enum.KeyCode.End
 })
 
--- ==================== TAB 1: DANH SÁCH SCRIPT ====================
-local TabList = Window:CreateTab("📜 Script Đã Lưu", 4483345998)
+-- Tabs
+local Tabs = {
+    Main0=Window:AddTab({Title="Thông Tin"}),
+    Main1=Window:AddTab({Title="Blox Fruits"}),
+    Main2=Window:AddTab({Title="Grow A Garden"}),
+    Main3=Window:AddTab({Title="99 Nights In The Forest"})
+}
 
-TabList:CreateSection("Bấm vào bên dưới để kích hoạt Script")
-
--- Hàm thực thi script khi bấm nút
-local function executeCode(code)
-    local success, err = pcall(function()
-        if code:sub(1, 4) == "http" then
-            loadstring(game:HttpGet(code))()
-        else
-            local func = loadstring(code)
-            if func then func() end
-        end
-    end)
-    
-    if success then
-        Rayfield:Notify({Title = "Thành công!", Content = "Đã chạy Script thành công.", Duration = 3})
-    else
-        Rayfield:Notify({Title = "Lỗi Script!", Content = "Code hoặc Link không hợp lệ!", Duration = 4})
+-- Tab 0: Thông Tin
+Tabs.Main0:AddButton({
+    Title="Youtuber",
+    Description="Grai2",
+    Callback=function()
+        setclipboard("https://youtube.com/@grai2")
     end
-end
+})
 
--- Tải danh sách các nút bấm
-if #mySavedScripts == 0 then
-    TabList:CreateLabel("Chưa có script! Sang Tab 'Thêm Script' để dán code vào nhé.")
-else
-    for i, item in ipairs(mySavedScripts) do
-        TabList:CreateButton({
-           Name = "▶ " .. item.Name,
-           Callback = function()
-               Rayfield:Notify({Title = "Đang chạy...", Content = item.Name, Duration = 2})
-               executeCode(item.Code)
-           end,
-        })
+-- Tab 1: Blox Fruits
+Tabs.Main1:AddButton({
+    Title="Redz Hub",
+    Callback=function()
+        local Settings={JoinTeam="Pirates",Translator=true}
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/newredz/BloxFruits/refs/heads/main/Source.luau"))(Settings)
     end
-end
-
--- Nút Quản Lý
-TabList:CreateSection("Quản Lý")
-TabList:CreateButton({
-   Name = "🗑️ Xóa Tất Cả Script Đã Lưu",
-   Callback = function()
-       pcall(function()
-           if delfile and isfile(fileName) then delfile(fileName) end
-       end)
-       mySavedScripts = {}
-       Rayfield:Notify({Title = "Đã Xóa!", Content = "Hãy chạy lại Script Hub để làm mới Menu.", Duration = 4})
-   end,
+})
+Tabs.Main1:AddButton({
+    Title="w-azure Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/85e904ae1ff30824c1aa007fc7324f8f.lua"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Fix Lag",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/TurboLite/Script/main/FixLag.lua"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Min Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/LuaCrack/Min/refs/heads/main/MinXt2Eng"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Speed Hub X",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Than Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/thantzy/thanhub/refs/heads/main/thanv1"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="BlueX HUb",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Tsoul Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Tsuo7/TsuoHub/main/Tsuoscripts"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="Volcano Hub V3",
+    Callback=function()
+        loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/indexeduu/BF-NewVer/refs/heads/main/V3New.lua"))()
+    end
+})
+Tabs.Main1:AddButton({
+    Title="HOHO Hub",
+    Callback=function()
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
+    end
+})
+-- Tab 2: Grow A Garden
+Tabs.Main2:AddButton({
+    Title="Nat Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://get.nathub.xyz/loader"))()
+    end
+})
+Tabs.Main2:AddButton({
+    Title="Speed Hub X",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+    end
+})
+Tabs.Main2:AddButton({
+    Title="No Lag Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/NoLag-id/No-Lag-HUB/refs/heads/main/Loader/Main.lua"))()
+    end
+})
+Tabs.Main2:AddButton({
+    Title="BlueX Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
+    end
 })
 
-
--- ==================== TAB 2: THÊM SCRIPT MỚI ====================
-local TabAdd = Window:CreateTab("➕ Thêm Script Mới", 4483345998)
-
-TabAdd:CreateSection("Nhập Script Của Bạn Về Đây")
-
-local inputName = ""
-local inputCode = ""
-
-TabAdd:CreateInput({
-   Name = "1. Nhập Tên Script",
-   PlaceholderText = "Ví dụ: Redz Hub Blox Fruit",
-   RemoveTextOnFocus = false,
-   Callback = function(Text)
-       inputName = Text
-   end,
+-- Tab 3: 99 Nights In The Forest
+Tabs.Main3:AddButton({
+    Title="Voidware Hub",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
+    end
 })
-
-TabAdd:CreateInput({
-   Name = "2. Dán Link (https://...) hoặc Code Lua",
-   PlaceholderText = "Dán link raw hoặc code lua vào đây...",
-   RemoveTextOnFocus = false,
-   Callback = function(Text)
-       inputCode = Text
-   end,
+Tabs.Main3:AddButton({
+    Title="Speed Hub X",
+    Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+    end
 })
-
-TabAdd:CreateButton({
-   Name = "💾 LƯU SCRIPT VÀO MENU",
-   Callback = function()
-       if inputName == "" or inputCode == "" then
-           Rayfield:Notify({Title = "Thiếu Thông Tin!", Content = "Bạn chưa nhập Tên hoặc Link/Code!", Duration = 3})
-           return
-       end
-
-       -- Lưu thông tin
-       table.insert(mySavedScripts, {Name = inputName, Code = inputCode})
-       saveScriptData()
-
-       Rayfield:Notify({
-           Title = "Đã Lưu Thành Công!",
-           Content = "Hãy bấm Execute lại script Banana Cat để hiện nút mới nhé!",
-           Duration = 5
-       })
-   end,
+Tabs.Main3:AddButton({
+    Title="Pulse HUb",
+    Callback=function()
+       loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
+    end
 })
