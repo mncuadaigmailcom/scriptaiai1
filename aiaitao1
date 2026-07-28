@@ -1,7 +1,4 @@
--- ============================================================
--- 🚀 GRAI HUB V3 - NATIVE CUSTOM ENGINE (BUILT FROM SCRATCH)
--- ============================================================
-
+-- [[ GRAI HUB - AI SCRIPT COLLECTION ]] --
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -15,56 +12,42 @@ pcall(function()
 end)
 
 -- Dọn dẹp Gui cũ nếu đã chạy trước đó
-if SafeParent:FindFirstChild("GraiHubEngine") then
-    SafeParent.GraiHubEngine:Destroy()
+if SafeParent:FindFirstChild("GraiAIScriptHub") then
+    SafeParent.GraiAIScriptHub:Destroy()
 end
 
 -- 2. TẠO SCREEN GUI CHÍNH
 local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "GraiHubEngine"
+MainGui.Name = "GraiAIScriptHub"
 MainGui.ResetOnSpawn = false
 MainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 MainGui.Parent = SafeParent
 
-------------------------------------------------------------
--- 🔔 HỆ THỐNG THÔNG BÁO (NOTIFICATION SYSTEM)
-------------------------------------------------------------
-local NotifyContainer = Instance.new("Frame")
-NotifyContainer.Name = "NotifyContainer"
-NotifyContainer.Parent = MainGui
-NotifyContainer.Size = UDim2.new(0, 220, 1, 0)
-NotifyContainer.Position = UDim2.new(1, -230, 0, 10)
-NotifyContainer.BackgroundTransparency = 1
-
-local NotifyList = Instance.new("UIListLayout")
-NotifyList.Parent = NotifyContainer
-NotifyList.SortOrder = Enum.SortOrder.LayoutOrder
-NotifyList.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotifyList.Padding = UDim.new(0, 8)
-
+-- 3. HỆ THỐNG THÔNG BÁO (NOTIFICATION)
 local function SendNotify(title, text)
     task.spawn(function()
         local Card = Instance.new("Frame")
-        Card.Size = UDim2.new(1, 0, 0, 45)
+        Card.Size = UDim2.new(0, 220, 0, 45)
+        Card.Position = UDim2.new(1, -230, 0.85, 0)
         Card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
         Card.BorderSizePixel = 0
-        Card.Parent = NotifyContainer
+        Card.Parent = MainGui
 
         local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(0, 6)
+        Corner.CornerRadius = UDim.new(0, 8)
         Corner.Parent = Card
 
         local Stroke = Instance.new("UIStroke")
-        Stroke.Color = Color3.fromRGB(0, 255, 255)
+        Stroke.Color = Color3.fromRGB(255, 215, 0)
         Stroke.Thickness = 1
         Stroke.Parent = Card
 
         local TxtTitle = Instance.new("TextLabel")
         TxtTitle.Size = UDim2.new(1, -10, 0, 20)
-        TxtTitle.Position = UDim2.new(0, 8, 0, 2)
+        TxtTitle.Position = UDim2.new(0, 8, 0, 3)
         TxtTitle.BackgroundTransparency = 1
         TxtTitle.Text = title
-        TxtTitle.TextColor3 = Color3.fromRGB(0, 255, 255)
+        TxtTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
         TxtTitle.Font = Enum.Font.GothamBold
         TxtTitle.TextSize = 12
         TxtTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -82,70 +65,23 @@ local function SendNotify(title, text)
         TxtMsg.Parent = Card
 
         task.wait(3)
-        TweenService:Create(Card, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(TxtTitle, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-        TweenService:Create(TxtMsg, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-        TweenService:Create(Stroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
-        task.wait(0.5)
         Card:Destroy()
     end)
 end
 
 ------------------------------------------------------------
--- 🌌 3. HIỆU ỨNG INTRO
-------------------------------------------------------------
-task.spawn(function()
-    local IntroFrame = Instance.new("Frame")
-    IntroFrame.Size = UDim2.new(1, 0, 1, 0)
-    IntroFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-    IntroFrame.BackgroundTransparency = 0.2
-    IntroFrame.Parent = MainGui
-
-    local IntroTitle = Instance.new("TextLabel")
-    IntroTitle.AnchorPoint = Vector2.new(0.5, 0.5)
-    IntroTitle.Position = UDim2.new(0.5, 0, 0.45, 0)
-    IntroTitle.Size = UDim2.new(0, 300, 0, 60)
-    IntroTitle.BackgroundTransparency = 1
-    IntroTitle.Text = "👑 GRAI HUB 🍌"
-    IntroTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
-    IntroTitle.Font = Enum.Font.GothamBlack
-    IntroTitle.TextSize = 32
-    IntroTitle.Parent = IntroFrame
-
-    local IntroSub = Instance.new("TextLabel")
-    IntroSub.AnchorPoint = Vector2.new(0.5, 0.5)
-    IntroSub.Position = UDim2.new(0.5, 0, 0.55, 0)
-    IntroSub.Size = UDim2.new(0, 300, 0, 30)
-    IntroSub.BackgroundTransparency = 1
-    IntroSub.Text = "Đang tải giao diện..."
-    IntroSub.TextColor3 = Color3.fromRGB(0, 255, 255)
-    IntroSub.Font = Enum.Font.GothamMedium
-    IntroSub.TextSize = 14
-    IntroSub.Parent = IntroFrame
-
-    task.wait(1.5)
-    TweenService:Create(IntroFrame, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(IntroTitle, TweenInfo.new(0.8), {TextTransparency = 1}):Play()
-    TweenService:Create(IntroSub, TweenInfo.new(0.8), {TextTransparency = 1}):Play()
-    task.wait(0.8)
-    IntroFrame:Destroy()
-
-    SendNotify("Grai Hub", "Tải giao diện thành công!")
-end)
-
-------------------------------------------------------------
 -- 🎛 4. NÚT CHUỐI ĐỘI VƯƠNG MIỆN (TOGGLE BUTTON)
 ------------------------------------------------------------
 local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "CrownBananaButton"
+ToggleBtn.Name = "BananaCrownBtn"
 ToggleBtn.Parent = MainGui
 ToggleBtn.Size = UDim2.new(0, 52, 0, 52)
-ToggleBtn.Position = UDim2.new(0.03, 0, 0.15, 0)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 ToggleBtn.Text = "👑\n🍌"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
 ToggleBtn.Font = Enum.Font.GothamBlack
-ToggleBtn.TextSize = 16
+ToggleBtn.TextSize = 15
 ToggleBtn.Active = true
 ToggleBtn.Draggable = true
 
@@ -164,9 +100,9 @@ ToggleStroke.Parent = ToggleBtn
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = MainGui
-MainFrame.Size = UDim2.new(0, 480, 0, 310)
-MainFrame.Position = UDim2.new(0.5, -240, 0.5, -155)
-MainFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+MainFrame.Size = UDim2.new(0, 360, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -110)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -184,7 +120,7 @@ MainStroke.Parent = MainFrame
 local TopBar = Instance.new("Frame")
 TopBar.Parent = MainFrame
 TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
+TopBar.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 TopBar.BorderSizePixel = 0
 
 local TopCorner = Instance.new("UICorner")
@@ -194,29 +130,29 @@ TopCorner.Parent = TopBar
 local Title = Instance.new("TextLabel")
 Title.Parent = TopBar
 Title.Size = UDim2.new(1, -50, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "GRAI2 HUB  |  Tổng Hợp Script"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "GRAI HUB  |  AI Script"
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Parent = TopBar
-CloseBtn.Size = UDim2.new(0, 28, 0, 28)
-CloseBtn.Position = UDim2.new(1, -34, 0, 6)
+CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+CloseBtn.Position = UDim2.new(1, -32, 0, 7)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
+CloseBtn.TextSize = 13
 
 local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Bật / Ẩn Menu
+-- Sự kiện Bật / Ẩn
 ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
@@ -226,197 +162,101 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 ------------------------------------------------------------
--- 📑 6. TABS SYSTEM (SIDEBAR & CONTAINERS)
+-- 📑 6. DANH SÁCH SCRIPT (CONTAINER)
 ------------------------------------------------------------
-local Sidebar = Instance.new("Frame")
-Sidebar.Parent = MainFrame
-Sidebar.Size = UDim2.new(0, 130, 1, -40)
-Sidebar.Position = UDim2.new(0, 0, 0, 40)
-Sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-Sidebar.BorderSizePixel = 0
-
-local SidebarList = Instance.new("UIListLayout")
-SidebarList.Parent = Sidebar
-SidebarList.Padding = UDim.new(0, 6)
-SidebarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local SidebarPadding = Instance.new("UIPadding")
-SidebarPadding.Parent = Sidebar
-SidebarPadding.PaddingTop = UDim.new(0, 8)
-
-local Container = Instance.new("Frame")
+local Container = Instance.new("ScrollingFrame")
 Container.Parent = MainFrame
-Container.Size = UDim2.new(1, -138, 1, -48)
-Container.Position = UDim2.new(0, 134, 0, 44)
+Container.Size = UDim2.new(1, -20, 1, -55)
+Container.Position = UDim2.new(0, 10, 0, 48)
 Container.BackgroundTransparency = 1
+Container.CanvasSize = UDim2.new(0, 0, 0, 0)
+Container.ScrollBarThickness = 4
+Container.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 255)
 
-local TabFrames = {}
-local TabButtons = {}
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Parent = Container
+ListLayout.Padding = UDim.new(0, 10)
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local function CreateTab(tabName)
-    -- Nút bấm Tab
-    local TabBtn = Instance.new("TextButton")
-    TabBtn.Parent = Sidebar
-    TabBtn.Size = UDim2.new(1, -12, 0, 34)
-    TabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    TabBtn.Text = tabName
-    TabBtn.TextColor3 = Color3.fromRGB(160, 160, 170)
-    TabBtn.Font = Enum.Font.GothamMedium
-    TabBtn.TextSize = 12
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Container.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
+end)
 
-    local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 6)
-    BtnCorner.Parent = TabBtn
-
-    -- Frame Nội dung Tab
-    local ContentFrame = Instance.new("ScrollingFrame")
-    ContentFrame.Parent = Container
-    ContentFrame.Size = UDim2.new(1, 0, 1, 0)
-    ContentFrame.BackgroundTransparency = 1
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    ContentFrame.ScrollBarThickness = 4
-    ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 255)
-    ContentFrame.Visible = false
-
-    local ContentList = Instance.new("UIListLayout")
-    ContentList.Parent = ContentFrame
-    ContentList.Padding = UDim.new(0, 6)
-
-    ContentList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, ContentList.AbsoluteContentSize.Y + 10)
-    end)
-
-    TabBtn.MouseButton1Click:Connect(function()
-        for _, f in pairs(TabFrames) do f.Visible = false end
-        for _, b in pairs(TabButtons) do 
-            b.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-            b.TextColor3 = Color3.fromRGB(160, 160, 170)
-        end
-        ContentFrame.Visible = true
-        TabBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-        TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-
-    table.insert(TabFrames, ContentFrame)
-    table.insert(TabButtons, TabBtn)
-
-    return ContentFrame
-end
-
--- Hàm Thêm Nút Thực Thi Script
-local function AddScriptButton(tabFrame, btnText, scriptFunc)
-    local ScriptBtn = Instance.new("TextButton")
-    ScriptBtn.Parent = tabFrame
-    ScriptBtn.Size = UDim2.new(1, -8, 0, 35)
-    ScriptBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-    ScriptBtn.Text = "  ⚡ " .. btnText
-    ScriptBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
-    ScriptBtn.Font = Enum.Font.GothamSemibold
-    ScriptBtn.TextSize = 12
-    ScriptBtn.TextXAlignment = Enum.TextXAlignment.Left
+-- Hàm tạo Nút Script
+local function AddScriptButton(name, desc, scriptUrl)
+    local BtnFrame = Instance.new("Frame")
+    BtnFrame.Size = UDim2.new(1, 0, 0, 55)
+    BtnFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    BtnFrame.BorderSizePixel = 0
+    BtnFrame.Parent = Container
 
     local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 6)
-    BtnCorner.Parent = ScriptBtn
+    BtnCorner.CornerRadius = UDim.new(0, 8)
+    BtnCorner.Parent = BtnFrame
 
     local BtnStroke = Instance.new("UIStroke")
-    BtnStroke.Color = Color3.fromRGB(45, 45, 55)
+    BtnStroke.Color = Color3.fromRGB(45, 45, 58)
     BtnStroke.Thickness = 1
-    BtnStroke.Parent = ScriptBtn
+    BtnStroke.Parent = BtnFrame
 
-    ScriptBtn.MouseButton1Click:Connect(function()
-        SendNotify("Grai Hub", "Đang tải: " .. btnText)
-        pcall(scriptFunc)
+    local TxtName = Instance.new("TextLabel")
+    TxtName.Size = UDim2.new(1, -110, 0, 25)
+    TxtName.Position = UDim2.new(0, 12, 0, 5)
+    TxtName.BackgroundTransparency = 1
+    TxtName.Text = "⚡ " .. name
+    TxtName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TxtName.Font = Enum.Font.GothamBold
+    TxtName.TextSize = 13
+    TxtName.TextXAlignment = Enum.TextXAlignment.Left
+    TxtName.Parent = BtnFrame
+
+    local TxtDesc = Instance.new("TextLabel")
+    TxtDesc.Size = UDim2.new(1, -110, 0, 20)
+    TxtDesc.Position = UDim2.new(0, 12, 0, 28)
+    TxtDesc.BackgroundTransparency = 1
+    TxtDesc.Text = desc
+    TxtDesc.TextColor3 = Color3.fromRGB(150, 150, 160)
+    TxtDesc.Font = Enum.Font.Gotham
+    TxtDesc.TextSize = 10
+    TxtDesc.TextXAlignment = Enum.TextXAlignment.Left
+    TxtDesc.Parent = BtnFrame
+
+    local RunBtn = Instance.new("TextButton")
+    RunBtn.Size = UDim2.new(0, 85, 0, 35)
+    RunBtn.Position = UDim2.new(1, -95, 0.5, -17)
+    RunBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    RunBtn.Text = "CHẠY"
+    RunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    RunBtn.Font = Enum.Font.GothamBold
+    RunBtn.TextSize = 12
+    RunBtn.Parent = BtnFrame
+
+    local RunCorner = Instance.new("UICorner")
+    RunCorner.CornerRadius = UDim.new(0, 6)
+    RunCorner.Parent = RunBtn
+
+    RunBtn.MouseButton1Click:Connect(function()
+        SendNotify("Grai Hub", "Đang nạp " .. name .. "...")
+        pcall(function()
+            loadstring(game:HttpGet(scriptUrl))()
+        end)
     end)
 end
 
 ------------------------------------------------------------
--- 📌 7. KHỞI TẠO TABS VÀ CÁC NÚT BẤM SCRIPT
+-- 📌 7. THÊM 2 SCRIPT THEO YÊU CẦU
 ------------------------------------------------------------
-local TabInfo   = CreateTab("Thông Tin")
-local TabBF     = CreateTab("Blox Fruits")
-local TabGarden = CreateTab("Grow Garden")
-local TabForest = CreateTab("99 Nights")
+AddScriptButton(
+    "Script AI 1", 
+    "Bấm để chạy scriptaiai", 
+    "https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiai/refs/heads/main/scriptaiai"
+)
 
--- Mặc định chọn Tab đầu tiên
-TabFrames[1].Visible = true
-TabButtons[1].BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-TabButtons[1].TextColor3 = Color3.fromRGB(255, 255, 255)
+AddScriptButton(
+    "Script AI 2", 
+    "Bấm để chạy scriptaiaiaiha", 
+    "https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiaiai/refs/heads/main/scriptaiaiaiha"
+)
 
--- ==================== [TAB 0: THÔNG TIN] ====================
-AddScriptButton(TabInfo, "Youtube Grai2 (Sao chép Link)", function()
-    setclipboard("https://youtube.com/@grai2")
-    SendNotify("Thông Báo", "Đã copy link Youtube thành công!")
-end)
-
--- ==================== [TAB 1: BLOX FRUITS] ====================
-AddScriptButton(TabBF, "Redz Hub", function()
-    local Settings = {JoinTeam = "Pirates", Translator = true}
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/newredz/BloxFruits/refs/heads/main/Source.luau"))(Settings)
-end)
-
-AddScriptButton(TabBF, "w-azure Hub", function()
-    loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/85e904ae1ff30824c1aa007fc7324f8f.lua"))()
-end)
-
-AddScriptButton(TabBF, "Fix Lag", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/TurboLite/Script/main/FixLag.lua"))()
-end)
-
-AddScriptButton(TabBF, "Min Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/LuaCrack/Min/refs/heads/main/MinXt2Eng"))()
-end)
-
-AddScriptButton(TabBF, "Speed Hub X", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-end)
-
-AddScriptButton(TabBF, "Than Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/thantzy/thanhub/refs/heads/main/thanv1"))()
-end)
-
-AddScriptButton(TabBF, "BlueX Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
-end)
-
-AddScriptButton(TabBF, "Tsoul Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Tsuo7/TsuoHub/main/Tsuoscripts"))()
-end)
-
-AddScriptButton(TabBF, "Volcano Hub V3", function()
-    loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/indexeduu/BF-NewVer/refs/heads/main/V3New.lua"))()
-end)
-
-AddScriptButton(TabBF, "HOHO Hub", function()
-    loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
-end)
-
--- ==================== [TAB 2: GROW A GARDEN] ====================
-AddScriptButton(TabGarden, "Nat Hub", function()
-    loadstring(game:HttpGet("https://get.nathub.xyz/loader"))()
-end)
-
-AddScriptButton(TabGarden, "Speed Hub X", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-end)
-
-AddScriptButton(TabGarden, "No Lag Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/NoLag-id/No-Lag-HUB/refs/heads/main/Loader/Main.lua"))()
-end)
-
-AddScriptButton(TabGarden, "BlueX Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
-end)
-
--- ==================== [TAB 3: 99 NIGHTS IN THE FOREST] ====================
-AddScriptButton(TabForest, "Voidware Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
-end)
-
-AddScriptButton(TabForest, "Speed Hub X", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-end)
-
-AddScriptButton(TabForest, "Pulse Hub", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
-end)
+-- Thông báo khi tải hoàn tất
+SendNotify("Grai Hub", "Đã nạp Menu thành công!")
