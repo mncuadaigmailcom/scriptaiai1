@@ -1,7 +1,7 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - [MỚI] BỔ SUNG TÍNH NĂNG "🧲 BU NGƯỜI CHƠI" NẰM Ở TRÊN NÚT ESP ALL
-    - TỰ ĐỘNG BÁM ĐỦỜI CONTINUOUS REALTIME DÍNH CHẶT THEO NGƯỜI CHƠI DÙ HỌ CHẠY/NHẢY
+    - [ĐÃ FIX LỖI XUYÊN TƯỜNG] KHÔI PHỤC VA CHẠM CHUẨN ROBLOX KHI TẮT BU NGƯỜI
+    - TÍNH NĂNG "🧲 BU NGƯỜI CHƠI" BÁM ĐỦỜI DÍNH LƯNG MƯỢT MÀ REALTIME
     - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR WITH SPLITTER
 --]]
 
@@ -27,7 +27,7 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
--- Follow / Bu Người Variables [MỚI]
+-- Follow / Bu Người Variables
 local followPlayerActive = false
 local followConnection = nil
 
@@ -456,7 +456,7 @@ SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
 ---------------------------------------------------------
--- CỘT PHẢI TAB PLAYERS (CÓ BỔ SUNG NÚT BU NGƯỜI CHƠI)
+-- CỘT PHẢI TAB PLAYERS (NÚT BU NGƯỜI NẰM Ở HÀNG 1)
 ---------------------------------------------------------
 local P_RightPanel = Instance.new("ScrollingFrame")
 P_RightPanel.Name = "P_RightPanel"
@@ -487,7 +487,7 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
--- [MỚI] NÚT BU NGƯỜI CHƠI (HÀNG 1 - NẰM TRÊN NÚT ESP ALL)
+-- NÚT BU NGƯỜI CHƠI (NẰM TRÊN CÙNG ESP ALL)
 local FollowPlayerBtn = Instance.new("TextButton")
 FollowPlayerBtn.LayoutOrder = 1
 FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
@@ -1414,7 +1414,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN & XỬ LÝ BAY / BU NGƯỜI
+-- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM (FIXED COLLISION RESTORE)
 ---------------------------------------------------------
 local startFly
 local stopFly
@@ -1447,8 +1447,46 @@ local function isPlayerDeadOrKnocked(plr)
     return false
 end
 
+-- KHÔI PHỤC VẬT LÝ CHUẨN ROBLOX (CHỐNG LỖI XUYÊN TƯỜNG)
+local function resetCharacterPhysics()
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    -- Trả lại thuộc tính va chạm gốc của Roblox
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if part.Name == "HumanoidRootPart" then
+                part.CanCollide = false -- Mặc định Roblox HumanoidRootPart = False
+            else
+                part.CanCollide = true  -- Tất cả các bộ phận Thân/Chân/Tay = True để không xuyên sàn/tường
+            end
+        end
+    end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+local function setNoclip(state)
+    if state then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end
+        end)
+    else
+        resetCharacterPhysics()
+    end
+end
+
 ---------------------------------------------------------
--- [MỚI] HỆ THỐNG BU NGƯỜI CHƠI (AUTO STICK / FOLLOW PLAYER)
+-- HỆ THỐNG BU NGƯỜI CHƠI (BÁM ĐỦỜI REALTIME & FIX LỖI TƯỜNG)
 ---------------------------------------------------------
 local function stopFollow()
     followPlayerActive = false
@@ -1469,7 +1507,6 @@ local function startFollow()
         return
     end
 
-    -- Nếu đang bay tween tới ai đó thì hủy bay
     if isFlying then stopFly() end
 
     followPlayerActive = true
@@ -1478,7 +1515,6 @@ local function startFollow()
 
     if followConnection then followConnection:Disconnect() end
 
-    -- Vòng lặp dính chặt liên tục Realtime vào lưng người chơi target
     followConnection = RunService.Heartbeat:Connect(function()
         if not followPlayerActive or not selectedPlayer or not selectedPlayer.Character then
             stopFollow()
@@ -1490,16 +1526,15 @@ local function startFollow()
         local targetHrp = getTargetPart(selectedPlayer)
 
         if myHrp and targetHrp then
-            -- Kích hoạt Noclip đi xuyên tường
+            -- Tắt va chạm tạm thời để không bị văng khi dính sát người chơi khác
             for _, part in pairs(myChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
 
-            -- Triệt tiêu lực vật lý
             myHrp.AssemblyLinearVelocity = Vector3.zero
             myHrp.AssemblyAngularVelocity = Vector3.zero
 
-            -- Bu dính phía sau lưng mục tiêu (Cách 1.8 Studs)
+            -- Bu dính phía sau lưng mục tiêu
             myHrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0.5, 1.8)
         else
             stopFollow()
@@ -2035,53 +2070,8 @@ P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ BAY & NOCLIP
+-- CƠ CHẾ BAY & TWEEN
 ---------------------------------------------------------
-local function resetCharacterPhysics()
-    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    local char = LocalPlayer.Character
-    if not char then return end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterDescendantsInstances = {char}
-        overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-
-        if #workspace:GetPartsInPart(hrp, overlapParams) > 0 then
-            for i = 1, 5 do
-                hrp.CFrame = hrp.CFrame + Vector3.new(0, 2, 0)
-                if #workspace:GetPartsInPart(hrp, overlapParams) == 0 then break end
-            end
-        end
-    end
-
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if part.Name == "HumanoidRootPart" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso" then
-                part.CanCollide = true
-            end
-        end
-    end
-end
-
-local function setNoclip(state)
-    if state then
-        noclipConnection = RunService.Stepped:Connect(function()
-            if LocalPlayer.Character then
-                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
-                end
-            end
-        end)
-    else
-        resetCharacterPhysics()
-    end
-end
-
 local function tweenToTarget(hrp, targetCFrame, flySpeed)
     if stopRequested then return false end
 
