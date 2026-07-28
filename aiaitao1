@@ -1,137 +1,113 @@
--- [[ GRAI2 HUB - FULLY FIXED & OPTIMIZED ]] --
-repeat task.wait() until game:IsLoaded()
+-- [[ GRAI2 HUB - ULTRA SAFE & COMPATIBLE VERSION ]] --
+
+-- Check game load an toàn (không lo bị kẹt)
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 
--- Xác định vị trí lưu GUI an toàn cho mọi Executor (PC & Mobile)
-local ParentContainer = (gethui and gethui()) or game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
-
-------------------------------------------------------------
--- 🌌 1. INTRO GUI (Chạy song song, không kẹt Menu)
-------------------------------------------------------------
-task.spawn(function()
-    local introGui = Instance.new("ScreenGui")
-    introGui.Name = "GraiIntro"
-    introGui.IgnoreGuiInset = true
-    introGui.ResetOnSpawn = false
-    introGui.Parent = ParentContainer
-
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(1,0,1,0)
-    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    bg.BackgroundTransparency = 0.3
-    bg.Parent = introGui
-
-    local logo = Instance.new("ImageLabel")
-    logo.Parent = introGui
-    logo.AnchorPoint = Vector2.new(0.5,0.5)
-    logo.Position = UDim2.new(0.5,0,0.5,0)
-    logo.Size = UDim2.new(0,0,0,0)
-    logo.BackgroundTransparency = 1
-    logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
-    logo.ImageTransparency = 1
-
-    -- Phóng to Logo
-    TweenService:Create(logo, TweenInfo.new(1.2, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 180, 0, 180),
-        ImageTransparency = 0
-    }):Play()
-
-    -- Xoay Logo
-    task.spawn(function()
-        while logo and logo.Parent do
-            logo.Rotation = logo.Rotation + 1
-            task.wait(0.01)
-        end
-    end)
-
-    -- Chữ Tiêu Đề
-    local msg = Instance.new("TextLabel")
-    msg.Parent = introGui
-    msg.AnchorPoint = Vector2.new(0.5, 0)
-    msg.Position = UDim2.new(0.5, 0, 0.72, 0)
-    msg.Size = UDim2.new(0, 500, 0, 60)
-    msg.BackgroundTransparency = 1
-    msg.Text = "Grai Hub"
-    msg.TextColor3 = Color3.fromRGB(0, 255, 255)
-    msg.Font = Enum.Font.GothamBlack
-    msg.TextScaled = true
-    msg.TextStrokeTransparency = 0
-    msg.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-    msg.TextTransparency = 1
-
-    TweenService:Create(msg, TweenInfo.new(1), {TextTransparency = 0}):Play()
-
-    task.wait(2.5)
-
-    -- Biến mất Intro
-    TweenService:Create(logo, TweenInfo.new(0.8), {ImageTransparency = 1}):Play()
-    TweenService:Create(msg, TweenInfo.new(0.8), {TextTransparency = 1}):Play()
-    TweenService:Create(bg, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play()
-    task.wait(0.8)
-
-    introGui:Destroy()
+-- Tìm vị trí chứa GUI an toàn nhất
+local TargetParent = player:FindFirstChild("PlayerGui")
+pcall(function()
+    TargetParent = gethui() or game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
 end)
 
 ------------------------------------------------------------
--- 📦 2. LOAD FLUENT UI
+-- 🌌 1. INTRO GUI (Chạy độc lập)
 ------------------------------------------------------------
-local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/main/main.lua"))()
+task.spawn(function()
+    pcall(function()
+        local introGui = Instance.new("ScreenGui")
+        introGui.Name = "GraiIntro"
+        introGui.ResetOnSpawn = false
+        introGui.Parent = TargetParent
 
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(1,0,1,0)
+        bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        bg.BackgroundTransparency = 0.3
+        bg.Parent = introGui
+
+        local logo = Instance.new("ImageLabel")
+        logo.Parent = introGui
+        logo.AnchorPoint = Vector2.new(0.5,0.5)
+        logo.Position = UDim2.new(0.5,0,0.5,0)
+        logo.Size = UDim2.new(0, 180, 0, 180)
+        logo.BackgroundTransparency = 1
+        logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
+
+        local msg = Instance.new("TextLabel")
+        msg.Parent = introGui
+        msg.AnchorPoint = Vector2.new(0.5, 0)
+        msg.Position = UDim2.new(0.5, 0, 0.72, 0)
+        msg.Size = UDim2.new(0, 500, 0, 60)
+        msg.BackgroundTransparency = 1
+        msg.Text = "Grai Hub"
+        msg.TextColor3 = Color3.fromRGB(0, 255, 255)
+        msg.Font = Enum.Font.GothamBlack
+        msg.TextScaled = true
+
+        task.wait(2)
+        introGui:Destroy()
+    end)
+end)
+
+------------------------------------------------------------
+-- 📦 2. LOAD FLUENT UI (Thử 2 link dự phòng + Tắt Acrylic chống crash)
+------------------------------------------------------------
+local Fluent = nil
+local success, err = pcall(function()
+    Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+end)
+
+if not success or not Fluent then
+    pcall(function()
+        Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/main/main.lua"))()
+    end)
+end
+
+-- Tạo Cửa Sổ Menu Chính
 local Window = Fluent:CreateWindow({
     Title = "Grai2",
     SubTitle = "Tổng Hợp Script",
     TabWidth = 150,
     Size = UDim2.fromOffset(460, 320),
-    Acrylic = true,
+    Acrylic = false, -- 🔴 ĐÃ TẮT ACRYLIC ĐỂ KHÔNG BỊ CRASH/ẨN MENU TRÊN MOBILE
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.End
 })
 
 ------------------------------------------------------------
--- 🎛 3. NÚT BẬT/ẨN CHUỐI VƯƠNG MIỆN (Tương thích 100% Mobile)
+-- 🎛 3. NÚT NỔI BẬT/ẨN CHUỐI VƯƠNG MIỆN (DỄ BẤM)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Name = "GraiToggleBtn"
 ToggleGui.ResetOnSpawn = false
-ToggleGui.Parent = ParentContainer
+ToggleGui.Parent = TargetParent
 
 local ImageButton = Instance.new("ImageButton")
 ImageButton.Parent = ToggleGui
 ImageButton.BackgroundColor3 = Color3.fromRGB(0,0,0)
-ImageButton.BackgroundTransparency = 1
-ImageButton.BorderSizePixel = 0
-ImageButton.Position = UDim2.new(0.08, 0, 0.15, 0)
+ImageButton.BackgroundTransparency = 0.2
+ImageButton.Position = UDim2.new(0.05, 0, 0.15, 0)
 ImageButton.Size = UDim2.new(0, 50, 0, 50)
 ImageButton.Draggable = true
-ImageButton.Image = "rbxassetid://13220409166" -- Logo Chuối Đội Vương Miện
+ImageButton.Image = "rbxassetid://13220409166" -- Biểu tượng Chuối Vương Miện
 
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = ImageButton
 
--- Xử lý Toggle Menu cực mượt cho Mobile & PC
+-- Bật/Ẩn Menu khi bấm nút Chuối
 ImageButton.MouseButton1Click:Connect(function()
-    -- Cách 1: Thử gửi phím End
-    pcall(function()
-        game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.End, false, game)
-        game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.End, false, game)
-    end)
-    
-    -- Cách 2: Bật/Tắt trực tiếp ScreenGui của Fluent (Dành cho Mobile)
-    for _, gui in pairs(ParentContainer:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "GraiToggleBtn" and gui.Name ~= "GraiIntro" then
-            if gui:FindFirstChild("Main") or gui:FindFirstChild("Frame") or gui:FindFirstChild("Container") then
-                gui.Enabled = not gui.Enabled
-            end
-        end
-    end
+    Window:Minimize()
 end)
 
 ------------------------------------------------------------
--- 📑 4. TABS & CHỨC NĂNG SCRIPT
+-- 📑 4. TABS & DỮ LIỆU SCRIPT
 ------------------------------------------------------------
 local Tabs = {
     Main0 = Window:AddTab({ Title = "Thông Tin" }),
@@ -143,13 +119,13 @@ local Tabs = {
 -- Tab 0: Thông Tin
 Tabs.Main0:AddButton({
     Title = "Youtuber",
-    Description = "Grai2 (Bấm để copy link Youtube)",
+    Description = "Grai2 (Copy link Youtube)",
     Callback = function()
         pcall(function()
             setclipboard("https://youtube.com/@grai2")
             Fluent:Notify({
-                Title = "Thông Báo",
-                Content = "Đã sao chép link Youtube thành công!",
+                Title = "Grai Hub",
+                Content = "Đã sao chép link Youtube!",
                 Duration = 3
             })
         end)
@@ -311,4 +287,11 @@ Tabs.Main3:AddButton({
             loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
         end)
     end
+})
+
+-- Thông báo khi tải hoàn tất
+Fluent:Notify({
+    Title = "Grai Hub",
+    Content = "Đã nạp Menu thành công! Bấm icon Chuối để Ẩn/Hiện.",
+    Duration = 5
 })
