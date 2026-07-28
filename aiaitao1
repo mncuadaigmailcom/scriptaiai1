@@ -1,52 +1,48 @@
--- [[ BANANA CAT HUB - TỰ THÊM SCRIPT CỦA BẠN ]] --
+-- [[ BANANA CAT HUB - FIX MENU NOT SHOWING ]] --
 local HttpService = game:GetService("HttpService")
-local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+local fileName = "BananaCat_Data.json"
+local mySavedScripts = {}
 
--- Tên file lưu danh sách Script của bạn trên thiết bị
-local fileName = "BananaCat_MyScripts.json"
-
--- Hàm tải danh sách script đã lưu
-local function loadMyScripts()
-    if isfile and isfile(fileName) then
-        local success, result = pcall(function()
-            return HttpService:JSONDecode(readfile(fileName))
-        end)
-        if success then return result end
+-- Kiểm tra và tải file an toàn (Không làm lag/văng menu)
+pcall(function()
+    if isfile and readfile and isfile(fileName) then
+        mySavedScripts = HttpService:JSONDecode(readfile(fileName))
     end
-    return {}
+end)
+if type(mySavedScripts) ~= "table" then mySavedScripts = {} end
+
+-- Hàm lưu file an toàn
+local function saveScriptData()
+    pcall(function()
+        if writefile then
+            writefile(fileName, HttpService:JSONEncode(mySavedScripts))
+        end
+    end)
 end
 
--- Hàm lưu danh sách script
-local function saveMyScripts(tbl)
-    if writefile then
-        writefile(fileName, HttpService:JSONEncode(tbl))
-    end
-end
+-- Load Thư Viện Rayfield UI (Hoạt động tốt 100% trên mọi Executor)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Lấy dữ liệu script đã lưu
-local mySavedScripts = loadMyScripts()
-
--- 1. TẠO CỬA SỔ CHÍNH
-local Window = OrionLib:MakeWindow({
-    Name = "🍌 BANANA CAT - CUSTOM HUB", 
-    HidePremium = false, 
-    SaveConfig = false, 
-    IntroEnabled = true,
-    IntroText = "Banana Cat Custom Hub Loaded!",
-    IntroIcon = "rbxassetid://4483345998"
+-- Tạo Cửa Sổ Menu
+local Window = Rayfield:CreateWindow({
+   Name = "🍌 BANANA CAT HUB - CUSTOM",
+   Icon = 0,
+   LoadingTitle = "Banana Cat Hub",
+   LoadingSubtitle = "Đang tải danh sách Script...",
+   Theme = "Default",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = true,
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
 })
 
--- ==================== TAB 1: DANH SÁCH SCRIPT ĐÃ THÊM ====================
-local TabList = Window:MakeTab({
-    Name = "📜 Script Của Bạn",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+-- ==================== TAB 1: DANH SÁCH SCRIPT ====================
+local TabList = Window:CreateTab("📜 Script Đã Lưu", 4483345998)
 
-TabList:AddSection({ Name = "Danh Sách Script Bạn Đã Thêm" })
+TabList:CreateSection("Bấm vào bên dưới để kích hoạt Script")
 
--- Hàm chạy Script (Tự nhận diện Link http hoặc Code thường)
-local function runScript(code)
+-- Hàm thực thi script khi bấm nút
+local function executeCode(code)
     local success, err = pcall(function()
         if code:sub(1, 4) == "http" then
             loadstring(game:HttpGet(code))()
@@ -56,111 +52,84 @@ local function runScript(code)
         end
     end)
     
-    if not success then
-        OrionLib:MakeNotification({
-            Name = "Lỗi Chạy Script!",
-            Content = "Code/Link bị lỗi hoặc không chạy được.",
-            Time = 3
-        })
+    if success then
+        Rayfield:Notify({Title = "Thành công!", Content = "Đã chạy Script thành công.", Duration = 3})
+    else
+        Rayfield:Notify({Title = "Lỗi Script!", Content = "Code hoặc Link không hợp lệ!", Duration = 4})
     end
 end
 
--- Tạo các nút bấm từ danh sách đã lưu
+-- Tải danh sách các nút bấm
 if #mySavedScripts == 0 then
-    TabList:AddLabel("Chưa có script nào. Hãy qua Tab 'Thêm Script' để thêm!")
+    TabList:CreateLabel("Chưa có script! Sang Tab 'Thêm Script' để dán code vào nhé.")
 else
-    for index, scriptData in ipairs(mySavedScripts) do
-        TabList:AddButton({
-            Name = "▶ " .. scriptData.Name,
-            Callback = function()
-                OrionLib:MakeNotification({
-                    Name = "Đang chạy...",
-                    Content = scriptData.Name,
-                    Time = 2
-                })
-                runScript(scriptData.Code)
-            end    
+    for i, item in ipairs(mySavedScripts) do
+        TabList:CreateButton({
+           Name = "▶ " .. item.Name,
+           Callback = function()
+               Rayfield:Notify({Title = "Đang chạy...", Content = item.Name, Duration = 2})
+               executeCode(item.Code)
+           end,
         })
     end
 end
 
--- Nút Xóa Tất Cả Script Đã Lưu
-TabList:AddSection({ Name = "Quản Lý" })
-TabList:AddButton({
-    Name = "🗑️ Xóa Tất Cả Script Đã Lưu",
-    Callback = function()
-        if isfile and isfile(fileName) then
-            delfile(fileName)
-            OrionLib:MakeNotification({
-                Name = "Thành công",
-                Content = "Đã xóa dữ liệu! Hãy mở lại Menu.",
-                Time = 3
-            })
-        end
-    end
+-- Nút Quản Lý
+TabList:CreateSection("Quản Lý")
+TabList:CreateButton({
+   Name = "🗑️ Xóa Tất Cả Script Đã Lưu",
+   Callback = function()
+       pcall(function()
+           if delfile and isfile(fileName) then delfile(fileName) end
+       end)
+       mySavedScripts = {}
+       Rayfield:Notify({Title = "Đã Xóa!", Content = "Hãy chạy lại Script Hub để làm mới Menu.", Duration = 4})
+   end,
 })
 
 
--- ==================== TAB 2: Ô NHẬP ĐỂ THÊM SCRIPT MỚI ====================
-local TabAdd = Window:MakeTab({
-    Name = "➕ Thêm Script Mới",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+-- ==================== TAB 2: THÊM SCRIPT MỚI ====================
+local TabAdd = Window:CreateTab("➕ Thêm Script Mới", 4483345998)
 
-TabAdd:AddSection({ Name = "Nhập Thông Tin Script Mới" })
+TabAdd:CreateSection("Nhập Script Của Bạn Về Đây")
 
 local inputName = ""
 local inputCode = ""
 
--- Ô 1: Nhập Tên
-TabAdd:AddTextbox({
-    Name = "1. Nhập Tên Script (Ví dụ: Redz Hub Blox Fruit)",
-    Default = "",
-    TextDisappear = false,
-    Callback = function(Value)
-        inputName = Value
-    end
+TabAdd:CreateInput({
+   Name = "1. Nhập Tên Script",
+   PlaceholderText = "Ví dụ: Redz Hub Blox Fruit",
+   RemoveTextOnFocus = false,
+   Callback = function(Text)
+       inputName = Text
+   end,
 })
 
--- Ô 2: Nhập Link hoặc Code
-TabAdd:AddTextbox({
-    Name = "2. Dán Link raw (https://...) hoặc Code Lua vào đây",
-    Default = "",
-    TextDisappear = false,
-    Callback = function(Value)
-        inputCode = Value
-    end
+TabAdd:CreateInput({
+   Name = "2. Dán Link (https://...) hoặc Code Lua",
+   PlaceholderText = "Dán link raw hoặc code lua vào đây...",
+   RemoveTextOnFocus = false,
+   Callback = function(Text)
+       inputCode = Text
+   end,
 })
 
--- Nút Lưu Script
-TabAdd:AddButton({
-    Name = "💾 LƯU SCRIPT NÀY VÀO MENU",
-    Callback = function()
-        if inputName == "" or inputCode == "" then
-            OrionLib:MakeNotification({
-                Name = "Thiếu Thông Tin!",
-                Content = "Vui lòng nhập cả Tên và Link/Code!",
-                Time = 3
-            })
-            return
-        end
+TabAdd:CreateButton({
+   Name = "💾 LƯU SCRIPT VÀO MENU",
+   Callback = function()
+       if inputName == "" or inputCode == "" then
+           Rayfield:Notify({Title = "Thiếu Thông Tin!", Content = "Bạn chưa nhập Tên hoặc Link/Code!", Duration = 3})
+           return
+       end
 
-        -- Thêm vào danh sách
-        table.insert(mySavedScripts, {
-            Name = inputName,
-            Code = inputCode
-        })
+       -- Lưu thông tin
+       table.insert(mySavedScripts, {Name = inputName, Code = inputCode})
+       saveScriptData()
 
-        -- Lưu vào File lưu trữ của Executor
-        saveMyScripts(mySavedScripts)
-
-        OrionLib:MakeNotification({
-            Name = "Thành Công!",
-            Content = "Đã lưu script '" .. inputName .. "'. Hãy chạy lại Menu để cập nhật nút!",
-            Time = 5
-        })
-    end    
+       Rayfield:Notify({
+           Title = "Đã Lưu Thành Công!",
+           Content = "Hãy bấm Execute lại script Banana Cat để hiện nút mới nhé!",
+           Duration = 5
+       })
+   end,
 })
-
-OrionLib:Init()
