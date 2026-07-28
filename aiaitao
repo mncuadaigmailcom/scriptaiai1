@@ -1,10 +1,9 @@
 --[[
-    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR (FIXED FLY & CENTER ESP)
-    - TAB 3 ĐÃ SẮP XẾP LẠI: CỘT TRÁI = DANH SÁCH & ESP TƯỜNG, CỘT PHẢI = THÔNG SỐ ĐẶT TƯỜNG
-    - THÊM Ô ĐẶT TÊN TƯỜNG KÍNH TÙY CHỈNH
-    - ĐÃ SỬA LỖI BAY TỚI TƯỜNG (BAY LÊN TRỜI -> BAY TỚI ĐỈNH TƯỜNG -> HẠ CÁNH CHUẨN XÁC)
-    - TÍNH NĂNG WALL ESP HIỂN THỊ ĐÚNG TÂM (X, Y, Z) VÀ ĐO KHOẢNG CÁCH REALTIME
-    - GIỮ NGUYÊN TẤT CẢ TÍNH NĂNG: FLY PLAYER, FLY LOCATIONS, SELF GLOW, RESIZABLE 4 GÓC
+    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR (WITH TAB 3 RESIZABLE SPLITTER)
+    - TAB 3 ĐÃ ĐƯỢC THÊM THANH KÉO CO GIÃN (SPLITTER `┆`) GIỮA 2 CỘT
+    - KÉO THANH VIỀN ĐỂ ĐIỀU CHỈNH KÍCH THƯỚC BẢNG THÔNG SỐ VÀ BẢNG DANH SÁCH TƯỜNG REALTIME
+    - ĐẶT TÊN TƯỜNG KÍNH TÙY CHỈNH + TÍNH NĂNG WALL ESP HIỂN THỊ ĐÚNG TÂM KHỐI (X, Y, Z)
+    - BAY MƯỢT TỚI TƯỜNG KÍNH & TẤT CẢ TÍNH NĂNG KHÁC GIỮ NGUYÊN HOÀN HẢO
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -29,10 +28,15 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
--- Splitter Ratio (Tab Players)
+-- Splitter Ratio (Tab 1: Players)
 local splitRatio = 0.60 
 local minSplit = 0.30
 local maxSplit = 0.80
+
+-- Splitter Ratio (Tab 3: Walls) [MỚI]
+local wallSplitRatio = 0.52
+local minWallSplit = 0.25
+local maxWallSplit = 0.75
 
 -- Player ESP Variables
 local espAllActive = false
@@ -761,8 +765,6 @@ WallsPage.Parent = MainFrame
 ---------------------------------------------------------
 local W_LeftPanel = Instance.new("Frame")
 W_LeftPanel.Name = "W_LeftPanel"
-W_LeftPanel.Size = UDim2.new(0.52, 0, 1, 0)
-W_LeftPanel.Position = UDim2.new(0, 0, 0, 0)
 W_LeftPanel.BackgroundTransparency = 1
 W_LeftPanel.Parent = WallsPage
 
@@ -813,12 +815,30 @@ UIListLayoutWall.Parent = W_SavedList
 UIListLayoutWall.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
+-- THANH KÉO CO GIÃN TAB 3 (WALL SPLITTER DIVIDER) [MỚI]
+---------------------------------------------------------
+local WallSplitDivider = Instance.new("TextButton")
+WallSplitDivider.Name = "WallSplitDivider"
+WallSplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
+WallSplitDivider.BackgroundTransparency = 0.2
+WallSplitDivider.BorderColor3 = Color3.fromRGB(255, 255, 255)
+WallSplitDivider.BorderSizePixel = 1
+WallSplitDivider.Text = "┆"
+WallSplitDivider.TextColor3 = TEXT_DARK
+WallSplitDivider.Font = Enum.Font.SourceSansBold
+WallSplitDivider.TextSize = 13
+WallSplitDivider.ZIndex = 8
+WallSplitDivider.Parent = WallsPage
+
+local WallSplitterCorner = Instance.new("UICorner")
+WallSplitterCorner.CornerRadius = UDim.new(0, 4)
+WallSplitterCorner.Parent = WallSplitDivider
+
+---------------------------------------------------------
 -- CỘT BÊN PHẢI: BẢNG CẤU HÌNH ĐẶT TƯỜNG (CÓ TÊN)
 ---------------------------------------------------------
 local W_RightPanel = Instance.new("ScrollingFrame")
 W_RightPanel.Name = "W_RightPanel"
-W_RightPanel.Size = UDim2.new(0.46, 0, 1, 0)
-W_RightPanel.Position = UDim2.new(0.54, 0, 0, 0)
 W_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 W_RightPanel.BackgroundTransparency = 0.65
 W_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
@@ -842,6 +862,53 @@ W_RightPadding.PaddingBottom = UDim.new(0, 6)
 W_RightPadding.PaddingLeft = UDim.new(0, 4)
 W_RightPadding.PaddingRight = UDim.new(0, 6)
 W_RightPadding.Parent = W_RightPanel
+
+---------------------------------------------------------
+-- CẬP NHẬT GIAO DIỆN CO GIÃN REALTIME CHO TAB 3 [MỚI]
+---------------------------------------------------------
+local function updateWallsLayout()
+    local leftRatio = math.clamp(wallSplitRatio, minWallSplit, maxWallSplit)
+    local rightRatio = 1 - leftRatio - 0.02
+
+    W_LeftPanel.Position = UDim2.new(0, 0, 0, 0)
+    W_LeftPanel.Size = UDim2.new(leftRatio, 0, 1, 0)
+
+    WallSplitDivider.Position = UDim2.new(leftRatio + 0.003, 0, 0, 0)
+    WallSplitDivider.Size = UDim2.new(0, 8, 1, 0)
+
+    W_RightPanel.Position = UDim2.new(leftRatio + 0.02, 0, 0, 0)
+    W_RightPanel.Size = UDim2.new(rightRatio, 0, 1, 0)
+end
+
+local isDraggingWallSplit = false
+
+WallSplitDivider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingWallSplit = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingWallSplit = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingWallSplit and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local pageAbsPos = WallsPage.AbsolutePosition.X
+        local pageAbsSize = WallsPage.AbsoluteSize.X
+        if pageAbsSize > 0 then
+            local mouseX = UserInputService:GetMouseLocation().X
+            local newRatio = (mouseX - pageAbsPos) / pageAbsSize
+            wallSplitRatio = math.clamp(newRatio, minWallSplit, maxWallSplit)
+            updateWallsLayout()
+        end
+    end
+end)
+
+MainFrame:GetPropertyChangedSignal("Size"):Connect(updateWallsLayout)
+updateWallsLayout()
 
 -- Header
 local WallHeader = Instance.new("TextLabel")
@@ -1043,7 +1110,6 @@ local function createWallESP(item)
     bbg.Size = UDim2.new(0, 200, 0, 40)
     bbg.AlwaysOnTop = true
     bbg.Adornee = item.part
-    -- ExtentsOffset = 0 giúp điểm hiển thị nằm ĐÚNG TÂM CHIỀU DÀI, RỘNG, CAO
     bbg.ExtentsOffset = Vector3.new(0, 0, 0)
 
     local txt = Instance.new("TextLabel")
@@ -1532,7 +1598,7 @@ RunService.RenderStepped:Connect(function()
         if next(locEspStorage) ~= nil then removeAllLocESP() end
     end
 
-    -- ESP Wall (Tường Kính) - Tính khoảng cách đến ĐÚNG TÂM KHỐI 3D
+    -- ESP Wall (Tường Kính)
     if wallEspAllActive or wallEspSingleActive then
         for _, item in ipairs(spawnedWalls) do
             if item.part and item.part.Parent then
@@ -1548,7 +1614,6 @@ RunService.RenderStepped:Connect(function()
                     local data = wallEspStorage[item]
                     if data then
                         data.Gui.Adornee = item.part
-                        -- Tâm của khối 3D là item.part.Position
                         local centerPos = item.part.Position
                         local dist = myHrp and math.floor((centerPos - myHrp.Position).Magnitude) or 0
                         data.Label.Text = string.format("🧱 [%s]\n📏 Khoảng cách: %dm", item.name, dist)
@@ -1877,7 +1942,7 @@ P_HeightBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 ---------------------------------------------------------
--- CƠ CHẾ BAY & NOCLIP (ĐÃ SỬA CƠ CHẾ BAY CHO TƯỜNG KÍNH)
+-- CƠ CHẾ BAY & NOCLIP
 ---------------------------------------------------------
 local function resetCharacterPhysics()
     if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
@@ -1983,7 +2048,6 @@ startFly = function(mode, targetObj)
         selectedWall = targetObj
         getTargetPos = function()
             if targetObj and targetObj.part and targetObj.part.Parent then
-                -- Bay đến đỉnh trên cùng của khối tường kính + 2.5 studs để đứng đẹp
                 local wallPart = targetObj.part
                 return wallPart.Position + Vector3.new(0, (wallPart.Size.Y / 2) + 2.5, 0)
             end
@@ -2011,18 +2075,18 @@ startFly = function(mode, targetObj)
     local oldGravity = workspace.Gravity
     workspace.Gravity = 0
 
-    -- Bước 1: Bay vọt thẳng lên bầu trời
+    -- Bước 1: Bay vọt lên không trung
     local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
     local ok1 = tweenToTarget(hrp, CFrame.new(skyPos), flySpeed)
 
-    -- Bước 2: Bay ngang trên không tới vị trí đỉnh mục tiêu
+    -- Bước 2: Bay ngang tới vị trí mục tiêu
     if ok1 and not stopRequested then
         local dest = getTargetPos()
         if dest then
             local overhead = dest + Vector3.new(0, flyHeight, 0)
             local ok2 = tweenToTarget(hrp, CFrame.new(overhead), flySpeed)
 
-            -- Bước 3: Đáp thẳng xuống vị trí tường/người chơi/tọa độ
+            -- Bước 3: Đáp thẳng xuống vị trí đích
             if ok2 and not stopRequested then
                 dest = getTargetPos()
                 if dest then
