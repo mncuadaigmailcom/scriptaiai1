@@ -1,20 +1,18 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - FIX LỖI: TỰ ĐỘNG VƯỢT RÀO CẢN CORE GUI (GETHUI FIX) GIÚP MENU HIỂN THỊ 100%
-    - GIỮ NGUYÊN TOÀN BỘ TÍNH NĂNG: MENU NOCLIP HUD SÁNG ĐẸP, XUYÊN VẠN VẬT, NÚT DI CHUYỂN HUD, THẢM KÍNH, FLY PLAYER, ESP
+    - NÂNG CẤP: TÍNH NĂNG XUYÊN TƯỜNG CÓ THẢM KÍNH TRONG SUỐT BÁM THEO DƯỚI CHÂN
+    - BỔ SUNG: NÚT XUYÊN VẠN VẬT (NẰM GIỮA BAY LÊN & BAY XUỐNG)
+    - TỰ ĐỘNG HIỂN THỊ BẢNG ĐIỀU KHIỂN SÁNG ĐẸP, CHỈ CHO PHÉP KÉO BẰNG NÚT DÀNH RIÊNG
+    - TÙY CHỈNH KÍCH THƯỚC THẢM KÍNH (DÀI, DÀY, RỘNG)
+    - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR
 --]]
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-
-local LocalPlayer = Players.LocalPlayer
-if not LocalPlayer then
-    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
-    LocalPlayer = Players.LocalPlayer
-end
 
 -- Variables
 local selectedPlayer = nil
@@ -33,7 +31,7 @@ local noclipConnection = nil
 
 -- Noclip Standalone & Glass Carpet Variables
 local standaloneNoclipActive = false
-local noclipPassThroughActive = true -- Xuyên vạn vật
+local xuyenVanVatActive = true -- Mới: Tính năng xuyên vạn vật (mặc định Bật khi dùng thảm)
 local noclipCarpetPart = nil
 local noclipHeight = 0
 local isNoclipUpHeld = false
@@ -91,30 +89,12 @@ local COLOR_DEAD = Color3.fromRGB(230, 30, 30)
 local TEXT_DARK = Color3.fromRGB(15, 15, 25)
 local TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
 
----------------------------------------------------------
--- FIX LỖI AN TOÀN KHI CHÈN GUI (PARENT SAFE CHECK)
----------------------------------------------------------
+-- UI Construction
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FlyBananaCatResizableSplitter"
+ScreenGui.Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or CoreGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local getHui = gethui or get_hidden_gui
-
-pcall(function()
-    if getHui then
-        ScreenGui.Parent = getHui()
-    elseif RunService:IsStudio() then
-        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    else
-        ScreenGui.Parent = CoreGui
-    end
-end)
-
-if not ScreenGui.Parent then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
@@ -122,11 +102,11 @@ MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 580, 0, 420)
 MainFrame.Position = UDim2.new(0.5, -290, 0.5, -210)
 MainFrame.BackgroundColor3 = COLOR_MAIN_BG
-MainFrame.BackgroundTransparency = 0.15 -- Làm menu hiện rõ hơn
+MainFrame.BackgroundTransparency = 0.55
 MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
-MainFrame.Visible = true
+MainFrame.Draggable = false
 MainFrame.ClipsDescendants = false
 MainFrame.Parent = ScreenGui
 
@@ -139,7 +119,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 0, 34)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = COLOR_TITLE_BG
-Title.BackgroundTransparency = 0.2
+Title.BackgroundTransparency = 0.4
 Title.Text = "  🍌 BANANA FLY & ESP LOCATIONS"
 Title.TextColor3 = TEXT_DARK
 Title.TextSize = 13
@@ -153,7 +133,7 @@ TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
 
 ---------------------------------------------------------
--- CƠ CHẾ KÉO MENU CHÍNH (TITLE BAR DRAG)
+-- CƠ CHẾ KÉO MENU (SMOOTH DRAG TITLE BAR)
 ---------------------------------------------------------
 local draggingMain = false
 local dragStartMouse, dragStartPos
@@ -185,7 +165,7 @@ local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 26, 0, 24)
 MinimizeBtn.Position = UDim2.new(1, -56, 0, 5)
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-MinimizeBtn.BackgroundTransparency = 0.1
+MinimizeBtn.BackgroundTransparency = 0.3
 MinimizeBtn.Text = "-"
 MinimizeBtn.TextColor3 = TEXT_DARK
 MinimizeBtn.Font = Enum.Font.SourceSansBold
@@ -198,7 +178,7 @@ local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 26, 0, 24)
 CloseBtn.Position = UDim2.new(1, -28, 0, 5)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(235, 70, 70)
-CloseBtn.BackgroundTransparency = 0.1
+CloseBtn.BackgroundTransparency = 0.2
 CloseBtn.Text = "X"
 CloseBtn.TextColor3 = TEXT_LIGHT
 CloseBtn.Font = Enum.Font.SourceSansBold
@@ -207,15 +187,15 @@ CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
 ---------------------------------------------------------
--- BẢNG ĐIỀU KHIỂN NOCLIP SÁNG ĐẸP (NOCLIP HUD)
+-- BẢNG ĐIỀU KHIỂN NOCLIP TRÊN MÀN HÌNH (NOCLIP HUD SÁNG & ĐẸP)
 ---------------------------------------------------------
 local NoclipHUD = Instance.new("Frame")
 NoclipHUD.Name = "NoclipControlHUD"
-NoclipHUD.Size = UDim2.new(0, 130, 0, 146)
+NoclipHUD.Size = UDim2.new(0, 130, 0, 145)
 NoclipHUD.Position = UDim2.new(0.85, -65, 0.35, 0)
-NoclipHUD.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-NoclipHUD.BackgroundTransparency = 0.05
-NoclipHUD.BorderColor3 = Color3.fromRGB(0, 140, 240)
+NoclipHUD.BackgroundColor3 = Color3.fromRGB(245, 248, 255) -- MÀU SÁNG TRONG SUỐT
+NoclipHUD.BackgroundTransparency = 0.15
+NoclipHUD.BorderColor3 = WATER_BLUE
 NoclipHUD.BorderSizePixel = 2
 NoclipHUD.Visible = false
 NoclipHUD.ZIndex = 150
@@ -225,26 +205,92 @@ local HudCorner = Instance.new("UICorner")
 HudCorner.CornerRadius = UDim.new(0, 8)
 HudCorner.Parent = NoclipHUD
 
--- NÚT DI CHUYỂN HUD
-local HudMoveBtn = Instance.new("TextButton")
-HudMoveBtn.Size = UDim2.new(1, -8, 0, 20)
-HudMoveBtn.Position = UDim2.new(0, 4, 0, 4)
-HudMoveBtn.BackgroundColor3 = Color3.fromRGB(215, 225, 240)
-HudMoveBtn.Text = "📌 Di Chuyển HUD"
-HudMoveBtn.TextColor3 = TEXT_DARK
-HudMoveBtn.Font = Enum.Font.SourceSansBold
-HudMoveBtn.TextSize = 10
-HudMoveBtn.ZIndex = 151
-HudMoveBtn.Parent = NoclipHUD
+-- NÚT DUY NHẤT ĐỂ DI CHUYỂN BẢNG NOCLIP
+local HudDragBar = Instance.new("TextButton")
+HudDragBar.Name = "HudDragBar"
+HudDragBar.Size = UDim2.new(1, 0, 0, 22)
+HudDragBar.Position = UDim2.new(0, 0, 0, 0)
+HudDragBar.BackgroundColor3 = Color3.fromRGB(215, 225, 245)
+HudDragBar.BackgroundTransparency = 0.2
+HudDragBar.Text = "❖ DI CHUYỂN HUD"
+HudDragBar.TextColor3 = TEXT_DARK
+HudDragBar.Font = Enum.Font.SourceSansBold
+HudDragBar.TextSize = 11
+HudDragBar.Parent = NoclipHUD
 
-local MoveCorner = Instance.new("UICorner")
-MoveCorner.CornerRadius = UDim.new(0, 4)
-MoveCorner.Parent = HudMoveBtn
+local DragCorner = Instance.new("UICorner")
+DragCorner.CornerRadius = UDim.new(0, 8)
+DragCorner.Parent = HudDragBar
 
+-- Nút Bay Lên
+local HudUpBtn = Instance.new("TextButton")
+HudUpBtn.Size = UDim2.new(0.9, 0, 0, 24)
+HudUpBtn.Position = UDim2.new(0.05, 0, 0, 26)
+HudUpBtn.BackgroundColor3 = COLOR_GREEN
+HudUpBtn.BackgroundTransparency = 0.1
+HudUpBtn.Text = "⬆️ Bay Lên"
+HudUpBtn.TextColor3 = TEXT_LIGHT
+HudUpBtn.Font = Enum.Font.SourceSansBold
+HudUpBtn.TextSize = 11
+HudUpBtn.Parent = NoclipHUD
+
+local UpCorner = Instance.new("UICorner")
+UpCorner.CornerRadius = UDim.new(0, 4)
+UpCorner.Parent = HudUpBtn
+
+-- Nút Xuyên Vạn Vật (Mới - Nằm giữa Bay Lên và Bay Xuống)
+local HudXuyenBtn = Instance.new("TextButton")
+HudXuyenBtn.Size = UDim2.new(0.9, 0, 0, 24)
+HudXuyenBtn.Position = UDim2.new(0.05, 0, 0, 54)
+HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
+HudXuyenBtn.BackgroundTransparency = 0.1
+HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: ON"
+HudXuyenBtn.TextColor3 = TEXT_LIGHT
+HudXuyenBtn.Font = Enum.Font.SourceSansBold
+HudXuyenBtn.TextSize = 10
+HudXuyenBtn.Parent = NoclipHUD
+
+local XuyenCorner = Instance.new("UICorner")
+XuyenCorner.CornerRadius = UDim.new(0, 4)
+XuyenCorner.Parent = HudXuyenBtn
+
+-- Nút Bay Xuống
+local HudDownBtn = Instance.new("TextButton")
+HudDownBtn.Size = UDim2.new(0.9, 0, 0, 24)
+HudDownBtn.Position = UDim2.new(0.05, 0, 0, 82)
+HudDownBtn.BackgroundColor3 = WATER_BLUE
+HudDownBtn.BackgroundTransparency = 0.1
+HudDownBtn.Text = "⬇️ Bay Xuống"
+HudDownBtn.TextColor3 = TEXT_LIGHT
+HudDownBtn.Font = Enum.Font.SourceSansBold
+HudDownBtn.TextSize = 11
+HudDownBtn.Parent = NoclipHUD
+
+local DownCorner = Instance.new("UICorner")
+DownCorner.CornerRadius = UDim.new(0, 4)
+DownCorner.Parent = HudDownBtn
+
+-- Nút Tắt Noclip
+local HudOffBtn = Instance.new("TextButton")
+HudOffBtn.Size = UDim2.new(0.9, 0, 0, 22)
+HudOffBtn.Position = UDim2.new(0.05, 0, 0, 112)
+HudOffBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+HudOffBtn.BackgroundTransparency = 0.1
+HudOffBtn.Text = "❌ Tắt Xuyên Tường"
+HudOffBtn.TextColor3 = TEXT_LIGHT
+HudOffBtn.Font = Enum.Font.SourceSansBold
+HudOffBtn.TextSize = 10
+HudOffBtn.Parent = NoclipHUD
+
+local OffCorner = Instance.new("UICorner")
+OffCorner.CornerRadius = UDim.new(0, 4)
+OffCorner.Parent = HudOffBtn
+
+-- LOGIC KÉO BẢNG NOCLIP CHỈ KHI BẤM NÚT "DI CHUYỂN HUD"
 local dragHud = false
 local dragHudStartMouse, dragHudStartPos
 
-HudMoveBtn.InputBegan:Connect(function(input)
+HudDragBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragHud = true
         dragHudStartMouse = UserInputService:GetMouseLocation()
@@ -266,74 +312,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- 1. Nút Bay Lên
-local HudUpBtn = Instance.new("TextButton")
-HudUpBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudUpBtn.Position = UDim2.new(0.05, 0, 0, 28)
-HudUpBtn.BackgroundColor3 = COLOR_GREEN
-HudUpBtn.BackgroundTransparency = 0.1
-HudUpBtn.Text = "⬆️ Bay Lên"
-HudUpBtn.TextColor3 = TEXT_LIGHT
-HudUpBtn.Font = Enum.Font.SourceSansBold
-HudUpBtn.TextSize = 11
-HudUpBtn.ZIndex = 151
-HudUpBtn.Parent = NoclipHUD
-
-local UpCorner = Instance.new("UICorner")
-UpCorner.CornerRadius = UDim.new(0, 4)
-UpCorner.Parent = HudUpBtn
-
--- 2. NÚT XUYÊN VẠN VẬT
-local HudPassThroughBtn = Instance.new("TextButton")
-HudPassThroughBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudPassThroughBtn.Position = UDim2.new(0.05, 0, 0, 56)
-HudPassThroughBtn.BackgroundColor3 = COLOR_GREEN
-HudPassThroughBtn.BackgroundTransparency = 0.1
-HudPassThroughBtn.Text = "👻 Xuyên Vạn Vật: ON"
-HudPassThroughBtn.TextColor3 = TEXT_LIGHT
-HudPassThroughBtn.Font = Enum.Font.SourceSansBold
-HudPassThroughBtn.TextSize = 10
-HudPassThroughBtn.ZIndex = 151
-HudPassThroughBtn.Parent = NoclipHUD
-
-local PassCorner = Instance.new("UICorner")
-PassCorner.CornerRadius = UDim.new(0, 4)
-PassCorner.Parent = HudPassThroughBtn
-
--- 3. Nút Bay Xuống
-local HudDownBtn = Instance.new("TextButton")
-HudDownBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudDownBtn.Position = UDim2.new(0.05, 0, 0, 84)
-HudDownBtn.BackgroundColor3 = WATER_BLUE
-HudDownBtn.BackgroundTransparency = 0.1
-HudDownBtn.Text = "⬇️ Bay Xuống"
-HudDownBtn.TextColor3 = TEXT_LIGHT
-HudDownBtn.Font = Enum.Font.SourceSansBold
-HudDownBtn.TextSize = 11
-HudDownBtn.ZIndex = 151
-HudDownBtn.Parent = NoclipHUD
-
-local DownCorner = Instance.new("UICorner")
-DownCorner.CornerRadius = UDim.new(0, 4)
-DownCorner.Parent = HudDownBtn
-
--- 4. Nút Tắt Noclip
-local HudOffBtn = Instance.new("TextButton")
-HudOffBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudOffBtn.Position = UDim2.new(0.05, 0, 0, 112)
-HudOffBtn.BackgroundColor3 = Color3.fromRGB(235, 50, 50)
-HudOffBtn.BackgroundTransparency = 0.1
-HudOffBtn.Text = "❌ Tắt Xuyên Tường"
-HudOffBtn.TextColor3 = TEXT_LIGHT
-HudOffBtn.Font = Enum.Font.SourceSansBold
-HudOffBtn.TextSize = 10
-HudOffBtn.ZIndex = 151
-HudOffBtn.Parent = NoclipHUD
-
-local OffCorner = Instance.new("UICorner")
-OffCorner.CornerRadius = UDim.new(0, 4)
-OffCorner.Parent = HudOffBtn
-
 ---------------------------------------------------------
 -- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ
 ---------------------------------------------------------
@@ -342,7 +320,7 @@ PersistentToggleBtn.Name = "PersistentToggleBtn"
 PersistentToggleBtn.Size = UDim2.new(0, 115, 0, 32)
 PersistentToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
 PersistentToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PersistentToggleBtn.BackgroundTransparency = 0.15
+PersistentToggleBtn.BackgroundTransparency = 0.35
 PersistentToggleBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
 PersistentToggleBtn.BorderSizePixel = 1
 PersistentToggleBtn.Text = "🍌 Ẩn Menu"
@@ -425,7 +403,7 @@ for _, info in ipairs(cornersInfo) do
     handle.Size = UDim2.new(0, 20, 0, 20) 
     handle.Position = info.Pos
     handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    handle.BackgroundTransparency = 0.2
+    handle.BackgroundTransparency = 0.4
     handle.Text = info.Icon
     handle.TextColor3 = TEXT_DARK
     handle.Font = Enum.Font.SourceSansBold
@@ -510,7 +488,7 @@ local PlayersTabBtn = Instance.new("TextButton")
 PlayersTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 PlayersTabBtn.Position = UDim2.new(0, 0, 0, 0)
 PlayersTabBtn.BackgroundColor3 = COLOR_TAB_ACTIVE
-PlayersTabBtn.BackgroundTransparency = 0.1
+PlayersTabBtn.BackgroundTransparency = 0.3
 PlayersTabBtn.Text = "👤 NGƯỜI CHƠI"
 PlayersTabBtn.TextColor3 = TEXT_DARK
 PlayersTabBtn.Font = Enum.Font.SourceSansBold
@@ -526,7 +504,7 @@ local LocationsTabBtn = Instance.new("TextButton")
 LocationsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 LocationsTabBtn.Position = UDim2.new(0.34, 0, 0, 0)
 LocationsTabBtn.BackgroundColor3 = COLOR_TAB_INACTIVE
-LocationsTabBtn.BackgroundTransparency = 0.3
+LocationsTabBtn.BackgroundTransparency = 0.5
 LocationsTabBtn.Text = "📍 TỌA ĐỘ ĐÃ LƯU"
 LocationsTabBtn.TextColor3 = TEXT_DARK
 LocationsTabBtn.Font = Enum.Font.SourceSansBold
@@ -542,7 +520,7 @@ local WallsTabBtn = Instance.new("TextButton")
 WallsTabBtn.Size = UDim2.new(0.32, 0, 1, 0)
 WallsTabBtn.Position = UDim2.new(0.68, 0, 0, 0)
 WallsTabBtn.BackgroundColor3 = COLOR_TAB_INACTIVE
-WallsTabBtn.BackgroundTransparency = 0.3
+WallsTabBtn.BackgroundTransparency = 0.5
 WallsTabBtn.Text = "🧱 TẠO TƯỜNG KÍNH"
 WallsTabBtn.TextColor3 = TEXT_DARK
 WallsTabBtn.Font = Enum.Font.SourceSansBold
@@ -566,7 +544,7 @@ PlayersPage.Parent = MainFrame
 -- Ô Tìm kiếm
 local SearchBox = Instance.new("TextBox")
 SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-SearchBox.BackgroundTransparency = 0.2
+SearchBox.BackgroundTransparency = 0.4
 SearchBox.PlaceholderText = "🔍 Tìm tên..."
 SearchBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 SearchBox.Text = ""
@@ -578,7 +556,7 @@ SearchBox.Parent = PlayersPage
 -- Nút Tải lại
 local RefreshBtn = Instance.new("TextButton")
 RefreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-RefreshBtn.BackgroundTransparency = 0.2
+RefreshBtn.BackgroundTransparency = 0.4
 RefreshBtn.Text = "🔄 Tải Lại"
 RefreshBtn.TextColor3 = TEXT_DARK
 RefreshBtn.Font = Enum.Font.SourceSansBold
@@ -587,7 +565,7 @@ RefreshBtn.Parent = PlayersPage
 
 local PlayerList = Instance.new("ScrollingFrame")
 PlayerList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PlayerList.BackgroundTransparency = 0.5
+PlayerList.BackgroundTransparency = 0.75
 PlayerList.BorderColor3 = Color3.fromRGB(220, 225, 235)
 PlayerList.ScrollBarThickness = 5
 PlayerList.Parent = PlayersPage
@@ -599,7 +577,7 @@ UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
 local SplitDivider = Instance.new("TextButton")
 SplitDivider.Name = "SplitDivider"
 SplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
-SplitDivider.BackgroundTransparency = 0.1
+SplitDivider.BackgroundTransparency = 0.2
 SplitDivider.BorderColor3 = Color3.fromRGB(255, 255, 255)
 SplitDivider.BorderSizePixel = 1
 SplitDivider.Text = "┆"
@@ -619,7 +597,7 @@ SplitterCorner.Parent = SplitDivider
 local P_RightPanel = Instance.new("ScrollingFrame")
 P_RightPanel.Name = "P_RightPanel"
 P_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_RightPanel.BackgroundTransparency = 0.4
+P_RightPanel.BackgroundTransparency = 0.65
 P_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
 P_RightPanel.ScrollBarThickness = 4
 P_RightPanel.ScrollBarImageColor3 = Color3.fromRGB(180, 185, 195)
@@ -645,12 +623,12 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
--- 0. NÚT XUYÊN TƯỜNG THẢM KÍNH
+-- 0. NÚT XUYÊN TƯỜNG THẢM KÍNH (NẰM TRÊN CÙNG)
 local StandaloneNoclipBtn = Instance.new("TextButton")
 StandaloneNoclipBtn.LayoutOrder = 1
 StandaloneNoclipBtn.Size = UDim2.new(1, 0, 0, 24)
 StandaloneNoclipBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-StandaloneNoclipBtn.BackgroundTransparency = 0.2
+StandaloneNoclipBtn.BackgroundTransparency = 0.3
 StandaloneNoclipBtn.Text = "👻 Xuyên Tường Thảm Kính: OFF"
 StandaloneNoclipBtn.TextColor3 = TEXT_DARK
 StandaloneNoclipBtn.Font = Enum.Font.SourceSansBold
@@ -683,7 +661,7 @@ local CarpetLenBox = Instance.new("TextBox")
 CarpetLenBox.Size = UDim2.new(0.31, 0, 1, 0)
 CarpetLenBox.Position = UDim2.new(0, 0, 0, 0)
 CarpetLenBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetLenBox.BackgroundTransparency = 0.1
+CarpetLenBox.BackgroundTransparency = 0.3
 CarpetLenBox.Text = "6"
 CarpetLenBox.PlaceholderText = "X"
 CarpetLenBox.TextColor3 = TEXT_DARK
@@ -695,7 +673,7 @@ local CarpetThickBox = Instance.new("TextBox")
 CarpetThickBox.Size = UDim2.new(0.31, 0, 1, 0)
 CarpetThickBox.Position = UDim2.new(0.34, 0, 0, 0)
 CarpetThickBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetThickBox.BackgroundTransparency = 0.1
+CarpetThickBox.BackgroundTransparency = 0.3
 CarpetThickBox.Text = "0.5"
 CarpetThickBox.PlaceholderText = "Y"
 CarpetThickBox.TextColor3 = TEXT_DARK
@@ -707,7 +685,7 @@ local CarpetWidthBox = Instance.new("TextBox")
 CarpetWidthBox.Size = UDim2.new(0.32, 0, 1, 0)
 CarpetWidthBox.Position = UDim2.new(0.68, 0, 0, 0)
 CarpetWidthBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetWidthBox.BackgroundTransparency = 0.1
+CarpetWidthBox.BackgroundTransparency = 0.3
 CarpetWidthBox.Text = "6"
 CarpetWidthBox.PlaceholderText = "Z"
 CarpetWidthBox.TextColor3 = TEXT_DARK
@@ -715,12 +693,12 @@ CarpetWidthBox.Font = Enum.Font.SourceSansBold
 CarpetWidthBox.TextSize = 11
 CarpetWidthBox.Parent = CarpetSizeContainer
 
--- 1. NÚT BU NGƯỜI CHƠI
+-- 1. NÚT BU NGƯỜI CHƠI (BAY BÁM ĐUỔI REALTIME)
 local FollowPlayerBtn = Instance.new("TextButton")
 FollowPlayerBtn.LayoutOrder = 4
 FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
 FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-FollowPlayerBtn.BackgroundTransparency = 0.2
+FollowPlayerBtn.BackgroundTransparency = 0.3
 FollowPlayerBtn.Text = "🧲 Bu Người Chơi: OFF"
 FollowPlayerBtn.TextColor3 = TEXT_DARK
 FollowPlayerBtn.Font = Enum.Font.SourceSansBold
@@ -736,7 +714,7 @@ local EspAllBtn = Instance.new("TextButton")
 EspAllBtn.LayoutOrder = 5
 EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-EspAllBtn.BackgroundTransparency = 0.2
+EspAllBtn.BackgroundTransparency = 0.3
 EspAllBtn.Text = "📡 ESP Player Tất Cả: OFF"
 EspAllBtn.TextColor3 = TEXT_DARK
 EspAllBtn.Font = Enum.Font.SourceSansBold
@@ -752,7 +730,7 @@ local EspSingleBtn = Instance.new("TextButton")
 EspSingleBtn.LayoutOrder = 6
 EspSingleBtn.Size = UDim2.new(1, 0, 0, 24)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-EspSingleBtn.BackgroundTransparency = 0.2
+EspSingleBtn.BackgroundTransparency = 0.3
 EspSingleBtn.Text = "🎯 ESP Player Lẻ: OFF"
 EspSingleBtn.TextColor3 = TEXT_DARK
 EspSingleBtn.Font = Enum.Font.SourceSansBold
@@ -768,7 +746,7 @@ local GlowToggleBtn = Instance.new("TextButton")
 GlowToggleBtn.LayoutOrder = 7
 GlowToggleBtn.Size = UDim2.new(1, 0, 0, 24)
 GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-GlowToggleBtn.BackgroundTransparency = 0.2
+GlowToggleBtn.BackgroundTransparency = 0.3
 GlowToggleBtn.Text = "💡 Phát Sáng Nhân Vật: OFF"
 GlowToggleBtn.TextColor3 = TEXT_DARK
 GlowToggleBtn.Font = Enum.Font.SourceSansBold
@@ -795,7 +773,7 @@ local GlowRangeBox = Instance.new("TextBox")
 GlowRangeBox.LayoutOrder = 9
 GlowRangeBox.Size = UDim2.new(1, 0, 0, 22)
 GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-GlowRangeBox.BackgroundTransparency = 0.1
+GlowRangeBox.BackgroundTransparency = 0.3
 GlowRangeBox.Text = "50"
 GlowRangeBox.TextColor3 = TEXT_DARK
 GlowRangeBox.Font = Enum.Font.SourceSansBold
@@ -818,7 +796,7 @@ local P_HeightBox = Instance.new("TextBox")
 P_HeightBox.LayoutOrder = 11
 P_HeightBox.Size = UDim2.new(1, 0, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_HeightBox.BackgroundTransparency = 0.1
+P_HeightBox.BackgroundTransparency = 0.3
 P_HeightBox.Text = "150"
 P_HeightBox.TextColor3 = TEXT_DARK
 P_HeightBox.Font = Enum.Font.SourceSansBold
@@ -841,7 +819,7 @@ local P_SpeedBox = Instance.new("TextBox")
 P_SpeedBox.LayoutOrder = 13
 P_SpeedBox.Size = UDim2.new(1, 0, 0, 22)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-P_SpeedBox.BackgroundTransparency = 0.1
+P_SpeedBox.BackgroundTransparency = 0.3
 P_SpeedBox.Text = "100"
 P_SpeedBox.TextColor3 = TEXT_DARK
 P_SpeedBox.Font = Enum.Font.SourceSansBold
@@ -853,7 +831,7 @@ local HeightVisualBtn = Instance.new("TextButton")
 HeightVisualBtn.LayoutOrder = 14
 HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-HeightVisualBtn.BackgroundTransparency = 0.2
+HeightVisualBtn.BackgroundTransparency = 0.3
 HeightVisualBtn.Text = "💈 Trụ Visual: OFF"
 HeightVisualBtn.TextColor3 = TEXT_DARK
 HeightVisualBtn.Font = Enum.Font.SourceSansBold
@@ -928,7 +906,7 @@ local PosNameBox = Instance.new("TextBox")
 PosNameBox.Size = UDim2.new(0.68, 0, 0, 24)
 PosNameBox.Position = UDim2.new(0, 0, 0, 0)
 PosNameBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-PosNameBox.BackgroundTransparency = 0.2
+PosNameBox.BackgroundTransparency = 0.4
 PosNameBox.PlaceholderText = "Nhập tên điểm..."
 PosNameBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 PosNameBox.Text = ""
@@ -941,7 +919,7 @@ local SavePosBtn = Instance.new("TextButton")
 SavePosBtn.Size = UDim2.new(0.30, 0, 0, 24)
 SavePosBtn.Position = UDim2.new(0.70, 0, 0, 0)
 SavePosBtn.BackgroundColor3 = COLOR_GREEN
-SavePosBtn.BackgroundTransparency = 0.1
+SavePosBtn.BackgroundTransparency = 0.2
 SavePosBtn.Text = "📌 LƯU VỊ TRÍ"
 SavePosBtn.TextColor3 = TEXT_LIGHT
 SavePosBtn.Font = Enum.Font.SourceSansBold
@@ -957,7 +935,7 @@ local LocEspAllBtn = Instance.new("TextButton")
 LocEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
 LocEspAllBtn.Position = UDim2.new(0, 0, 0, 28)
 LocEspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-LocEspAllBtn.BackgroundTransparency = 0.2
+LocEspAllBtn.BackgroundTransparency = 0.3
 LocEspAllBtn.Text = "📍 Loc ESP Tất Cả: OFF"
 LocEspAllBtn.TextColor3 = TEXT_DARK
 LocEspAllBtn.Font = Enum.Font.SourceSansBold
@@ -972,7 +950,7 @@ local LocEspSingleBtn = Instance.new("TextButton")
 LocEspSingleBtn.Size = UDim2.new(0.49, 0, 0, 24)
 LocEspSingleBtn.Position = UDim2.new(0.51, 0, 0, 28)
 LocEspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-LocEspSingleBtn.BackgroundTransparency = 0.2
+LocEspSingleBtn.BackgroundTransparency = 0.3
 LocEspSingleBtn.Text = "🎯 Loc ESP Lẻ: OFF"
 LocEspSingleBtn.TextColor3 = TEXT_DARK
 LocEspSingleBtn.Font = Enum.Font.SourceSansBold
@@ -987,7 +965,7 @@ local SavedList = Instance.new("ScrollingFrame")
 SavedList.Size = UDim2.new(1, 0, 1, -58)
 SavedList.Position = UDim2.new(0, 0, 0, 58)
 SavedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-SavedList.BackgroundTransparency = 0.5
+SavedList.BackgroundTransparency = 0.75
 SavedList.BorderColor3 = Color3.fromRGB(220, 225, 235)
 SavedList.ScrollBarThickness = 5
 SavedList.Parent = LocationsPage
@@ -1020,7 +998,7 @@ local WallEspAllBtn = Instance.new("TextButton")
 WallEspAllBtn.Size = UDim2.new(0.49, 0, 0, 24)
 WallEspAllBtn.Position = UDim2.new(0, 0, 0, 0)
 WallEspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-WallEspAllBtn.BackgroundTransparency = 0.2
+WallEspAllBtn.BackgroundTransparency = 0.3
 WallEspAllBtn.Text = "📡 Wall ESP All: OFF"
 WallEspAllBtn.TextColor3 = TEXT_DARK
 WallEspAllBtn.Font = Enum.Font.SourceSansBold
@@ -1036,7 +1014,7 @@ local WallEspSingleBtn = Instance.new("TextButton")
 WallEspSingleBtn.Size = UDim2.new(0.49, 0, 0, 24)
 WallEspSingleBtn.Position = UDim2.new(0.51, 0, 0, 0)
 WallEspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-WallEspSingleBtn.BackgroundTransparency = 0.2
+WallEspSingleBtn.BackgroundTransparency = 0.3
 WallEspSingleBtn.Text = "🎯 Wall ESP Lẻ: OFF"
 WallEspSingleBtn.TextColor3 = TEXT_DARK
 WallEspSingleBtn.Font = Enum.Font.SourceSansBold
@@ -1052,7 +1030,7 @@ local W_SavedList = Instance.new("ScrollingFrame")
 W_SavedList.Size = UDim2.new(1, 0, 1, -28)
 W_SavedList.Position = UDim2.new(0, 0, 0, 28)
 W_SavedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-W_SavedList.BackgroundTransparency = 0.5
+W_SavedList.BackgroundTransparency = 0.75
 W_SavedList.BorderColor3 = Color3.fromRGB(220, 225, 235)
 W_SavedList.ScrollBarThickness = 5
 W_SavedList.Parent = W_LeftPanel
@@ -1067,7 +1045,7 @@ UIListLayoutWall.SortOrder = Enum.SortOrder.LayoutOrder
 local WallSplitDivider = Instance.new("TextButton")
 WallSplitDivider.Name = "WallSplitDivider"
 WallSplitDivider.BackgroundColor3 = Color3.fromRGB(210, 215, 225)
-WallSplitDivider.BackgroundTransparency = 0.1
+WallSplitDivider.BackgroundTransparency = 0.2
 WallSplitDivider.BorderColor3 = Color3.fromRGB(255, 255, 255)
 WallSplitDivider.BorderSizePixel = 1
 WallSplitDivider.Text = "┆"
@@ -1087,7 +1065,7 @@ WallSplitterCorner.Parent = WallSplitDivider
 local W_RightPanel = Instance.new("ScrollingFrame")
 W_RightPanel.Name = "W_RightPanel"
 W_RightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-W_RightPanel.BackgroundTransparency = 0.4
+W_RightPanel.BackgroundTransparency = 0.65
 W_RightPanel.BorderColor3 = Color3.fromRGB(220, 225, 235)
 W_RightPanel.ScrollBarThickness = 4
 W_RightPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -1185,7 +1163,7 @@ local WallNameBox = Instance.new("TextBox")
 WallNameBox.LayoutOrder = 3
 WallNameBox.Size = UDim2.new(1, 0, 0, 20)
 WallNameBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallNameBox.BackgroundTransparency = 0.1
+WallNameBox.BackgroundTransparency = 0.3
 WallNameBox.PlaceholderText = "Nhập tên tường..."
 WallNameBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
 WallNameBox.Text = ""
@@ -1210,7 +1188,7 @@ local WallLenBox = Instance.new("TextBox")
 WallLenBox.LayoutOrder = 5
 WallLenBox.Size = UDim2.new(1, 0, 0, 20)
 WallLenBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallLenBox.BackgroundTransparency = 0.1
+WallLenBox.BackgroundTransparency = 0.3
 WallLenBox.Text = "15"
 WallLenBox.TextColor3 = TEXT_DARK
 WallLenBox.Font = Enum.Font.SourceSansBold
@@ -1233,7 +1211,7 @@ local WallHeightBox = Instance.new("TextBox")
 WallHeightBox.LayoutOrder = 7
 WallHeightBox.Size = UDim2.new(1, 0, 0, 20)
 WallHeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallHeightBox.BackgroundTransparency = 0.1
+WallHeightBox.BackgroundTransparency = 0.3
 WallHeightBox.Text = "10"
 WallHeightBox.TextColor3 = TEXT_DARK
 WallHeightBox.Font = Enum.Font.SourceSansBold
@@ -1256,7 +1234,7 @@ local WallThickBox = Instance.new("TextBox")
 WallThickBox.LayoutOrder = 9
 WallThickBox.Size = UDim2.new(1, 0, 0, 20)
 WallThickBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallThickBox.BackgroundTransparency = 0.1
+WallThickBox.BackgroundTransparency = 0.3
 WallThickBox.Text = "1"
 WallThickBox.TextColor3 = TEXT_DARK
 WallThickBox.Font = Enum.Font.SourceSansBold
@@ -1279,7 +1257,7 @@ local WallTransBox = Instance.new("TextBox")
 WallTransBox.LayoutOrder = 11
 WallTransBox.Size = UDim2.new(1, 0, 0, 20)
 WallTransBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallTransBox.BackgroundTransparency = 0.1
+WallTransBox.BackgroundTransparency = 0.3
 WallTransBox.Text = "0.5"
 WallTransBox.TextColor3 = TEXT_DARK
 WallTransBox.Font = Enum.Font.SourceSansBold
@@ -1292,7 +1270,7 @@ local WallCollideBtn = Instance.new("TextButton")
 WallCollideBtn.LayoutOrder = 12
 WallCollideBtn.Size = UDim2.new(1, 0, 0, 22)
 WallCollideBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WallCollideBtn.BackgroundTransparency = 0.1
+WallCollideBtn.BackgroundTransparency = 0.3
 WallCollideBtn.Text = "🧱 Va Chạm Vật Lý: ON"
 WallCollideBtn.TextColor3 = TEXT_DARK
 WallCollideBtn.Font = Enum.Font.SourceSansBold
@@ -1319,7 +1297,7 @@ local SpawnWallBtn = Instance.new("TextButton")
 SpawnWallBtn.LayoutOrder = 13
 SpawnWallBtn.Size = UDim2.new(1, 0, 0, 24)
 SpawnWallBtn.BackgroundColor3 = COLOR_GREEN
-SpawnWallBtn.BackgroundTransparency = 0.1
+SpawnWallBtn.BackgroundTransparency = 0.2
 SpawnWallBtn.Text = "➕ ĐẶT TƯỜNG TRƯỚC MẶT"
 SpawnWallBtn.TextColor3 = TEXT_LIGHT
 SpawnWallBtn.Font = Enum.Font.SourceSansBold
@@ -1335,7 +1313,7 @@ local ClearWallsBtn = Instance.new("TextButton")
 ClearWallsBtn.LayoutOrder = 14
 ClearWallsBtn.Size = UDim2.new(1, 0, 0, 22)
 ClearWallsBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-ClearWallsBtn.BackgroundTransparency = 0.1
+ClearWallsBtn.BackgroundTransparency = 0.2
 ClearWallsBtn.Text = "🗑️ XÓA TẤT CẢ TƯỜNG"
 ClearWallsBtn.TextColor3 = TEXT_LIGHT
 ClearWallsBtn.Font = Enum.Font.SourceSansBold
@@ -1505,6 +1483,7 @@ SpawnWallBtn.MouseButton1Click:Connect(function()
     wall.Name = "BananaTransparentWall_" .. wallCounter
     wall.Size = Vector3.new(sizeX, sizeY, sizeZ)
     
+    -- Đặt tường đứng trước mặt nhân vật
     wall.CFrame = hrp.CFrame * CFrame.new(0, (sizeY / 2) - 3, -(sizeZ / 2 + 4))
     wall.Anchored = true
     wall.CanCollide = wallCanCollide
@@ -1571,13 +1550,13 @@ local function switchTab(tabName)
     WallsPage.Visible = (tabName == "Walls")
 
     PlayersTabBtn.BackgroundColor3 = (tabName == "Players") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
-    PlayersTabBtn.BackgroundTransparency = (tabName == "Players") and 0.1 or 0.3
+    PlayersTabBtn.BackgroundTransparency = (tabName == "Players") and 0.2 or 0.5
 
     LocationsTabBtn.BackgroundColor3 = (tabName == "Locations") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
-    LocationsTabBtn.BackgroundTransparency = (tabName == "Locations") and 0.1 or 0.3
+    LocationsTabBtn.BackgroundTransparency = (tabName == "Locations") and 0.2 or 0.5
 
     WallsTabBtn.BackgroundColor3 = (tabName == "Walls") and COLOR_TAB_ACTIVE or COLOR_TAB_INACTIVE
-    WallsTabBtn.BackgroundTransparency = (tabName == "Walls") and 0.1 or 0.3
+    WallsTabBtn.BackgroundTransparency = (tabName == "Walls") and 0.2 or 0.5
 end
 
 PlayersTabBtn.MouseButton1Click:Connect(function() switchTab("Players") end)
@@ -1641,7 +1620,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM
+-- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM (NOCLIP & XUYÊN VẠN VẬT)
 ---------------------------------------------------------
 local startFly
 local stopFly
@@ -1684,6 +1663,7 @@ local function resetCharacterPhysics()
     local char = LocalPlayer.Character
     if not char then return end
 
+    -- Khôi phục va chạm chuẩn của Roblox
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             if part.Name == "HumanoidRootPart" then
@@ -1712,22 +1692,34 @@ end
 
 -- CẬP NHẬT TRẠNG THÁI NOCLIP TỔNG TỂ
 local function updateNoclipState()
-    local shouldNoclip = (standaloneNoclipActive and noclipPassThroughActive) or followPlayerActive or isFlying
+    local shouldNoclip = standaloneNoclipActive or followPlayerActive or isFlying
 
     if shouldNoclip then
         if not noclipConnection then
             noclipConnection = RunService.Stepped:Connect(function()
                 local char = LocalPlayer.Character
                 if char then
+                    local noclipAllMode = xuyenVanVatActive or followPlayerActive or isFlying
                     for _, part in pairs(char:GetDescendants()) do
                         if part:IsA("BasePart") and part ~= noclipCarpetPart then 
-                            part.CanCollide = false 
+                            if noclipAllMode then
+                                -- Xuyên vạn vật: Tắt toàn bộ va chạm của nhân vật
+                                part.CanCollide = false
+                            else
+                                -- Không xuyên vạn vật: Giữ va chạm bình thường với tường, chỉ đứng trên thảm
+                                if part.Name == "HumanoidRootPart" then
+                                    part.CanCollide = false
+                                else
+                                    part.CanCollide = true
+                                end
+                            end
                         end
                     end
                 end
             end)
         end
     else
+        removeCarpet()
         resetCharacterPhysics()
     end
 end
@@ -1771,21 +1763,21 @@ StandaloneNoclipBtn.MouseButton1Click:Connect(function()
     toggleStandaloneNoclip(not standaloneNoclipActive)
 end)
 
--- BẬT / TẮT TÍNH NĂNG "XUYÊN VẠN VẬT" TRÊN HUD
-HudPassThroughBtn.MouseButton1Click:Connect(function()
-    noclipPassThroughActive = not noclipPassThroughActive
-    if noclipPassThroughActive then
-        HudPassThroughBtn.Text = "👻 Xuyên Vạn Vật: ON"
-        HudPassThroughBtn.BackgroundColor3 = COLOR_GREEN
-    else
-        HudPassThroughBtn.Text = "👻 Xuyên Vạn Vật: OFF"
-        HudPassThroughBtn.BackgroundColor3 = Color3.fromRGB(180, 185, 195)
-    end
-    updateNoclipState()
-end)
-
 HudOffBtn.MouseButton1Click:Connect(function()
     toggleStandaloneNoclip(false)
+end)
+
+-- Nút Toggle Xuyên Vạn Vật trên HUD Noclip
+HudXuyenBtn.MouseButton1Click:Connect(function()
+    xuyenVanVatActive = not xuyenVanVatActive
+    if xuyenVanVatActive then
+        HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: ON"
+        HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
+    else
+        HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: OFF"
+        HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(150, 155, 165)
+    end
+    updateNoclipState()
 end)
 
 -- Sự kiện nhấn giữ Bay Lên / Bay Xuống trên HUD
@@ -1797,7 +1789,7 @@ HudDownBtn.MouseButton1Down:Connect(function() isNoclipDownHeld = true end)
 HudDownBtn.MouseButton1Up:Connect(function() isNoclipDownHeld = false end)
 HudDownBtn.MouseLeave:Connect(function() isNoclipDownHeld = false end)
 
--- Hỗ trợ cảm ứng trên Điện thoại
+-- Hỗ trợ giữ nút trên màn hình cảm ứng điện thoại
 HudUpBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch then isNoclipUpHeld = true end
 end)
@@ -1812,13 +1804,13 @@ HudDownBtn.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch then isNoclipDownHeld = false end
 end)
 
--- VÒNG LẶP CẬP NHẬT VỊ TRÍ THẢM KÍNH REALTIME
+-- VÒNG LẶP CẬP NHẬT VỊ TRÍ VÀ KÍCH THƯỚC THẢM KÍNH REALTIME
 RunService.Heartbeat:Connect(function(dt)
     if standaloneNoclipActive and noclipCarpetPart then
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local vertSpeed = 25
+            local vertSpeed = 25 -- Tốc độ nâng/hạ thảm
 
             if isNoclipUpHeld then
                 noclipHeight = noclipHeight + (vertSpeed * dt)
@@ -1837,6 +1829,7 @@ RunService.Heartbeat:Connect(function(dt)
             sizeZ = math.clamp(sizeZ, 1, 100)
 
             noclipCarpetPart.Size = Vector3.new(sizeX, sizeY, sizeZ)
+            -- Thảm kính luôn bám theo X, Z của nhân vật và giữ nguyên độ cao noclipHeight
             noclipCarpetPart.CFrame = CFrame.new(hrp.Position.X, noclipHeight, hrp.Position.Z)
         end
     end
@@ -2366,7 +2359,7 @@ SavePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
+RefreshBtn.MouseButton1Click(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
 Players.PlayerAdded:Connect(function(plr)
@@ -2569,6 +2562,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     removeAllLocESP()
     removeAllWallESP()
 
+    -- Xóa các tường đã tạo khi thoát
     for _, item in ipairs(spawnedWalls) do
         if item.part and item.part.Parent then item.part:Destroy() end
     end
