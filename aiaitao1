@@ -1,9 +1,7 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - NÂNG CẤP: TÍNH NĂNG XUYÊN TƯỜNG CÓ THẢM KÍNH TRONG SUỐT BÁM THEO DƯỚI CHÂN
-    - TỰ ĐỘNG HIỂN THỊ 3 NÚT ĐIỀU KHIỂN (BAY LÊN, BAY XUỐNG, TẮT) TRÊN MÀN HÌNH
-    - TÙY CHỈNH KÍCH THƯỚC THẢM KÍNH (DÀI, DÀY, RỘNG)
-    - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR
+    - ĐÃ XÓA: TÍNH NĂNG XUYÊN TƯỜNG THẢM KÍNH & BẢNG ĐIỀU KHIỂN HUD
+    - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, BU NGƯỜI CHƠI, ESP REALTIME, WALL CREATOR, GLOW
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -27,13 +25,6 @@ local isFlying = false
 local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
-
--- Noclip Standalone & Glass Carpet Variables
-local standaloneNoclipActive = false
-local noclipCarpetPart = nil
-local noclipHeight = 0
-local isNoclipUpHeld = false
-local isNoclipDownHeld = false
 
 -- Follow / Bu Người Variables
 local followPlayerActive = false
@@ -183,108 +174,6 @@ CloseBtn.Font = Enum.Font.SourceSansBold
 CloseBtn.TextSize = 13
 CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
-
----------------------------------------------------------
--- BẢNG ĐIỀU KHIỂN NOCLIP TRÊN MÀN HÌNH (NOCLIP HUD)
----------------------------------------------------------
-local NoclipHUD = Instance.new("Frame")
-NoclipHUD.Name = "NoclipControlHUD"
-NoclipHUD.Size = UDim2.new(0, 110, 0, 115)
-NoclipHUD.Position = UDim2.new(0.85, -55, 0.4, 0)
-NoclipHUD.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-NoclipHUD.BackgroundTransparency = 0.3
-NoclipHUD.BorderColor3 = Color3.fromRGB(255, 255, 255)
-NoclipHUD.BorderSizePixel = 1
-NoclipHUD.Visible = false
-NoclipHUD.ZIndex = 150
-NoclipHUD.Parent = ScreenGui
-
-local HudCorner = Instance.new("UICorner")
-HudCorner.CornerRadius = UDim.new(0, 8)
-HudCorner.Parent = NoclipHUD
-
-local HudTitle = Instance.new("TextLabel")
-HudTitle.Size = UDim2.new(1, 0, 0, 20)
-HudTitle.BackgroundTransparency = 1
-HudTitle.Text = "👻 THẢM KÍNH"
-HudTitle.TextColor3 = TEXT_LIGHT
-HudTitle.Font = Enum.Font.SourceSansBold
-HudTitle.TextSize = 10
-HudTitle.Parent = NoclipHUD
-
--- Nút Bay Lên
-local HudUpBtn = Instance.new("TextButton")
-HudUpBtn.Size = UDim2.new(0.9, 0, 0, 26)
-HudUpBtn.Position = UDim2.new(0.05, 0, 0, 22)
-HudUpBtn.BackgroundColor3 = COLOR_GREEN
-HudUpBtn.BackgroundTransparency = 0.2
-HudUpBtn.Text = "⬆️ Bay Lên"
-HudUpBtn.TextColor3 = TEXT_LIGHT
-HudUpBtn.Font = Enum.Font.SourceSansBold
-HudUpBtn.TextSize = 11
-HudUpBtn.Parent = NoclipHUD
-
-local UpCorner = Instance.new("UICorner")
-UpCorner.CornerRadius = UDim.new(0, 4)
-UpCorner.Parent = HudUpBtn
-
--- Nút Bay Xuống
-local HudDownBtn = Instance.new("TextButton")
-HudDownBtn.Size = UDim2.new(0.9, 0, 0, 26)
-HudDownBtn.Position = UDim2.new(0.05, 0, 0, 52)
-HudDownBtn.BackgroundColor3 = WATER_BLUE
-HudDownBtn.BackgroundTransparency = 0.2
-HudDownBtn.Text = "⬇️ Bay Xuống"
-HudDownBtn.TextColor3 = TEXT_LIGHT
-HudDownBtn.Font = Enum.Font.SourceSansBold
-HudDownBtn.TextSize = 11
-HudDownBtn.Parent = NoclipHUD
-
-local DownCorner = Instance.new("UICorner")
-DownCorner.CornerRadius = UDim.new(0, 4)
-DownCorner.Parent = HudDownBtn
-
--- Nút Tắt Noclip
-local HudOffBtn = Instance.new("TextButton")
-HudOffBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudOffBtn.Position = UDim2.new(0.05, 0, 0, 84)
-HudOffBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-HudOffBtn.BackgroundTransparency = 0.2
-HudOffBtn.Text = "❌ Tắt Xuyên Tường"
-HudOffBtn.TextColor3 = TEXT_LIGHT
-HudOffBtn.Font = Enum.Font.SourceSansBold
-HudOffBtn.TextSize = 10
-HudOffBtn.Parent = NoclipHUD
-
-local OffCorner = Instance.new("UICorner")
-OffCorner.CornerRadius = UDim.new(0, 4)
-OffCorner.Parent = HudOffBtn
-
--- Kéo thả HUD Noclip
-local dragHud = false
-local dragHudStartMouse, dragHudStartPos
-
-NoclipHUD.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragHud = true
-        dragHudStartMouse = UserInputService:GetMouseLocation()
-        dragHudStartPos = NoclipHUD.AbsolutePosition
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragHud = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragHud and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local currentMouse = UserInputService:GetMouseLocation()
-        local delta = currentMouse - dragHudStartMouse
-        NoclipHUD.Position = UDim2.new(0, dragHudStartPos.X + delta.X, 0, dragHudStartPos.Y + delta.Y)
-    end
-end)
 
 ---------------------------------------------------------
 -- NÚT BẬT / ẨN MENU LUÔN HIỂN THỊ
@@ -597,79 +486,9 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
--- 0. NÚT XUYÊN TƯỜNG THẢM KÍNH (NẰM TRÊN CÙNG)
-local StandaloneNoclipBtn = Instance.new("TextButton")
-StandaloneNoclipBtn.LayoutOrder = 1
-StandaloneNoclipBtn.Size = UDim2.new(1, 0, 0, 24)
-StandaloneNoclipBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-StandaloneNoclipBtn.BackgroundTransparency = 0.3
-StandaloneNoclipBtn.Text = "👻 Xuyên Tường Thảm Kính: OFF"
-StandaloneNoclipBtn.TextColor3 = TEXT_DARK
-StandaloneNoclipBtn.Font = Enum.Font.SourceSansBold
-StandaloneNoclipBtn.TextSize = 11
-StandaloneNoclipBtn.Parent = P_RightPanel
-
-local NoclipCorner = Instance.new("UICorner")
-NoclipCorner.CornerRadius = UDim.new(0, 4)
-NoclipCorner.Parent = StandaloneNoclipBtn
-
--- CẤU HÌNH KÍCH THƯỚC THẢM KÍNH
-local CarpetSizeLabel = Instance.new("TextLabel")
-CarpetSizeLabel.LayoutOrder = 2
-CarpetSizeLabel.Size = UDim2.new(1, 0, 0, 12)
-CarpetSizeLabel.BackgroundTransparency = 1
-CarpetSizeLabel.Text = "🧊 Kích Thước Thảm (Dài - Dày - Rộng):"
-CarpetSizeLabel.TextColor3 = TEXT_DARK
-CarpetSizeLabel.TextXAlignment = Enum.TextXAlignment.Left
-CarpetSizeLabel.Font = Enum.Font.SourceSansBold
-CarpetSizeLabel.TextSize = 10
-CarpetSizeLabel.Parent = P_RightPanel
-
-local CarpetSizeContainer = Instance.new("Frame")
-CarpetSizeContainer.LayoutOrder = 3
-CarpetSizeContainer.Size = UDim2.new(1, 0, 0, 22)
-CarpetSizeContainer.BackgroundTransparency = 1
-CarpetSizeContainer.Parent = P_RightPanel
-
-local CarpetLenBox = Instance.new("TextBox")
-CarpetLenBox.Size = UDim2.new(0.31, 0, 1, 0)
-CarpetLenBox.Position = UDim2.new(0, 0, 0, 0)
-CarpetLenBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetLenBox.BackgroundTransparency = 0.3
-CarpetLenBox.Text = "6"
-CarpetLenBox.PlaceholderText = "X"
-CarpetLenBox.TextColor3 = TEXT_DARK
-CarpetLenBox.Font = Enum.Font.SourceSansBold
-CarpetLenBox.TextSize = 11
-CarpetLenBox.Parent = CarpetSizeContainer
-
-local CarpetThickBox = Instance.new("TextBox")
-CarpetThickBox.Size = UDim2.new(0.31, 0, 1, 0)
-CarpetThickBox.Position = UDim2.new(0.34, 0, 0, 0)
-CarpetThickBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetThickBox.BackgroundTransparency = 0.3
-CarpetThickBox.Text = "0.5"
-CarpetThickBox.PlaceholderText = "Y"
-CarpetThickBox.TextColor3 = TEXT_DARK
-CarpetThickBox.Font = Enum.Font.SourceSansBold
-CarpetThickBox.TextSize = 11
-CarpetThickBox.Parent = CarpetSizeContainer
-
-local CarpetWidthBox = Instance.new("TextBox")
-CarpetWidthBox.Size = UDim2.new(0.32, 0, 1, 0)
-CarpetWidthBox.Position = UDim2.new(0.68, 0, 0, 0)
-CarpetWidthBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-CarpetWidthBox.BackgroundTransparency = 0.3
-CarpetWidthBox.Text = "6"
-CarpetWidthBox.PlaceholderText = "Z"
-CarpetWidthBox.TextColor3 = TEXT_DARK
-CarpetWidthBox.Font = Enum.Font.SourceSansBold
-CarpetWidthBox.TextSize = 11
-CarpetWidthBox.Parent = CarpetSizeContainer
-
 -- 1. NÚT BU NGƯỜI CHƠI (BAY BÁM ĐUỔI REALTIME)
 local FollowPlayerBtn = Instance.new("TextButton")
-FollowPlayerBtn.LayoutOrder = 4
+FollowPlayerBtn.LayoutOrder = 1
 FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
 FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 FollowPlayerBtn.BackgroundTransparency = 0.3
@@ -685,7 +504,7 @@ FollowCorner.Parent = FollowPlayerBtn
 
 -- 2. ESP Player All
 local EspAllBtn = Instance.new("TextButton")
-EspAllBtn.LayoutOrder = 5
+EspAllBtn.LayoutOrder = 2
 EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspAllBtn.BackgroundTransparency = 0.3
@@ -701,7 +520,7 @@ EspAllCorner.Parent = EspAllBtn
 
 -- 3. ESP Player Single
 local EspSingleBtn = Instance.new("TextButton")
-EspSingleBtn.LayoutOrder = 6
+EspSingleBtn.LayoutOrder = 3
 EspSingleBtn.Size = UDim2.new(1, 0, 0, 24)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspSingleBtn.BackgroundTransparency = 0.3
@@ -717,7 +536,7 @@ EspSingleCorner.Parent = EspSingleBtn
 
 -- 4. Nút Phát Sáng
 local GlowToggleBtn = Instance.new("TextButton")
-GlowToggleBtn.LayoutOrder = 7
+GlowToggleBtn.LayoutOrder = 4
 GlowToggleBtn.Size = UDim2.new(1, 0, 0, 24)
 GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 GlowToggleBtn.BackgroundTransparency = 0.3
@@ -733,7 +552,7 @@ GlowCorner.Parent = GlowToggleBtn
 
 -- 5. Bán Kính Phát Sáng Label & Box
 local GlowRangeLabel = Instance.new("TextLabel")
-GlowRangeLabel.LayoutOrder = 8
+GlowRangeLabel.LayoutOrder = 5
 GlowRangeLabel.Size = UDim2.new(1, 0, 0, 14)
 GlowRangeLabel.BackgroundTransparency = 1
 GlowRangeLabel.Text = "💡 Bán kính sáng (Studs):"
@@ -744,7 +563,7 @@ GlowRangeLabel.TextSize = 10
 GlowRangeLabel.Parent = P_RightPanel
 
 local GlowRangeBox = Instance.new("TextBox")
-GlowRangeBox.LayoutOrder = 9
+GlowRangeBox.LayoutOrder = 6
 GlowRangeBox.Size = UDim2.new(1, 0, 0, 22)
 GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 GlowRangeBox.BackgroundTransparency = 0.3
@@ -756,7 +575,7 @@ GlowRangeBox.Parent = P_RightPanel
 
 -- 6. Chiều cao Label & Box
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.LayoutOrder = 10
+P_HeightLabel.LayoutOrder = 7
 P_HeightLabel.Size = UDim2.new(1, 0, 0, 14)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
@@ -767,7 +586,7 @@ P_HeightLabel.TextSize = 10
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.LayoutOrder = 11
+P_HeightBox.LayoutOrder = 8
 P_HeightBox.Size = UDim2.new(1, 0, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
@@ -779,7 +598,7 @@ P_HeightBox.Parent = P_RightPanel
 
 -- 7. Tốc độ Label & Box
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.LayoutOrder = 12
+P_SpeedLabel.LayoutOrder = 9
 P_SpeedLabel.Size = UDim2.new(1, 0, 0, 14)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
@@ -790,7 +609,7 @@ P_SpeedLabel.TextSize = 10
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.LayoutOrder = 13
+P_SpeedBox.LayoutOrder = 10
 P_SpeedBox.Size = UDim2.new(1, 0, 0, 22)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
@@ -802,7 +621,7 @@ P_SpeedBox.Parent = P_RightPanel
 
 -- 8. Visual Height Button
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.LayoutOrder = 14
+HeightVisualBtn.LayoutOrder = 11
 HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
@@ -1655,18 +1474,9 @@ local function resetCharacterPhysics()
     end
 end
 
--- TẮT VÀ XÓA THẢM KÍNH
-local function removeCarpet()
-    if noclipCarpetPart then
-        noclipCarpetPart:Destroy()
-        noclipCarpetPart = nil
-    end
-    NoclipHUD.Visible = false
-end
-
 -- CẬP NHẬT TRẠNG THÁI NOCLIP TỔNG TỂ
 local function updateNoclipState()
-    local shouldNoclip = standaloneNoclipActive or followPlayerActive or isFlying
+    local shouldNoclip = followPlayerActive or isFlying
 
     if shouldNoclip then
         if not noclipConnection then
@@ -1674,7 +1484,7 @@ local function updateNoclipState()
                 local char = LocalPlayer.Character
                 if char then
                     for _, part in pairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part ~= noclipCarpetPart then 
+                        if part:IsA("BasePart") then 
                             part.CanCollide = false 
                         end
                     end
@@ -1682,108 +1492,9 @@ local function updateNoclipState()
             end)
         end
     else
-        removeCarpet()
         resetCharacterPhysics()
     end
 end
-
----------------------------------------------------------
--- TÍNH NĂNG XUYÊN TƯỜNG CÓ THẢM KÍNH (CARPET NOCLIP LOGIC)
----------------------------------------------------------
-local function toggleStandaloneNoclip(state)
-    standaloneNoclipActive = state
-    if standaloneNoclipActive then
-        StandaloneNoclipBtn.Text = "👻 Xuyên Tường Thảm Kính: ON"
-        StandaloneNoclipBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            noclipHeight = hrp.Position.Y - 3.2
-
-            if not noclipCarpetPart then
-                noclipCarpetPart = Instance.new("Part")
-                noclipCarpetPart.Name = "BananaNoclipCarpet"
-                noclipCarpetPart.Material = Enum.Material.Glass
-                noclipCarpetPart.Transparency = 0.5
-                noclipCarpetPart.Color = Color3.fromRGB(0, 220, 255)
-                noclipCarpetPart.Anchored = true
-                noclipCarpetPart.CanCollide = true
-                noclipCarpetPart.Parent = workspace
-            end
-
-            NoclipHUD.Visible = true
-        end
-    else
-        StandaloneNoclipBtn.Text = "👻 Xuyên Tường Thảm Kính: OFF"
-        StandaloneNoclipBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
-        removeCarpet()
-    end
-    updateNoclipState()
-end
-
-StandaloneNoclipBtn.MouseButton1Click:Connect(function()
-    toggleStandaloneNoclip(not standaloneNoclipActive)
-end)
-
-HudOffBtn.MouseButton1Click:Connect(function()
-    toggleStandaloneNoclip(false)
-end)
-
--- Sự kiện nhấn giữ Bay Lên / Bay Xuống trên HUD
-HudUpBtn.MouseButton1Down:Connect(function() isNoclipUpHeld = true end)
-HudUpBtn.MouseButton1Up:Connect(function() isNoclipUpHeld = false end)
-HudUpBtn.MouseLeave:Connect(function() isNoclipUpHeld = false end)
-
-HudDownBtn.MouseButton1Down:Connect(function() isNoclipDownHeld = true end)
-HudDownBtn.MouseButton1Up:Connect(function() isNoclipDownHeld = false end)
-HudDownBtn.MouseLeave:Connect(function() isNoclipDownHeld = false end)
-
--- Hỗ trợ giữ nút trên màn hình cảm ứng điện thoại
-HudUpBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then isNoclipUpHeld = true end
-end)
-HudUpBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then isNoclipUpHeld = false end
-end)
-
-HudDownBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then isNoclipDownHeld = true end
-end)
-HudDownBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then isNoclipDownHeld = false end
-end)
-
--- VÒNG LẶP CẬP NHẬT VỊ TRÍ VÀ KÍCH THƯỚC THẢM KÍNH REALTIME
-RunService.Heartbeat:Connect(function(dt)
-    if standaloneNoclipActive and noclipCarpetPart then
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local vertSpeed = 25 -- Tốc độ nâng/hạ thảm
-
-            if isNoclipUpHeld then
-                noclipHeight = noclipHeight + (vertSpeed * dt)
-                hrp.CFrame = CFrame.new(hrp.Position.X, noclipHeight + 3.2, hrp.Position.Z)
-            elseif isNoclipDownHeld then
-                noclipHeight = noclipHeight - (vertSpeed * dt)
-                hrp.CFrame = CFrame.new(hrp.Position.X, noclipHeight + 3.2, hrp.Position.Z)
-            end
-
-            local sizeX = tonumber(CarpetLenBox.Text) or 6
-            local sizeY = tonumber(CarpetThickBox.Text) or 0.5
-            local sizeZ = tonumber(CarpetWidthBox.Text) or 6
-
-            sizeX = math.clamp(sizeX, 1, 100)
-            sizeY = math.clamp(sizeY, 0.1, 20)
-            sizeZ = math.clamp(sizeZ, 1, 100)
-
-            noclipCarpetPart.Size = Vector3.new(sizeX, sizeY, sizeZ)
-            -- Thảm kính luôn bám theo X, Z của nhân vật và giữ nguyên độ cao noclipHeight
-            noclipCarpetPart.CFrame = CFrame.new(hrp.Position.X, noclipHeight, hrp.Position.Z)
-        end
-    end
-end)
 
 ---------------------------------------------------------
 -- HỆ THỐNG BU NGƯỜI CHƠI (SMOOTH REALTIME FLY FOLLOW)
@@ -2309,7 +2020,7 @@ SavePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
+RefreshBtn.MouseButton1Click(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
 Players.PlayerAdded:Connect(function(plr)
@@ -2506,7 +2217,6 @@ end
 ---------------------------------------------------------
 CloseBtn.MouseButton1Click:Connect(function()
     stopFollow()
-    toggleStandaloneNoclip(false)
     updateNoclipState()
     removeAllESP()
     removeAllLocESP()
@@ -2528,4 +2238,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
         setMenuVisible(not MainFrame.Visible)
     end
-end) 
+end)
