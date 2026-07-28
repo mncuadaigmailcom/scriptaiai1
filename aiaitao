@@ -1,9 +1,8 @@
 --[[
-    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR (WITH TAB 3 RESIZABLE SPLITTER)
-    - TAB 3 ĐÃ ĐƯỢC THÊM THANH KÉO CO GIÃN (SPLITTER `┆`) GIỮA 2 CỘT
-    - KÉO THANH VIỀN ĐỂ ĐIỀU CHỈNH KÍCH THƯỚC BẢNG THÔNG SỐ VÀ BẢNG DANH SÁCH TƯỜNG REALTIME
-    - ĐẶT TÊN TƯỜNG KÍNH TÙY CHỈNH + TÍNH NĂNG WALL ESP HIỂN THỊ ĐÚNG TÂM KHỐI (X, Y, Z)
-    - BAY MƯỢT TỚI TƯỜNG KÍNH & TẤT CẢ TÍNH NĂNG KHÁC GIỮ NGUYÊN HOÀN HẢO
+    FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
+    - [MỚI] BỔ SUNG TÍNH NĂNG "🧲 BU NGƯỜI CHƠI" NẰM Ở TRÊN NÚT ESP ALL
+    - TỰ ĐỘNG BÁM ĐỦỜI CONTINUOUS REALTIME DÍNH CHẶT THEO NGƯỜI CHƠI DÙ HỌ CHẠY/NHẢY
+    - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR WITH SPLITTER
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -28,12 +27,16 @@ local stopRequested = false
 local currentTween = nil
 local noclipConnection = nil
 
+-- Follow / Bu Người Variables [MỚI]
+local followPlayerActive = false
+local followConnection = nil
+
 -- Splitter Ratio (Tab 1: Players)
 local splitRatio = 0.60 
 local minSplit = 0.30
 local maxSplit = 0.80
 
--- Splitter Ratio (Tab 3: Walls) [MỚI]
+-- Splitter Ratio (Tab 3: Walls)
 local wallSplitRatio = 0.52
 local minWallSplit = 0.25
 local maxWallSplit = 0.75
@@ -336,7 +339,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- THANH TAB BAR (3 TAB NẰM NGANG)
+-- THANH TAB BAR
 ---------------------------------------------------------
 local TabBarFrame = Instance.new("Frame")
 TabBarFrame.Size = UDim2.new(1, -24, 0, 30)
@@ -453,7 +456,7 @@ SplitterCorner.CornerRadius = UDim.new(0, 4)
 SplitterCorner.Parent = SplitDivider
 
 ---------------------------------------------------------
--- CỘT PHẢI TAB PLAYERS
+-- CỘT PHẢI TAB PLAYERS (CÓ BỔ SUNG NÚT BU NGƯỜI CHƠI)
 ---------------------------------------------------------
 local P_RightPanel = Instance.new("ScrollingFrame")
 P_RightPanel.Name = "P_RightPanel"
@@ -484,9 +487,25 @@ P_PanelPadding.PaddingLeft = UDim.new(0, 4)
 P_PanelPadding.PaddingRight = UDim.new(0, 6)
 P_PanelPadding.Parent = P_RightPanel
 
+-- [MỚI] NÚT BU NGƯỜI CHƠI (HÀNG 1 - NẰM TRÊN NÚT ESP ALL)
+local FollowPlayerBtn = Instance.new("TextButton")
+FollowPlayerBtn.LayoutOrder = 1
+FollowPlayerBtn.Size = UDim2.new(1, 0, 0, 24)
+FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+FollowPlayerBtn.BackgroundTransparency = 0.3
+FollowPlayerBtn.Text = "🧲 Bu Người Chơi: OFF"
+FollowPlayerBtn.TextColor3 = TEXT_DARK
+FollowPlayerBtn.Font = Enum.Font.SourceSansBold
+FollowPlayerBtn.TextSize = 11
+FollowPlayerBtn.Parent = P_RightPanel
+
+local FollowCorner = Instance.new("UICorner")
+FollowCorner.CornerRadius = UDim.new(0, 4)
+FollowCorner.Parent = FollowPlayerBtn
+
 -- 1. ESP Player All
 local EspAllBtn = Instance.new("TextButton")
-EspAllBtn.LayoutOrder = 1
+EspAllBtn.LayoutOrder = 2
 EspAllBtn.Size = UDim2.new(1, 0, 0, 24)
 EspAllBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspAllBtn.BackgroundTransparency = 0.3
@@ -502,7 +521,7 @@ EspAllCorner.Parent = EspAllBtn
 
 -- 2. ESP Player Single
 local EspSingleBtn = Instance.new("TextButton")
-EspSingleBtn.LayoutOrder = 2
+EspSingleBtn.LayoutOrder = 3
 EspSingleBtn.Size = UDim2.new(1, 0, 0, 24)
 EspSingleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 EspSingleBtn.BackgroundTransparency = 0.3
@@ -518,7 +537,7 @@ EspSingleCorner.Parent = EspSingleBtn
 
 -- 3. Nút Phát Sáng
 local GlowToggleBtn = Instance.new("TextButton")
-GlowToggleBtn.LayoutOrder = 3
+GlowToggleBtn.LayoutOrder = 4
 GlowToggleBtn.Size = UDim2.new(1, 0, 0, 24)
 GlowToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 GlowToggleBtn.BackgroundTransparency = 0.3
@@ -534,7 +553,7 @@ GlowCorner.Parent = GlowToggleBtn
 
 -- 4. Bán Kính Phát Sáng Label & Box
 local GlowRangeLabel = Instance.new("TextLabel")
-GlowRangeLabel.LayoutOrder = 4
+GlowRangeLabel.LayoutOrder = 5
 GlowRangeLabel.Size = UDim2.new(1, 0, 0, 14)
 GlowRangeLabel.BackgroundTransparency = 1
 GlowRangeLabel.Text = "💡 Bán kính sáng (Studs):"
@@ -545,7 +564,7 @@ GlowRangeLabel.TextSize = 10
 GlowRangeLabel.Parent = P_RightPanel
 
 local GlowRangeBox = Instance.new("TextBox")
-GlowRangeBox.LayoutOrder = 5
+GlowRangeBox.LayoutOrder = 6
 GlowRangeBox.Size = UDim2.new(1, 0, 0, 22)
 GlowRangeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 GlowRangeBox.BackgroundTransparency = 0.3
@@ -557,7 +576,7 @@ GlowRangeBox.Parent = P_RightPanel
 
 -- 5. Chiều cao Label & Box
 local P_HeightLabel = Instance.new("TextLabel")
-P_HeightLabel.LayoutOrder = 6
+P_HeightLabel.LayoutOrder = 7
 P_HeightLabel.Size = UDim2.new(1, 0, 0, 14)
 P_HeightLabel.BackgroundTransparency = 1
 P_HeightLabel.Text = "📏 Chiều cao (Height):"
@@ -568,7 +587,7 @@ P_HeightLabel.TextSize = 10
 P_HeightLabel.Parent = P_RightPanel
 
 local P_HeightBox = Instance.new("TextBox")
-P_HeightBox.LayoutOrder = 7
+P_HeightBox.LayoutOrder = 8
 P_HeightBox.Size = UDim2.new(1, 0, 0, 22)
 P_HeightBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_HeightBox.BackgroundTransparency = 0.3
@@ -580,7 +599,7 @@ P_HeightBox.Parent = P_RightPanel
 
 -- 6. Tốc độ Label & Box
 local P_SpeedLabel = Instance.new("TextLabel")
-P_SpeedLabel.LayoutOrder = 8
+P_SpeedLabel.LayoutOrder = 9
 P_SpeedLabel.Size = UDim2.new(1, 0, 0, 14)
 P_SpeedLabel.BackgroundTransparency = 1
 P_SpeedLabel.Text = "⚡ Tốc độ (Speed):"
@@ -591,7 +610,7 @@ P_SpeedLabel.TextSize = 10
 P_SpeedLabel.Parent = P_RightPanel
 
 local P_SpeedBox = Instance.new("TextBox")
-P_SpeedBox.LayoutOrder = 9
+P_SpeedBox.LayoutOrder = 10
 P_SpeedBox.Size = UDim2.new(1, 0, 0, 22)
 P_SpeedBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 P_SpeedBox.BackgroundTransparency = 0.3
@@ -603,7 +622,7 @@ P_SpeedBox.Parent = P_RightPanel
 
 -- 7. Visual Height Button
 local HeightVisualBtn = Instance.new("TextButton")
-HeightVisualBtn.LayoutOrder = 10
+HeightVisualBtn.LayoutOrder = 11
 HeightVisualBtn.Size = UDim2.new(1, 0, 0, 24)
 HeightVisualBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
 HeightVisualBtn.BackgroundTransparency = 0.3
@@ -815,7 +834,7 @@ UIListLayoutWall.Parent = W_SavedList
 UIListLayoutWall.SortOrder = Enum.SortOrder.LayoutOrder
 
 ---------------------------------------------------------
--- THANH KÉO CO GIÃN TAB 3 (WALL SPLITTER DIVIDER) [MỚI]
+-- THANH KÉO CO GIÃN TAB 3 (WALL SPLITTER DIVIDER)
 ---------------------------------------------------------
 local WallSplitDivider = Instance.new("TextButton")
 WallSplitDivider.Name = "WallSplitDivider"
@@ -864,7 +883,7 @@ W_RightPadding.PaddingRight = UDim.new(0, 6)
 W_RightPadding.Parent = W_RightPanel
 
 ---------------------------------------------------------
--- CẬP NHẬT GIAO DIỆN CO GIÃN REALTIME CHO TAB 3 [MỚI]
+-- CẬP NHẬT GIAO DIỆN CO GIÃN REALTIME CHO TAB 3
 ---------------------------------------------------------
 local function updateWallsLayout()
     local leftRatio = math.clamp(wallSplitRatio, minWallSplit, maxWallSplit)
@@ -1395,7 +1414,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN & XỬ LÝ BAY
+-- LOGIC CƠ BẢN & XỬ LÝ BAY / BU NGƯỜI
 ---------------------------------------------------------
 local startFly
 local stopFly
@@ -1427,6 +1446,74 @@ local function isPlayerDeadOrKnocked(plr)
     end
     return false
 end
+
+---------------------------------------------------------
+-- [MỚI] HỆ THỐNG BU NGƯỜI CHƠI (AUTO STICK / FOLLOW PLAYER)
+---------------------------------------------------------
+local function stopFollow()
+    followPlayerActive = false
+    if followConnection then
+        followConnection:Disconnect()
+        followConnection = nil
+    end
+    if FollowPlayerBtn then
+        FollowPlayerBtn.Text = "🧲 Bu Người Chơi: OFF"
+        FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    end
+    resetCharacterPhysics()
+end
+
+local function startFollow()
+    if not selectedPlayer or not selectedPlayer.Character then
+        stopFollow()
+        return
+    end
+
+    -- Nếu đang bay tween tới ai đó thì hủy bay
+    if isFlying then stopFly() end
+
+    followPlayerActive = true
+    FollowPlayerBtn.Text = "🧲 Bu Người Chơi: ON"
+    FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+
+    if followConnection then followConnection:Disconnect() end
+
+    -- Vòng lặp dính chặt liên tục Realtime vào lưng người chơi target
+    followConnection = RunService.Heartbeat:Connect(function()
+        if not followPlayerActive or not selectedPlayer or not selectedPlayer.Character then
+            stopFollow()
+            return
+        end
+
+        local myChar = LocalPlayer.Character
+        local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local targetHrp = getTargetPart(selectedPlayer)
+
+        if myHrp and targetHrp then
+            -- Kích hoạt Noclip đi xuyên tường
+            for _, part in pairs(myChar:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+
+            -- Triệt tiêu lực vật lý
+            myHrp.AssemblyLinearVelocity = Vector3.zero
+            myHrp.AssemblyAngularVelocity = Vector3.zero
+
+            -- Bu dính phía sau lưng mục tiêu (Cách 1.8 Studs)
+            myHrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0.5, 1.8)
+        else
+            stopFollow()
+        end
+    end)
+end
+
+FollowPlayerBtn.MouseButton1Click:Connect(function()
+    if followPlayerActive then
+        stopFollow()
+    else
+        startFollow()
+    end
+end)
 
 ---------------------------------------------------------
 -- 1. HỆ THỐNG ĐỊNH VỊ NGƯỜI CHƠI (PLAYER ESP)
@@ -1729,6 +1816,9 @@ updatePlayerList = function()
 
                 NameBtn.MouseButton1Click:Connect(function()
                     selectedPlayer = plr
+                    if followPlayerActive then
+                        startFollow()
+                    end
                     updatePlayerList()
                 end)
 
@@ -1881,7 +1971,10 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
-    if selectedPlayer == plr then selectedPlayer = nil end
+    if selectedPlayer == plr then
+        selectedPlayer = nil
+        stopFollow()
+    end
     removeESP(plr)
     downedTimeTracker[plr] = nil
     updatePlayerList()
@@ -2028,6 +2121,9 @@ end
 startFly = function(mode, targetObj)
     if isFlying then return end
 
+    -- Hủy bu người nếu đang bật
+    if followPlayerActive then stopFollow() end
+
     local getTargetPos = nil
 
     if mode == "Player" then
@@ -2109,6 +2205,7 @@ end
 -- CLEANUP & KEYBINDS
 ---------------------------------------------------------
 CloseBtn.MouseButton1Click:Connect(function()
+    stopFollow()
     removeAllESP()
     removeAllLocESP()
     removeAllWallESP()
