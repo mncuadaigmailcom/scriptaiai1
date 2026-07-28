@@ -1,252 +1,166 @@
--- Services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
+-- [[ BANANA CAT HUB - TỰ THÊM SCRIPT CỦA BẠN ]] --
+local HttpService = game:GetService("HttpService")
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
-local LocalPlayer = Players.LocalPlayer
+-- Tên file lưu danh sách Script của bạn trên thiết bị
+local fileName = "BananaCat_MyScripts.json"
 
-----------------------------------------------------
--- 1. LẤY NƠI CHỨA GUI AN TOÀN
-----------------------------------------------------
-local function getSafeGui()
-	local success, result = pcall(function()
-		return gethui()
-	end)
-	if success and result then return result end
-
-	success, result = pcall(function()
-		return game:GetService("CoreGui")
-	end)
-	if success and result then return result end
-
-	return LocalPlayer:FindFirstChildOfClass("PlayerGui")
+-- Hàm tải danh sách script đã lưu
+local function loadMyScripts()
+    if isfile and isfile(fileName) then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile(fileName))
+        end)
+        if success then return result end
+    end
+    return {}
 end
 
-local GuiParent = getSafeGui()
-
-if GuiParent and GuiParent:FindFirstChild("BananaCatHub") then
-	GuiParent.BananaCatHub:Destroy()
+-- Hàm lưu danh sách script
+local function saveMyScripts(tbl)
+    if writefile then
+        writefile(fileName, HttpService:JSONEncode(tbl))
+    end
 end
 
-----------------------------------------------------
--- 2. TẠO GIAO DIỆN STYLE BANANA CAT 🐱🍌
-----------------------------------------------------
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BananaCatHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 999999999
-ScreenGui.Parent = GuiParent
+-- Lấy dữ liệu script đã lưu
+local mySavedScripts = loadMyScripts()
 
--- NÚT BẬT/TẮT MENU (Floating Button 🐱)
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "BananaToggle"
-ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-ToggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-ToggleBtn.Text = "🐱"
-ToggleBtn.TextSize = 25
-ToggleBtn.Active = true
-ToggleBtn.Draggable = true
-ToggleBtn.Parent = ScreenGui
+-- 1. TẠO CỬA SỔ CHÍNH
+local Window = OrionLib:MakeWindow({
+    Name = "🍌 BANANA CAT - CUSTOM HUB", 
+    HidePremium = false, 
+    SaveConfig = false, 
+    IntroEnabled = true,
+    IntroText = "Banana Cat Custom Hub Loaded!",
+    IntroIcon = "rbxassetid://4483345998"
+})
 
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(1, 0)
-ToggleCorner.Parent = ToggleBtn
+-- ==================== TAB 1: DANH SÁCH SCRIPT ĐÃ THÊM ====================
+local TabList = Window:MakeTab({
+    Name = "📜 Script Của Bạn",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
-local ToggleStroke = Instance.new("UIStroke")
-ToggleStroke.Color = Color3.fromRGB(255, 215, 0) -- Màu vàng Banana
-ToggleStroke.Thickness = 2
-ToggleStroke.Parent = ToggleBtn
+TabList:AddSection({ Name = "Danh Sách Script Bạn Đã Thêm" })
 
--- KHUNG CHÍNH (Main Frame)
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 200, 0, 260)
-MainFrame.Position = UDim2.new(0.08, 0, 0.15, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 20)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainFrame
-
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(255, 215, 0) -- Viền vàng
-MainStroke.Thickness = 2
-MainStroke.Parent = MainFrame
-
--- Tiêu đề BANANA CAT HUB
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 40)
-Header.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
-Header.BorderSizePixel = 0
-Header.Parent = MainFrame
-
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 12)
-HeaderCorner.Parent = Header
-
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(1, 0, 1, 0)
-TitleText.Text = "🍌 BANANA CAT 🐱"
-TitleText.TextColor3 = Color3.fromRGB(255, 215, 0)
-TitleText.Font = Enum.Font.FredokaOne
-TitleText.TextSize = 16
-TitleText.BackgroundTransparency = 1
-TitleText.Parent = Header
-
--- Danh sách nút bấm
-local Container = Instance.new("Frame")
-Container.Size = UDim2.new(1, -16, 1, -50)
-Container.Position = UDim2.new(0, 8, 0, 45)
-Container.BackgroundTransparency = 1
-Container.Parent = MainFrame
-
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Parent = Container
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 8)
-
--- Sự kiện ẩn/hiện Menu khi bấm vào nút Con Mèo
-ToggleBtn.MouseButton1Click:Connect(function()
-	MainFrame.Visible = not MainFrame.Visible
-end)
-
--- Hàm tạo Nút bấm phong cách Banana Cat
-local function createBananaButton(text, icon, isOffBtn, order, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, 0, 0, 38)
-	btn.Text = icon .. "  " .. text
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 13
-	btn.LayoutOrder = order
-	btn.BorderSizePixel = 0
-	
-	if isOffBtn then
-		btn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	else
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	end
-	
-	btn.Parent = Container
-
-	local BtnCorner = Instance.new("UICorner")
-	BtnCorner.CornerRadius = UDim.new(0, 8)
-	BtnCorner.Parent = btn
-
-	local BtnStroke = Instance.new("UIStroke")
-	BtnStroke.Color = isOffBtn and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 215, 0)
-	BtnStroke.Thickness = 1
-	BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	BtnStroke.Parent = btn
-
-	-- Hiệu ứng bấm nút
-	btn.MouseButton1Click:Connect(function()
-		callback()
-	end)
-
-	return btn
+-- Hàm chạy Script (Tự nhận diện Link http hoặc Code thường)
+local function runScript(code)
+    local success, err = pcall(function()
+        if code:sub(1, 4) == "http" then
+            loadstring(game:HttpGet(code))()
+        else
+            local func = loadstring(code)
+            if func then func() end
+        end
+    end)
+    
+    if not success then
+        OrionLib:MakeNotification({
+            Name = "Lỗi Chạy Script!",
+            Content = "Code/Link bị lỗi hoặc không chạy được.",
+            Time = 3
+        })
+    end
 end
 
-----------------------------------------------------
--- 3. LOGIC XUYÊN TƯỜNG KÍNH (GLASS NOCLIP)
-----------------------------------------------------
-local flySpeed = 0.8
-local mode = "OFF"
-local glassPlatform = nil
-local noclipConnection = nil
-local moveConnection = nil
-
-local function getCharacter()
-	return LocalPlayer.Character
+-- Tạo các nút bấm từ danh sách đã lưu
+if #mySavedScripts == 0 then
+    TabList:AddLabel("Chưa có script nào. Hãy qua Tab 'Thêm Script' để thêm!")
+else
+    for index, scriptData in ipairs(mySavedScripts) do
+        TabList:AddButton({
+            Name = "▶ " .. scriptData.Name,
+            Callback = function()
+                OrionLib:MakeNotification({
+                    Name = "Đang chạy...",
+                    Content = scriptData.Name,
+                    Time = 2
+                })
+                runScript(scriptData.Code)
+            end    
+        })
+    end
 end
 
-local function createGlass()
-	if not glassPlatform or not glassPlatform.Parent then
-		glassPlatform = Instance.new("Part")
-		glassPlatform.Name = "BananaGlassPlatform"
-		glassPlatform.Size = Vector3.new(6, 0.5, 6)
-		glassPlatform.Material = Enum.Material.Glass
-		glassPlatform.Transparency = 0.35
-		glassPlatform.Color = Color3.fromRGB(255, 215, 0) -- Kính màu vàng Banana cực đẹp!
-		glassPlatform.Anchored = true
-		glassPlatform.CanCollide = true
-		glassPlatform.Parent = workspace
-	end
-end
+-- Nút Xóa Tất Cả Script Đã Lưu
+TabList:AddSection({ Name = "Quản Lý" })
+TabList:AddButton({
+    Name = "🗑️ Xóa Tất Cả Script Đã Lưu",
+    Callback = function()
+        if isfile and isfile(fileName) then
+            delfile(fileName)
+            OrionLib:MakeNotification({
+                Name = "Thành công",
+                Content = "Đã xóa dữ liệu! Hãy mở lại Menu.",
+                Time = 3
+            })
+        end
+    end
+})
 
-local function stopAll()
-	mode = "OFF"
 
-	if moveConnection then moveConnection:Disconnect() moveConnection = nil end
-	if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+-- ==================== TAB 2: Ô NHẬP ĐỂ THÊM SCRIPT MỚI ====================
+local TabAdd = Window:MakeTab({
+    Name = "➕ Thêm Script Mới",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
-	if glassPlatform then
-		glassPlatform:Destroy()
-		glassPlatform = nil
-	end
+TabAdd:AddSection({ Name = "Nhập Thông Tin Script Mới" })
 
-	local char = getCharacter()
-	if char then
-		for _, part in pairs(char:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.CanCollide = true
-			end
-		end
-	end
-end
+local inputName = ""
+local inputCode = ""
 
-local function startAction(newMode)
-	stopAll()
-	mode = newMode
-	createGlass()
+-- Ô 1: Nhập Tên
+TabAdd:AddTextbox({
+    Name = "1. Nhập Tên Script (Ví dụ: Redz Hub Blox Fruit)",
+    Default = "",
+    TextDisappear = false,
+    Callback = function(Value)
+        inputName = Value
+    end
+})
 
-	-- Vòng lặp Noclip (Xuyên mọi hình dáng tường)
-	noclipConnection = RunService.Stepped:Connect(function()
-		local char = getCharacter()
-		if char then
-			for _, part in pairs(char:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-				end
-			end
-		end
-		if glassPlatform then
-			glassPlatform.CanCollide = true -- Không bị lọt xuống kính
-		end
-	end)
+-- Ô 2: Nhập Link hoặc Code
+TabAdd:AddTextbox({
+    Name = "2. Dán Link raw (https://...) hoặc Code Lua vào đây",
+    Default = "",
+    TextDisappear = false,
+    Callback = function(Value)
+        inputCode = Value
+    end
+})
 
-	-- Vòng lặp di chuyển & giữ kính dưới chân
-	moveConnection = RunService.Heartbeat:Connect(function()
-		local char = getCharacter()
-		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-		local hrp = char.HumanoidRootPart
+-- Nút Lưu Script
+TabAdd:AddButton({
+    Name = "💾 LƯU SCRIPT NÀY VÀO MENU",
+    Callback = function()
+        if inputName == "" or inputCode == "" then
+            OrionLib:MakeNotification({
+                Name = "Thiếu Thông Tin!",
+                Content = "Vui lòng nhập cả Tên và Link/Code!",
+                Time = 3
+            })
+            return
+        end
 
-		if mode == "UP" then
-			hrp.CFrame = hrp.CFrame + Vector3.new(0, flySpeed, 0)
-		elseif mode == "DOWN" then
-			hrp.CFrame = hrp.CFrame - Vector3.new(0, flySpeed, 0)
-		elseif mode == "FORWARD" then
-			hrp.CFrame = hrp.CFrame + (hrp.CFrame.LookVector * flySpeed)
-		end
+        -- Thêm vào danh sách
+        table.insert(mySavedScripts, {
+            Name = inputName,
+            Code = inputCode
+        })
 
-		if glassPlatform then
-			glassPlatform.CFrame = hrp.CFrame * CFrame.new(0, -3.2, 0)
-		end
-	end)
-end
+        -- Lưu vào File lưu trữ của Executor
+        saveMyScripts(mySavedScripts)
 
-----------------------------------------------------
--- 4. KẾT NỐI TÍNH NĂNG VÀO MENU BANANA
-----------------------------------------------------
-createBananaButton("Bay Lên", "🚀", false, 1, function() startAction("UP") end)
-createBananaButton("Bay Xuống", "🛬", false, 2, function() startAction("DOWN") end)
-createBananaButton("Bay Thẳng", "⚡", false, 3, function() startAction("FORWARD") end)
-createBananaButton("TẮT TÍNH NĂNG", "❌", true, 4, function() stopAll() end)
+        OrionLib:MakeNotification({
+            Name = "Thành Công!",
+            Content = "Đã lưu script '" .. inputName .. "'. Hãy chạy lại Menu để cập nhật nút!",
+            Time = 5
+        })
+    end    
+})
 
-print("--> BANANA CAT HUB LOADED SUCCESSFULLY! 🐱🍌 <--")
+OrionLib:Init()
