@@ -1,7 +1,7 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
-    - [ĐÃ FIX LỖI XUYÊN TƯỜNG] KHÔI PHỤC VA CHẠM CHUẨN ROBLOX KHI TẮT BU NGƯỜI
-    - TÍNH NĂNG "🧲 BU NGƯỜI CHƠI" BÁM ĐỦỜI DÍNH LƯNG MƯỢT MÀ REALTIME
+    - [CHẨN XÁC NHAU CẦU] BẬT BU NGƯỜI = XUYÊN TƯỜNG (NOCLIP ON), TẮT BU NGƯỜI = LẠI BÌNH THƯỜNG (NOCLIP OFF)
+    - TỰ ĐỘNG KHÔI PHỤC VA CHẠM VẬT LÝ CHUẨN ROBLOX KHI HỦY BÁM THEO NGƯỜI CHƠI
     - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR WITH SPLITTER
 --]]
 
@@ -1447,19 +1447,23 @@ local function isPlayerDeadOrKnocked(plr)
     return false
 end
 
--- KHÔI PHỤC VẬT LÝ CHUẨN ROBLOX (CHỐNG LỖI XUYÊN TƯỜNG)
+-- KHÔI PHỤC VẬT LÝ CHUẨN ROBLOX (KHÔNG CÒN BỊ XUYÊN TƯỜNG)
 local function resetCharacterPhysics()
-    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
     local char = LocalPlayer.Character
     if not char then return end
 
-    -- Trả lại thuộc tính va chạm gốc của Roblox
+    -- Khôi phục va chạm chuẩn của Roblox
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             if part.Name == "HumanoidRootPart" then
-                part.CanCollide = false -- Mặc định Roblox HumanoidRootPart = False
+                part.CanCollide = false -- Mặc định Roblox HRP = False
             else
-                part.CanCollide = true  -- Tất cả các bộ phận Thân/Chân/Tay = True để không xuyên sàn/tường
+                part.CanCollide = true  -- Thân/Chân/Tay = True để đứng chắc trên tường/sàn
             end
         end
     end
@@ -1471,12 +1475,16 @@ local function resetCharacterPhysics()
     end
 end
 
+-- BẬT/TẮT NOCLIP THEO THỜI GIAN THỰC (STEPPED)
 local function setNoclip(state)
     if state then
+        if noclipConnection then noclipConnection:Disconnect() end
         noclipConnection = RunService.Stepped:Connect(function()
             if LocalPlayer.Character then
                 for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
+                    if part:IsA("BasePart") then 
+                        part.CanCollide = false 
+                    end
                 end
             end
         end)
@@ -1486,7 +1494,7 @@ local function setNoclip(state)
 end
 
 ---------------------------------------------------------
--- HỆ THỐNG BU NGƯỜI CHƠI (BÁM ĐỦỜI REALTIME & FIX LỖI TƯỜNG)
+-- HỆ THỐNG BU NGƯỜI CHƠI (TỰ ĐỘNG NOCLIP & HOÀN HOÀN VA CHẠM)
 ---------------------------------------------------------
 local function stopFollow()
     followPlayerActive = false
@@ -1494,11 +1502,14 @@ local function stopFollow()
         followConnection:Disconnect()
         followConnection = nil
     end
+
+    -- Khôi phục vật lý chuẩn Roblox (Ngắt Xuyên Tường)
+    setNoclip(false)
+
     if FollowPlayerBtn then
         FollowPlayerBtn.Text = "🧲 Bu Người Chơi: OFF"
         FollowPlayerBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
     end
-    resetCharacterPhysics()
 end
 
 local function startFollow()
@@ -1515,6 +1526,9 @@ local function startFollow()
 
     if followConnection then followConnection:Disconnect() end
 
+    -- Bật Noclip liên tục trong suốt quá trình Bu Người
+    setNoclip(true)
+
     followConnection = RunService.Heartbeat:Connect(function()
         if not followPlayerActive or not selectedPlayer or not selectedPlayer.Character then
             stopFollow()
@@ -1526,15 +1540,10 @@ local function startFollow()
         local targetHrp = getTargetPart(selectedPlayer)
 
         if myHrp and targetHrp then
-            -- Tắt va chạm tạm thời để không bị văng khi dính sát người chơi khác
-            for _, part in pairs(myChar:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-
             myHrp.AssemblyLinearVelocity = Vector3.zero
             myHrp.AssemblyAngularVelocity = Vector3.zero
 
-            -- Bu dính phía sau lưng mục tiêu
+            -- Dính mượt phía sau lưng người chơi mục tiêu
             myHrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0.5, 1.8)
         else
             stopFollow()
