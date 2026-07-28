@@ -5,15 +5,16 @@ local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Variables
-local mode = "OFF" -- "UP", "DOWN", "FORWARD", "OFF"
-local flySpeed = 0.8 -- Tốc độ bay
+-- Cấu hình
+local flySpeed = 0.8 -- Tốc độ bay (Có thể chỉnh tăng/giảm ở đây)
+local mode = "OFF"   -- "UP", "DOWN", "FORWARD", "OFF"
+
 local glassPlatform = nil
 local noclipConnection = nil
 local moveConnection = nil
 
 ----------------------------------------------------
--- HÀM LẤY CORE GUI / PLAYER GUI AN TOÀN
+-- HÀM LẤY CoreGui HOẶC PlayerGui (CHỐNG LỖI MENU)
 ----------------------------------------------------
 local function getGuiParent()
 	local success, result = pcall(function()
@@ -25,37 +26,36 @@ local function getGuiParent()
 	return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local ParentTarget = getGuiParent()
+local TargetParent = getGuiParent()
 
--- Xóa GUI cũ nếu đã tồn tại (tránh trùng lặp)
-if ParentTarget:FindFirstChild("GlassNoclipGUI") then
-	ParentTarget.GlassNoclipGUI:Destroy()
+-- Xóa GUI cũ nếu đã chạy script trước đó
+if TargetParent:FindFirstChild("GlassNoclipV2") then
+	TargetParent.GlassNoclipV2:Destroy()
 end
 
 ----------------------------------------------------
--- TẠO GIAO DIỆN NÚT BẤM (GUI)
+-- TẠO GIAO DIỆN MENU (GUI)
 ----------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GlassNoclipGUI"
+ScreenGui.Name = "GlassNoclipV2"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = ParentTarget
+ScreenGui.Parent = TargetParent
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 170, 0, 220)
-Frame.Position = UDim2.new(0.05, 0, 0.3, 0)
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Frame.BorderSizePixel = 0
-Frame.Active = true
-Frame.Draggable = true -- Cho phép kéo thả
-Frame.Parent = ScreenGui
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 170, 0, 230)
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- Cho phép kéo di chuyển Bảng Menu
+MainFrame.Parent = ScreenGui
 
--- Bo góc khung hình
 local FrameCorner = Instance.new("UICorner")
-FrameCorner.CornerRadius = UDim.new(0, 8)
-FrameCorner.Parent = Frame
+FrameCorner.CornerRadius = UDim.new(0, 10)
+FrameCorner.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Parent = Frame
+UIListLayout.Parent = MainFrame
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 6)
 UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -63,21 +63,20 @@ UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.Text = "XUYÊN TƯỜNG KÍNH"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 15
 Title.LayoutOrder = 0
-Title.Parent = Frame
+Title.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
 
--- Hàm hỗ trợ tạo nút bấm
 local function createButton(text, color, order, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.9, 0, 0, 35)
+	btn.Size = UDim2.new(0.9, 0, 0, 36)
 	btn.Text = text
 	btn.BackgroundColor3 = color
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -85,7 +84,7 @@ local function createButton(text, color, order, callback)
 	btn.TextSize = 15
 	btn.LayoutOrder = order
 	btn.BorderSizePixel = 0
-	btn.Parent = Frame
+	btn.Parent = MainFrame
 
 	local BtnCorner = Instance.new("UICorner")
 	BtnCorner.CornerRadius = UDim.new(0, 6)
@@ -96,7 +95,7 @@ local function createButton(text, color, order, callback)
 end
 
 ----------------------------------------------------
--- XỬ LÝ LOGIC NHÂN VẬT & TÍNH NĂNG
+-- LOGIC TẠO KÍNH & XUYÊN TƯỜNG
 ----------------------------------------------------
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
@@ -104,40 +103,34 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 	Character = newChar
 end)
 
-local function getHRP()
-	if Character and Character:FindFirstChild("HumanoidRootPart") then
-		return Character.HumanoidRootPart
-	end
-	return nil
-end
-
--- Hàm tạo tấm kính dưới chân
+-- Hàm tạo tấm kính
 local function createGlass()
 	if not glassPlatform or not glassPlatform.Parent then
 		glassPlatform = Instance.new("Part")
-		glassPlatform.Name = "GlassPlatform_Script"
-		glassPlatform.Size = Vector3.new(5, 0.4, 5)
+		glassPlatform.Name = "GlassPlatform_Unique"
+		glassPlatform.Size = Vector3.new(6, 0.5, 6) -- Độ rộng tấm kính
 		glassPlatform.Material = Enum.Material.Glass
-		glassPlatform.Transparency = 0.4
-		glassPlatform.Color = Color3.fromRGB(0, 255, 255)
+		glassPlatform.Transparency = 0.3 -- Độ trong suốt kính
+		glassPlatform.Color = Color3.fromRGB(0, 255, 255) -- Màu xanh lam kính
 		glassPlatform.Anchored = true
-		glassPlatform.CanCollide = true
+		glassPlatform.CanCollide = true -- Luôn giữ va chạm để người đứng lên được
 		glassPlatform.Parent = workspace
 	end
 end
 
--- Hàm dừng tất cả tính năng
+-- Hàm dừng hoàn toàn
 local function stopAll()
 	mode = "OFF"
-	
+
 	if moveConnection then moveConnection:Disconnect() moveConnection = nil end
 	if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-	
+
 	if glassPlatform then
 		glassPlatform:Destroy()
 		glassPlatform = nil
 	end
-	
+
+	-- Trả lại va chạm bình thường cho nhân vật
 	if Character then
 		for _, part in pairs(Character:GetDescendants()) do
 			if part:IsA("BasePart") then
@@ -147,34 +140,33 @@ local function stopAll()
 	end
 end
 
--- Hàm kích hoạt chế độ bay & xuyên tường
+-- Hàm bắt đầu chức năng
 local function startAction(newMode)
-	stopAll()
+	stopAll() -- Xóa trạng thái cũ
 	mode = newMode
 	createGlass()
 
-	-- Vòng lặp Xuyên Tường (Noclip)
+	-- 1. Vòng lặp Noclip (Xuyên mọi bức tường nhưng TRỪ tấm kính)
 	noclipConnection = RunService.Stepped:Connect(function()
 		if Character then
 			for _, part in pairs(Character:GetDescendants()) do
-				if part:IsA("BasePart") and part ~= glassPlatform then
+				if part:IsA("BasePart") then
 					part.CanCollide = false
 				end
 			end
 		end
+		-- Giữ cho tấm kính luôn có va chạm
+		if glassPlatform then
+			glassPlatform.CanCollide = true
+		end
 	end)
 
-	-- Vòng lặp Di chuyển & Cập nhật tấm kính
+	-- 2. Vòng lặp di chuyển nhân vật & kính
 	moveConnection = RunService.Heartbeat:Connect(function()
-		local hrp = getHRP()
-		if not hrp then return end
+		if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
+		local hrp = Character.HumanoidRootPart
 
-		-- Di chuyển tấm kính dưới chân
-		if glassPlatform then
-			glassPlatform.CFrame = hrp.CFrame * CFrame.new(0, -3.2, 0)
-		end
-
-		-- Xử lý hướng di chuyển
+		-- Cập nhật hướng di chuyển nhân vật
 		if mode == "UP" then
 			hrp.CFrame = hrp.CFrame + Vector3.new(0, flySpeed, 0)
 		elseif mode == "DOWN" then
@@ -182,11 +174,16 @@ local function startAction(newMode)
 		elseif mode == "FORWARD" then
 			hrp.CFrame = hrp.CFrame + (hrp.CFrame.LookVector * flySpeed)
 		end
+
+		-- Đặt tấm kính luôn ở ngay dưới chân nhân vật
+		if glassPlatform then
+			glassPlatform.CFrame = hrp.CFrame * CFrame.new(0, -3.2, 0)
+		end
 	end)
 end
 
 ----------------------------------------------------
--- KẾT NỐI SỰ KIỆN NÚT BẤM
+-- KẾT NỐI NÚT BẤM
 ----------------------------------------------------
 createButton("Bay Lên", Color3.fromRGB(0, 150, 255), 1, function()
 	startAction("UP")
