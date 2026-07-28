@@ -1,8 +1,7 @@
 --[[
     FLY TO PLAYER, SAVED LOCATIONS & TRANSPARENT WALL CREATOR
     - NÂNG CẤP: TÍNH NĂNG XUYÊN TƯỜNG CÓ THẢM KÍNH TRONG SUỐT BÁM THEO DƯỚI CHÂN
-    - BỔ SUNG: NÚT XUYÊN VẠN VẬT (NẰM GIỮA BAY LÊN & BAY XUỐNG)
-    - TỰ ĐỘNG HIỂN THỊ BẢNG ĐIỀU KHIỂN SÁNG ĐẸP, CHỈ CHO PHÉP KÉO BẰNG NÚT DÀNH RIÊNG
+    - TỰ ĐỘNG HIỂN THỊ 3 NÚT ĐIỀU KHIỂN (BAY LÊN, BAY XUỐNG, TẮT) TRÊN MÀN HÌNH
     - TÙY CHỈNH KÍCH THƯỚC THẢM KÍNH (DÀI, DÀY, RỘNG)
     - GIỮ NGUYÊN TOÀN BỘ CÁC TÍNH NĂNG: FLY PLAYER/LOCATIONS/WALL, ESP REALTIME, WALL CREATOR
 --]]
@@ -31,7 +30,6 @@ local noclipConnection = nil
 
 -- Noclip Standalone & Glass Carpet Variables
 local standaloneNoclipActive = false
-local xuyenVanVatActive = true -- Mới: Tính năng xuyên vạn vật (mặc định Bật khi dùng thảm)
 local noclipCarpetPart = nil
 local noclipHeight = 0
 local isNoclipUpHeld = false
@@ -187,16 +185,16 @@ CloseBtn.ZIndex = 5
 CloseBtn.Parent = MainFrame
 
 ---------------------------------------------------------
--- BẢNG ĐIỀU KHIỂN NOCLIP TRÊN MÀN HÌNH (NOCLIP HUD SÁNG & ĐẸP)
+-- BẢNG ĐIỀU KHIỂN NOCLIP TRÊN MÀN HÌNH (NOCLIP HUD)
 ---------------------------------------------------------
 local NoclipHUD = Instance.new("Frame")
 NoclipHUD.Name = "NoclipControlHUD"
-NoclipHUD.Size = UDim2.new(0, 130, 0, 145)
-NoclipHUD.Position = UDim2.new(0.85, -65, 0.35, 0)
-NoclipHUD.BackgroundColor3 = Color3.fromRGB(245, 248, 255) -- MÀU SÁNG TRONG SUỐT
-NoclipHUD.BackgroundTransparency = 0.15
-NoclipHUD.BorderColor3 = WATER_BLUE
-NoclipHUD.BorderSizePixel = 2
+NoclipHUD.Size = UDim2.new(0, 110, 0, 115)
+NoclipHUD.Position = UDim2.new(0.85, -55, 0.4, 0)
+NoclipHUD.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
+NoclipHUD.BackgroundTransparency = 0.3
+NoclipHUD.BorderColor3 = Color3.fromRGB(255, 255, 255)
+NoclipHUD.BorderSizePixel = 1
 NoclipHUD.Visible = false
 NoclipHUD.ZIndex = 150
 NoclipHUD.Parent = ScreenGui
@@ -205,29 +203,21 @@ local HudCorner = Instance.new("UICorner")
 HudCorner.CornerRadius = UDim.new(0, 8)
 HudCorner.Parent = NoclipHUD
 
--- NÚT DUY NHẤT ĐỂ DI CHUYỂN BẢNG NOCLIP
-local HudDragBar = Instance.new("TextButton")
-HudDragBar.Name = "HudDragBar"
-HudDragBar.Size = UDim2.new(1, 0, 0, 22)
-HudDragBar.Position = UDim2.new(0, 0, 0, 0)
-HudDragBar.BackgroundColor3 = Color3.fromRGB(215, 225, 245)
-HudDragBar.BackgroundTransparency = 0.2
-HudDragBar.Text = "❖ DI CHUYỂN HUD"
-HudDragBar.TextColor3 = TEXT_DARK
-HudDragBar.Font = Enum.Font.SourceSansBold
-HudDragBar.TextSize = 11
-HudDragBar.Parent = NoclipHUD
-
-local DragCorner = Instance.new("UICorner")
-DragCorner.CornerRadius = UDim.new(0, 8)
-DragCorner.Parent = HudDragBar
+local HudTitle = Instance.new("TextLabel")
+HudTitle.Size = UDim2.new(1, 0, 0, 20)
+HudTitle.BackgroundTransparency = 1
+HudTitle.Text = "👻 THẢM KÍNH"
+HudTitle.TextColor3 = TEXT_LIGHT
+HudTitle.Font = Enum.Font.SourceSansBold
+HudTitle.TextSize = 10
+HudTitle.Parent = NoclipHUD
 
 -- Nút Bay Lên
 local HudUpBtn = Instance.new("TextButton")
-HudUpBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudUpBtn.Position = UDim2.new(0.05, 0, 0, 26)
+HudUpBtn.Size = UDim2.new(0.9, 0, 0, 26)
+HudUpBtn.Position = UDim2.new(0.05, 0, 0, 22)
 HudUpBtn.BackgroundColor3 = COLOR_GREEN
-HudUpBtn.BackgroundTransparency = 0.1
+HudUpBtn.BackgroundTransparency = 0.2
 HudUpBtn.Text = "⬆️ Bay Lên"
 HudUpBtn.TextColor3 = TEXT_LIGHT
 HudUpBtn.Font = Enum.Font.SourceSansBold
@@ -238,28 +228,12 @@ local UpCorner = Instance.new("UICorner")
 UpCorner.CornerRadius = UDim.new(0, 4)
 UpCorner.Parent = HudUpBtn
 
--- Nút Xuyên Vạn Vật (Mới - Nằm giữa Bay Lên và Bay Xuống)
-local HudXuyenBtn = Instance.new("TextButton")
-HudXuyenBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudXuyenBtn.Position = UDim2.new(0.05, 0, 0, 54)
-HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
-HudXuyenBtn.BackgroundTransparency = 0.1
-HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: ON"
-HudXuyenBtn.TextColor3 = TEXT_LIGHT
-HudXuyenBtn.Font = Enum.Font.SourceSansBold
-HudXuyenBtn.TextSize = 10
-HudXuyenBtn.Parent = NoclipHUD
-
-local XuyenCorner = Instance.new("UICorner")
-XuyenCorner.CornerRadius = UDim.new(0, 4)
-XuyenCorner.Parent = HudXuyenBtn
-
 -- Nút Bay Xuống
 local HudDownBtn = Instance.new("TextButton")
-HudDownBtn.Size = UDim2.new(0.9, 0, 0, 24)
-HudDownBtn.Position = UDim2.new(0.05, 0, 0, 82)
+HudDownBtn.Size = UDim2.new(0.9, 0, 0, 26)
+HudDownBtn.Position = UDim2.new(0.05, 0, 0, 52)
 HudDownBtn.BackgroundColor3 = WATER_BLUE
-HudDownBtn.BackgroundTransparency = 0.1
+HudDownBtn.BackgroundTransparency = 0.2
 HudDownBtn.Text = "⬇️ Bay Xuống"
 HudDownBtn.TextColor3 = TEXT_LIGHT
 HudDownBtn.Font = Enum.Font.SourceSansBold
@@ -272,10 +246,10 @@ DownCorner.Parent = HudDownBtn
 
 -- Nút Tắt Noclip
 local HudOffBtn = Instance.new("TextButton")
-HudOffBtn.Size = UDim2.new(0.9, 0, 0, 22)
-HudOffBtn.Position = UDim2.new(0.05, 0, 0, 112)
+HudOffBtn.Size = UDim2.new(0.9, 0, 0, 24)
+HudOffBtn.Position = UDim2.new(0.05, 0, 0, 84)
 HudOffBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-HudOffBtn.BackgroundTransparency = 0.1
+HudOffBtn.BackgroundTransparency = 0.2
 HudOffBtn.Text = "❌ Tắt Xuyên Tường"
 HudOffBtn.TextColor3 = TEXT_LIGHT
 HudOffBtn.Font = Enum.Font.SourceSansBold
@@ -286,11 +260,11 @@ local OffCorner = Instance.new("UICorner")
 OffCorner.CornerRadius = UDim.new(0, 4)
 OffCorner.Parent = HudOffBtn
 
--- LOGIC KÉO BẢNG NOCLIP CHỈ KHI BẤM NÚT "DI CHUYỂN HUD"
+-- Kéo thả HUD Noclip
 local dragHud = false
 local dragHudStartMouse, dragHudStartPos
 
-HudDragBar.InputBegan:Connect(function(input)
+NoclipHUD.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragHud = true
         dragHudStartMouse = UserInputService:GetMouseLocation()
@@ -1620,7 +1594,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 ---------------------------------------------------------
--- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM (NOCLIP & XUYÊN VẠN VẬT)
+-- LOGIC CƠ BẢN & XỬ LÝ VA CHẠM
 ---------------------------------------------------------
 local startFly
 local stopFly
@@ -1699,20 +1673,9 @@ local function updateNoclipState()
             noclipConnection = RunService.Stepped:Connect(function()
                 local char = LocalPlayer.Character
                 if char then
-                    local noclipAllMode = xuyenVanVatActive or followPlayerActive or isFlying
                     for _, part in pairs(char:GetDescendants()) do
                         if part:IsA("BasePart") and part ~= noclipCarpetPart then 
-                            if noclipAllMode then
-                                -- Xuyên vạn vật: Tắt toàn bộ va chạm của nhân vật
-                                part.CanCollide = false
-                            else
-                                -- Không xuyên vạn vật: Giữ va chạm bình thường với tường, chỉ đứng trên thảm
-                                if part.Name == "HumanoidRootPart" then
-                                    part.CanCollide = false
-                                else
-                                    part.CanCollide = true
-                                end
-                            end
+                            part.CanCollide = false 
                         end
                     end
                 end
@@ -1765,19 +1728,6 @@ end)
 
 HudOffBtn.MouseButton1Click:Connect(function()
     toggleStandaloneNoclip(false)
-end)
-
--- Nút Toggle Xuyên Vạn Vật trên HUD Noclip
-HudXuyenBtn.MouseButton1Click:Connect(function()
-    xuyenVanVatActive = not xuyenVanVatActive
-    if xuyenVanVatActive then
-        HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: ON"
-        HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
-    else
-        HudXuyenBtn.Text = "🌀 Xuyên Vạn Vật: OFF"
-        HudXuyenBtn.BackgroundColor3 = Color3.fromRGB(150, 155, 165)
-    end
-    updateNoclipState()
 end)
 
 -- Sự kiện nhấn giữ Bay Lên / Bay Xuống trên HUD
@@ -2359,7 +2309,7 @@ SavePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-RefreshBtn.MouseButton1Click(updatePlayerList)
+RefreshBtn.MouseButton1Click:Connect(updatePlayerList)
 SearchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
 
 Players.PlayerAdded:Connect(function(plr)
