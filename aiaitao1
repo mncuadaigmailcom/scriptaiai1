@@ -1,297 +1,337 @@
--- [[ GRAI2 HUB - ULTRA SAFE & COMPATIBLE VERSION ]] --
-
--- Check game load an toàn (không lo bị kẹt)
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- [[ GRAI2 HUB - NATIVE UI (KHÔNG LỖI - HOẠT ĐỘNG 100%) ]] --
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 
--- Tìm vị trí chứa GUI an toàn nhất
-local TargetParent = player:FindFirstChild("PlayerGui")
+-- Xác định nơi chứa GUI an toàn nhất
+local TargetParent = player:WaitForChild("PlayerGui")
 pcall(function()
     TargetParent = gethui() or game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
 end)
 
+-- Dọn dẹp GUI cũ nếu có
+if TargetParent:FindFirstChild("GraiMainGui") then
+    TargetParent.GraiMainGui:Destroy()
+end
+if TargetParent:FindFirstChild("GraiIntro") then
+    TargetParent.GraiIntro:Destroy()
+end
+
 ------------------------------------------------------------
--- 🌌 1. INTRO GUI (Chạy độc lập)
+-- 🌌 1. INTRO GUI
 ------------------------------------------------------------
 task.spawn(function()
-    pcall(function()
-        local introGui = Instance.new("ScreenGui")
-        introGui.Name = "GraiIntro"
-        introGui.ResetOnSpawn = false
-        introGui.Parent = TargetParent
+    local introGui = Instance.new("ScreenGui")
+    introGui.Name = "GraiIntro"
+    introGui.ResetOnSpawn = false
+    introGui.Parent = TargetParent
 
-        local bg = Instance.new("Frame")
-        bg.Size = UDim2.new(1,0,1,0)
-        bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-        bg.BackgroundTransparency = 0.3
-        bg.Parent = introGui
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1,0,1,0)
+    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    bg.BackgroundTransparency = 0.3
+    bg.Parent = introGui
 
-        local logo = Instance.new("ImageLabel")
-        logo.Parent = introGui
-        logo.AnchorPoint = Vector2.new(0.5,0.5)
-        logo.Position = UDim2.new(0.5,0,0.5,0)
-        logo.Size = UDim2.new(0, 180, 0, 180)
-        logo.BackgroundTransparency = 1
-        logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
+    local logo = Instance.new("ImageLabel")
+    logo.Parent = introGui
+    logo.AnchorPoint = Vector2.new(0.5,0.5)
+    logo.Position = UDim2.new(0.5,0,0.5,0)
+    logo.Size = UDim2.new(0, 0, 0, 0)
+    logo.BackgroundTransparency = 1
+    logo.Image = "http://www.roblox.com/asset/?id=77111304194141"
 
-        local msg = Instance.new("TextLabel")
-        msg.Parent = introGui
-        msg.AnchorPoint = Vector2.new(0.5, 0)
-        msg.Position = UDim2.new(0.5, 0, 0.72, 0)
-        msg.Size = UDim2.new(0, 500, 0, 60)
-        msg.BackgroundTransparency = 1
-        msg.Text = "Grai Hub"
-        msg.TextColor3 = Color3.fromRGB(0, 255, 255)
-        msg.Font = Enum.Font.GothamBlack
-        msg.TextScaled = true
+    TweenService:Create(logo, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 160, 0, 160)
+    }):Play()
 
-        task.wait(2)
-        introGui:Destroy()
+    task.spawn(function()
+        while logo and logo.Parent do
+            logo.Rotation = logo.Rotation + 2
+            task.wait(0.01)
+        end
     end)
+
+    local msg = Instance.new("TextLabel")
+    msg.Parent = introGui
+    msg.AnchorPoint = Vector2.new(0.5, 0)
+    msg.Position = UDim2.new(0.5, 0, 0.7, 0)
+    msg.Size = UDim2.new(0, 400, 0, 50)
+    msg.BackgroundTransparency = 1
+    msg.Text = "Grai Hub"
+    msg.TextColor3 = Color3.fromRGB(0, 255, 255)
+    msg.Font = Enum.Font.GothamBlack
+    msg.TextSize = 35
+
+    task.wait(2)
+    introGui:Destroy()
 end)
 
 ------------------------------------------------------------
--- 📦 2. LOAD FLUENT UI (Thử 2 link dự phòng + Tắt Acrylic chống crash)
+-- 🎛 2. MAIN SCREEN GUI & TOGGLE BUTTON
 ------------------------------------------------------------
-local Fluent = nil
-local success, err = pcall(function()
-    Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local MainGui = Instance.new("ScreenGui")
+MainGui.Name = "GraiMainGui"
+MainGui.ResetOnSpawn = false
+MainGui.Parent = TargetParent
+
+-- NÚT CHUỐI ĐỘI VƯƠNG MIỆN (BẬT/ẨN)
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Parent = MainGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ToggleBtn.BackgroundTransparency = 0.2
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Image = "rbxassetid://13220409166"
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleBtn
+
+local ToggleStroke = Instance.new("UIStroke")
+ToggleStroke.Color = Color3.fromRGB(255, 215, 0)
+ToggleStroke.Thickness = 2
+ToggleStroke.Parent = ToggleBtn
+
+------------------------------------------------------------
+-- 📦 3. CỬA SỔ MENU CHÍNH (MAIN FRAME)
+------------------------------------------------------------
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = MainGui
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.Size = UDim2.new(0, 480, 0, 300)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+-- Thanh Tiêu Đề TopBar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 10)
+TopBarCorner.Parent = TopBar
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -50, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Grai2 - Tổng Hợp Script"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Parent = TopBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+CloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
 end)
 
-if not success or not Fluent then
-    pcall(function()
-        Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/main/main.lua"))()
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+------------------------------------------------------------
+-- 📑 4. TABS SYSTEM
+------------------------------------------------------------
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, -40)
+Sidebar.Position = UDim2.new(0, 0, 0, 40)
+Sidebar.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SidebarList = Instance.new("UIListLayout")
+SidebarList.Parent = Sidebar
+SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarList.Padding = UDim.new(0, 5)
+
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(1, -135, 1, -45)
+Container.Position = UDim2.new(0, 132, 0, 42)
+Container.BackgroundTransparency = 1
+Container.Parent = MainFrame
+
+local TabFrames = {}
+local TabButtons = {}
+
+local function CreateTab(tabName)
+    -- Nút bấm Tab
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Size = UDim2.new(1, -10, 0, 35)
+    TabBtn.Position = UDim2.new(0, 5, 0, 0)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+    TabBtn.Text = tabName
+    TabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabBtn.Font = Enum.Font.GothamMedium
+    TabBtn.TextSize = 13
+    TabBtn.Parent = Sidebar
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = TabBtn
+
+    -- Khung nội dung Tab
+    local TabContent = Instance.new("ScrollingFrame")
+    TabContent.Size = UDim2.new(1, 0, 1, 0)
+    TabContent.BackgroundTransparency = 1
+    TabContent.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabContent.ScrollBarThickness = 4
+    TabContent.Visible = false
+    TabContent.Parent = Container
+
+    local ContentList = Instance.new("UIListLayout")
+    ContentList.Parent = TabContent
+    ContentList.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentList.Padding = UDim.new(0, 6)
+
+    ContentList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        TabContent.CanvasSize = UDim2.new(0, 0, 0, ContentList.AbsoluteContentSize.Y + 10)
+    end)
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, frame in pairs(TabFrames) do frame.Visible = false end
+        for _, btn in pairs(TabButtons) do 
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        TabContent.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+
+    table.insert(TabFrames, TabContent)
+    table.insert(TabButtons, TabBtn)
+
+    return TabContent
+end
+
+-- Hàm Thêm Nút Script
+local function AddButton(tab, title, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 35)
+    Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    Btn.Text = "  " .. title
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 13
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    Btn.Parent = tab
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Btn
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(60, 60, 75)
+    Stroke.Thickness = 1
+    Stroke.Parent = Btn
+
+    Btn.MouseButton1Click:Connect(function()
+        pcall(callback)
     end)
 end
 
--- Tạo Cửa Sổ Menu Chính
-local Window = Fluent:CreateWindow({
-    Title = "Grai2",
-    SubTitle = "Tổng Hợp Script",
-    TabWidth = 150,
-    Size = UDim2.fromOffset(460, 320),
-    Acrylic = false, -- 🔴 ĐÃ TẮT ACRYLIC ĐỂ KHÔNG BỊ CRASH/ẨN MENU TRÊN MOBILE
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.End
-})
-
 ------------------------------------------------------------
--- 🎛 3. NÚT NỔI BẬT/ẨN CHUỐI VƯƠNG MIỆN (DỄ BẤM)
+-- 📑 5. KHỞI TẠO TABS & SCRIPT BUTTONS
 ------------------------------------------------------------
-local ToggleGui = Instance.new("ScreenGui")
-ToggleGui.Name = "GraiToggleBtn"
-ToggleGui.ResetOnSpawn = false
-ToggleGui.Parent = TargetParent
+local TabInfo = CreateTab("Thông Tin")
+local TabBF = CreateTab("Blox Fruits")
+local TabGarden = CreateTab("Grow Garden")
+local TabForest = CreateTab("99 Nights")
 
-local ImageButton = Instance.new("ImageButton")
-ImageButton.Parent = ToggleGui
-ImageButton.BackgroundColor3 = Color3.fromRGB(0,0,0)
-ImageButton.BackgroundTransparency = 0.2
-ImageButton.Position = UDim2.new(0.05, 0, 0.15, 0)
-ImageButton.Size = UDim2.new(0, 50, 0, 50)
-ImageButton.Draggable = true
-ImageButton.Image = "rbxassetid://13220409166" -- Biểu tượng Chuối Vương Miện
+-- Mặc định chọn Tab đầu tiên
+TabFrames[1].Visible = true
+TabButtons[1].BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+TabButtons[1].TextColor3 = Color3.fromRGB(255, 255, 255)
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(1, 0)
-UICorner.Parent = ImageButton
-
--- Bật/Ẩn Menu khi bấm nút Chuối
-ImageButton.MouseButton1Click:Connect(function()
-    Window:Minimize()
+-- Tab Thông Tin
+AddButton(TabInfo, "Youtuber Grai2 (Copy Link)", function()
+    setclipboard("https://youtube.com/@grai2")
 end)
 
-------------------------------------------------------------
--- 📑 4. TABS & DỮ LIỆU SCRIPT
-------------------------------------------------------------
-local Tabs = {
-    Main0 = Window:AddTab({ Title = "Thông Tin" }),
-    Main1 = Window:AddTab({ Title = "Blox Fruits" }),
-    Main2 = Window:AddTab({ Title = "Grow A Garden" }),
-    Main3 = Window:AddTab({ Title = "99 Nights In The Forest" })
-}
+-- Tab Blox Fruits
+AddButton(TabBF, "Redz Hub", function()
+    local Settings = {JoinTeam = "Pirates", Translator = true}
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/newredz/BloxFruits/refs/heads/main/Source.luau"))(Settings)
+end)
+AddButton(TabBF, "w-azure Hub", function()
+    loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/85e904ae1ff30824c1aa007fc7324f8f.lua"))()
+end)
+AddButton(TabBF, "Fix Lag", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/TurboLite/Script/main/FixLag.lua"))()
+end)
+AddButton(TabBF, "Min Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/LuaCrack/Min/refs/heads/main/MinXt2Eng"))()
+end)
+AddButton(TabBF, "Speed Hub X", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+end)
+AddButton(TabBF, "Than Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/thantzy/thanhub/refs/heads/main/thanv1"))()
+end)
+AddButton(TabBF, "BlueX Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
+end)
+AddButton(TabBF, "Tsoul Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Tsuo7/TsuoHub/main/Tsuoscripts"))()
+end)
+AddButton(TabBF, "Volcano Hub V3", function()
+    loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/indexeduu/BF-NewVer/refs/heads/main/V3New.lua"))()
+end)
+AddButton(TabBF, "HOHO Hub", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
+end)
 
--- Tab 0: Thông Tin
-Tabs.Main0:AddButton({
-    Title = "Youtuber",
-    Description = "Grai2 (Copy link Youtube)",
-    Callback = function()
-        pcall(function()
-            setclipboard("https://youtube.com/@grai2")
-            Fluent:Notify({
-                Title = "Grai Hub",
-                Content = "Đã sao chép link Youtube!",
-                Duration = 3
-            })
-        end)
-    end
-})
+-- Tab Grow A Garden
+AddButton(TabGarden, "Nat Hub", function()
+    loadstring(game:HttpGet("https://get.nathub.xyz/loader"))()
+end)
+AddButton(TabGarden, "Speed Hub X", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+end)
+AddButton(TabGarden, "No Lag Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/NoLag-id/No-Lag-HUB/refs/heads/main/Loader/Main.lua"))()
+end)
+AddButton(TabGarden, "BlueX Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
+end)
 
--- Tab 1: Blox Fruits
-Tabs.Main1:AddButton({
-    Title = "Redz Hub",
-    Callback = function()
-        pcall(function()
-            local Settings = {JoinTeam = "Pirates", Translator = true}
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/newredz/BloxFruits/refs/heads/main/Source.luau"))(Settings)
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "w-azure Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/85e904ae1ff30824c1aa007fc7324f8f.lua"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Fix Lag",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/TurboLite/Script/main/FixLag.lua"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Min Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/LuaCrack/Min/refs/heads/main/MinXt2Eng"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Speed Hub X",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Than Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/thantzy/thanhub/refs/heads/main/thanv1"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "BlueX Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Tsoul Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Tsuo7/TsuoHub/main/Tsuoscripts"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "Volcano Hub V3",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/indexeduu/BF-NewVer/refs/heads/main/V3New.lua"))()
-        end)
-    end
-})
-
-Tabs.Main1:AddButton({
-    Title = "HOHO Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
-        end)
-    end
-})
-
--- Tab 2: Grow A Garden
-Tabs.Main2:AddButton({
-    Title = "Nat Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://get.nathub.xyz/loader"))()
-        end)
-    end
-})
-
-Tabs.Main2:AddButton({
-    Title = "Speed Hub X",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-        end)
-    end
-})
-
-Tabs.Main2:AddButton({
-    Title = "No Lag Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/NoLag-id/No-Lag-HUB/refs/heads/main/Loader/Main.lua"))()
-        end)
-    end
-})
-
-Tabs.Main2:AddButton({
-    Title = "BlueX Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
-        end)
-    end
-})
-
--- Tab 3: 99 Nights In The Forest
-Tabs.Main3:AddButton({
-    Title = "Voidware Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
-        end)
-    end
-})
-
-Tabs.Main3:AddButton({
-    Title = "Speed Hub X",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
-        end)
-    end
-})
-
-Tabs.Main3:AddButton({
-    Title = "Pulse Hub",
-    Callback = function()
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
-        end)
-    end
-})
-
--- Thông báo khi tải hoàn tất
-Fluent:Notify({
-    Title = "Grai Hub",
-    Content = "Đã nạp Menu thành công! Bấm icon Chuối để Ẩn/Hiện.",
-    Duration = 5
-})
+-- Tab 99 Nights In The Forest
+AddButton(TabForest, "Voidware Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
+end)
+AddButton(TabForest, "Speed Hub X", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
+end)
+AddButton(TabForest, "Pulse Hub", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Chavels123/Loader/refs/heads/main/loader.lua"))()
+end)
