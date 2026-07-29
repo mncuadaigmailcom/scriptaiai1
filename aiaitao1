@@ -1,13 +1,7 @@
 --[[
-    ULTIMATE FLY & ESP SCRIPT - TỔNG HỢP & TỐI ƯU
-    Kết hợp: Fly to Player + Saved Locations + Transparent Wall Creator
-    + Executor Menu (Code, Anti-Kick, Freeze, Graphics, Camera)
-    
-    TỐI ƯU:
-    - Cache ESP objects (không tạo mới mỗi frame)
-    - Debounce buttons (chống click nhanh)
-    - Memory management (cleanup đúng cách)
-    - Async operations (task.spawn cho tác vụ nặng)
+    BANANA FLY HUB - ULTIMATE EDITION
+    Kết hợp: Fly System + Executor Menu + ESP + Wall Creator + Camera
+    Tối ưu hóa hiệu suất, sửa lỗi memory leak, cải thiện độ mượt
 --]]
 
 -- ==================== SERVICES ====================
@@ -16,55 +10,74 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
-local CoreGui = game:GetService("CoreGui")
-
--- ==================== DEBUG ====================
-local DEBUG = true
-local function log(...) if DEBUG then print("🍌", ...) end end
-log("Ultimate Fly Script Loading...")
-log("Player:", LocalPlayer.Name)
-
--- ==================== ANTI-AFK ====================
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
 
 -- ==================== CONSTANTS ====================
 local CONSTANTS = {
     FLY_HEIGHT_DEFAULT = 150,
     FLY_SPEED_DEFAULT = 100,
-    GRAVITY_DEFAULT = 196.2,
     GLOW_RANGE_DEFAULT = 50,
-    WALL_SIZE_MIN = 0.5,
-    WALL_SIZE_MAX = 500,
-    GLOW_RANGE_MIN = 5,
-    GLOW_RANGE_MAX = 300,
+    GRAVITY_DEFAULT = 196.2,
     DEBOUNCE_TIME = 0.3,
+    ESP_UPDATE_INTERVAL = 0.1,
+}
+
+-- ==================== THEME ====================
+local THEME = {
+    BG = Color3.fromRGB(240, 242, 248),
+    DARK = Color3.fromRGB(40, 40, 45),
+    TITLE_BG = Color3.fromRGB(215, 220, 230),
+    TAB_ACTIVE = Color3.fromRGB(255, 255, 255),
+    TAB_INACTIVE = Color3.fromRGB(200, 205, 215),
+    STRIPE_EVEN = Color3.fromRGB(255, 255, 255),
+    STRIPE_ODD = Color3.fromRGB(215, 220, 230),
+    ACCENT = Color3.fromRGB(0, 140, 240),
+    SUCCESS = Color3.fromRGB(40, 170, 90),
+    DANGER = Color3.fromRGB(230, 30, 30),
+    WARNING = Color3.fromRGB(255, 180, 0),
+    TEXT_DARK = Color3.fromRGB(15, 15, 25),
+    TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
 }
 
 -- ==================== STATE MANAGEMENT ====================
 local State = {
-    -- Fly system
+    -- Flight
     isFlying = false,
     isFollowing = false,
     stopRequested = false,
     currentTween = nil,
     
     -- Noclip
-    noclipActive = false,
     noclipConnection = nil,
+    antiNoclipConn = nil,
     antiNoclipActive = false,
-    antiNoclipConnection = nil,
+    noclipActive = false,
+    
+    -- Camera
+    customCam = false,
+    freeCam = false,
+    fov = 70,
+    camOffX = 0,
+    camOffY = 0,
+    freeCamSpeed = 30,
+    
+    -- Player
+    walkSpeed = 16,
+    jumpPower = 50,
+    infJump = false,
+    clickTp = false,
     
     -- ESP
-    espPlayers = {all = false, single = false, cache = {}},
-    espLocations = {all = false, single = false, cache = {}},
-    espWalls = {all = false, single = false, cache = {}},
+    esp = {
+        players = {all = false, single = false, cache = {}},
+        locations = {all = false, single = false, cache = {}},
+        walls = {all = false, single = false, cache = {}}
+    },
+    downedTimeTracker = {},
     
     -- Visual
     glowActive = false,
@@ -73,95 +86,60 @@ local State = {
     heightPillar = nil,
     heightConn = nil,
     
-    -- Selection
-    selectedPlayer = nil,
-    selectedLocation = nil,
-    selectedWall = nil,
+    -- Environment
+    fog = false,
+    fullBright = false,
+    shadows = true,
+    bloom = true,
+    blur = false,
+    sunRays = true,
+    colorCorr = false,
+    fpsCounter = false,
     
     -- Data
     savedLocations = {},
     spawnedWalls = {},
     wallCounter = 0,
-    savedScripts = {},
+    scripts = {},
     
-    -- UI
+    -- Selection
+    selectedPlayer = nil,
+    selectedLocation = nil,
+    selectedWall = nil,
+    
+    -- UI State
     activeTab = "Players",
     splitRatio = 0.60,
     wallSplitRatio = 0.52,
     
-    -- Movement settings
-    flySpeed = 50,
-    walkSpeed = 16,
-    jumpPower = 50,
+    -- Debounce
+    lastClick = {},
     
-    -- Wall settings
-    carpetWidth = 1.5,
-    carpetThickness = 0.2,
-    carpetLength = 1.5,
-    
-    -- Camera
-    customCam = false,
-    fov = 70,
-    camOffX = 0,
-    camOffY = 0,
-    freeCam = false,
-    freeCamSpeed = 30,
-    
-    -- Graphics
-    shadows = true,
-    fullBright = false,
-    
-    -- Features
-    infJump = false,
-    clickTp = false,
-    esp = false,
+    -- Anti
     antiAfk = true,
     blockServer = false,
     freezeOthers = false,
-    carpet = false,
-    fog = false,
     
-    -- Debounce
-    lastClick = {},
+    -- Fly
+    flySpeed = 50,
+    carpet = false,
+    carpetWidth = 1.5,
+    carpetThickness = 0.2,
+    carpetLength = 1.5,
+    carpetPart = nil,
+    carpetY = nil,
+    flying = false,
+    flyRun = false,
+    
+    -- Particles
+    particles = true,
+    decals = true,
+    
+    totalRuns = 0,
 }
 
 -- ==================== UTILITY FUNCTIONS ====================
 local Util = {}
-
-function Util.getChar()
-    return LocalPlayer.Character
-end
-
-function Util.getHumanoid()
-    local char = Util.getChar()
-    return char and char:FindFirstChildOfClass("Humanoid")
-end
-
-function Util.getRoot()
-    local char = Util.getChar()
-    return char and char:FindFirstChild("HumanoidRootPart")
-end
-
-function Util.getTargetPart(plr)
-    if not plr or not plr.Character then return nil end
-    local char = plr.Character
-    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char.PrimaryPart
-end
-
-function Util.isPlayerDown(plr)
-    if not plr or not plr.Character then return true end
-    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-    if hum and hum.Health <= 0 then return true end
-    return plr.Character:FindFirstChild("Knocked") ~= nil
-        or plr.Character:FindFirstChild("Downed") ~= nil
-        or plr.Character:FindFirstChild("Dead") ~= nil
-end
-
-function Util.cleanup(obj)
-    if typeof(obj) == "Instance" and obj.Parent then
-        obj:Destroy()
-    end
-end
 
 function Util.debounce(key)
     local now = tick()
@@ -172,24 +150,60 @@ function Util.debounce(key)
     return true
 end
 
-function Util.safeTween(part, targetCFrame, speed)
+function Util.getPlayerTarget(plr)
+    if not plr or not plr.Character then return nil end
+    local char = plr.Character
+    return char:FindFirstChild("HumanoidRootPart") or 
+           char:FindFirstChild("Head") or 
+           char.PrimaryPart
+end
+
+function Util.getLocalRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+function Util.getLocalHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+function Util.isPlayerDown(plr)
+    if not plr or not plr.Character then return true end
+    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health <= 0 then return true end
+    return plr.Character:FindFirstChild("Knocked") ~= nil or
+           plr.Character:FindFirstChild("Downed") ~= nil or
+           plr.Character:FindFirstChild("Dead") ~= nil
+end
+
+function Util.cleanupObject(obj)
+    if obj and obj.Parent then
+        pcall(function() obj:Destroy() end)
+    end
+end
+
+function Util.tweenTo(part, targetCFrame, speed)
     if State.stopRequested then return false end
     
-    local distance = (targetCFrame.Position - part.Position).Magnitude
-    local duration = math.max(0.1, distance / speed)
-    
+    -- Hủy tween cũ
     if State.currentTween then
-        State.currentTween:Cancel()
+        pcall(function() State.currentTween:Cancel() end)
         State.currentTween = nil
     end
     
+    local distance = (targetCFrame.Position - part.Position).Magnitude
+    if distance < 0.1 then return true end
+    
+    local duration = math.max(0.1, distance / speed)
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(part, tweenInfo, {CFrame = targetCFrame})
-    State.currentTween = tween
-    tween:Play()
+    
+    State.currentTween = TweenService:Create(part, tweenInfo, {CFrame = targetCFrame})
+    State.currentTween:Play()
     
     local finished = false
-    local conn = tween.Completed:Connect(function()
+    local conn
+    conn = State.currentTween.Completed:Connect(function()
         finished = true
         conn:Disconnect()
     end)
@@ -199,18 +213,106 @@ function Util.safeTween(part, targetCFrame, speed)
     end
     
     if State.stopRequested then
-        tween:Cancel()
+        pcall(function() State.currentTween:Cancel() end)
+        State.currentTween = nil
         return false
     end
+    
+    State.currentTween = nil
     return true
 end
 
-function Util.updateMovement()
-    local hum = Util.getHumanoid()
-    if hum then
-        hum.WalkSpeed = State.walkSpeed
-        hum.JumpPower = State.jumpPower
+function Util.updateChar()
+    local h = Util.getLocalHumanoid()
+    if h then
+        h.WalkSpeed = State.walkSpeed
+        h.JumpPower = State.jumpPower
     end
+end
+
+-- ==================== UI HELPERS ====================
+local UI = {}
+
+function UI.createCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+function UI.createStroke(parent, color, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Color3.fromRGB(170, 175, 190)
+    stroke.Thickness = thickness or 1.2
+    stroke.Parent = parent
+    return stroke
+end
+
+function UI.createButton(parent, text, color, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 24)
+    btn.BackgroundColor3 = color or THEME.TAB_INACTIVE
+    btn.BackgroundTransparency = 0.3
+    btn.Text = text
+    btn.TextColor3 = THEME.TEXT_DARK
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 11
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 6
+    btn.Parent = parent
+    
+    UI.createCorner(btn, 5)
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.3}):Play()
+    end)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            if Util.debounce("btn_" .. text) then
+                callback()
+            end
+        end)
+    end
+    
+    return btn
+end
+
+function UI.createLabel(parent, text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 14)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(60, 60, 60)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 10
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 6
+    label.Parent = parent
+    return label
+end
+
+function UI.createTextBox(parent, placeholder, default)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 22)
+    box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    box.BackgroundTransparency = 0.3
+    box.PlaceholderText = placeholder or ""
+    box.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    box.Text = default or ""
+    box.TextColor3 = THEME.TEXT_DARK
+    box.Font = Enum.Font.SourceSans
+    box.TextSize = 11
+    box.BorderSizePixel = 0
+    box.ClearTextOnFocus = false
+    box.ZIndex = 8
+    box.Parent = parent
+    
+    UI.createCorner(box, 5)
+    return box
 end
 
 -- ==================== NOCLIP SYSTEM ====================
@@ -218,10 +320,10 @@ local Noclip = {}
 
 function Noclip.enable()
     if State.noclipConnection then return end
-    State.noclipActive = true
     State.noclipConnection = RunService.Stepped:Connect(function()
-        local char = Util.getChar()
-        if char and State.noclipActive then
+        if State.antiNoclipActive then return end
+        local char = LocalPlayer.Character
+        if char then
             for _, part in ipairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
@@ -229,7 +331,6 @@ function Noclip.enable()
             end
         end
     end)
-    log("Noclip: ON")
 end
 
 function Noclip.disable()
@@ -237,9 +338,8 @@ function Noclip.disable()
         State.noclipConnection:Disconnect()
         State.noclipConnection = nil
     end
-    State.noclipActive = false
     
-    local char = Util.getChar()
+    local char = LocalPlayer.Character
     if char then
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -247,16 +347,14 @@ function Noclip.disable()
             end
         end
     end
-    log("Noclip: OFF")
 end
 
 function Noclip.update()
-    -- Ưu tiên Anti-Noclip
     if State.antiNoclipActive then
         Noclip.disable()
-        if not State.antiNoclipConnection then
-            State.antiNoclipConnection = RunService.Stepped:Connect(function()
-                local char = Util.getChar()
+        if not State.antiNoclipConn then
+            State.antiNoclipConn = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
                         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
@@ -269,13 +367,12 @@ function Noclip.update()
         return
     end
     
-    if State.antiNoclipConnection then
-        State.antiNoclipConnection:Disconnect()
-        State.antiNoclipConnection = nil
+    if State.antiNoclipConn then
+        State.antiNoclipConn:Disconnect()
+        State.antiNoclipConn = nil
     end
     
-    -- Noclip khi bay hoặc follow
-    if State.isFlying or State.isFollowing then
+    if State.isFlying or State.isFollowing or State.noclipActive then
         Noclip.enable()
     else
         Noclip.disable()
@@ -285,28 +382,27 @@ end
 -- ==================== FLIGHT SYSTEM ====================
 local Flight = {}
 
-function Flight.startFly(mode, target)
+function Flight.startFly(targetType, target)
     if State.isFlying or State.isFollowing then
-        Flight.stopFly()
-        task.wait(0.1)
+        if State.isFlying then Flight.stopFly() end
+        if State.isFollowing then Flight.stopFollow() end
+        return
     end
     
     if not Util.debounce("startFly") then return end
     
     local getTargetCFrame
-    if mode == "Player" then
-        if not target then return end
+    if targetType == "Player" then
         State.selectedPlayer = target
         getTargetCFrame = function()
-            local part = Util.getTargetPart(target)
+            local part = Util.getPlayerTarget(target)
             return part and part.CFrame
         end
-    elseif mode == "Location" then
-        if not target then return end
+    elseif targetType == "Location" then
         State.selectedLocation = target
         getTargetCFrame = function() return CFrame.new(target.pos) end
-    elseif mode == "Wall" then
-        if not target or not target.part or not target.part.Parent then return end
+    elseif targetType == "Wall" then
+        if not target or not target.part then return end
         State.selectedWall = target
         getTargetCFrame = function()
             if target.part and target.part.Parent then
@@ -316,10 +412,10 @@ function Flight.startFly(mode, target)
         end
     end
     
-    local initialCFrame = getTargetCFrame and getTargetCFrame()
+    local initialCFrame = getTargetCFrame()
     if not initialCFrame then return end
     
-    local hrp = Util.getRoot()
+    local hrp = Util.getLocalRoot()
     if not hrp then return end
     
     local flyHeight = tonumber(P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
@@ -330,30 +426,29 @@ function Flight.startFly(mode, target)
     workspace.Gravity = 0
     Noclip.update()
     
-    log("🚀 Bắt đầu bay tới", mode)
+    if UIManager then UIManager.refreshAll() end
     
     task.spawn(function()
-        -- BƯỚC 1: Bay lên trời
+        -- Step 1: Fly up
         local startPos = hrp.Position
         local skyPos = startPos + Vector3.new(0, flyHeight, 0)
-        local ok = Util.safeTween(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed)
+        local ok = Util.tweenTo(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed)
         
-        -- BƯỚC 2: Bay ngang tới đích
-        if ok then
+        -- Step 2: Fly horizontal
+        if ok and not State.stopRequested then
             local targetCFrame = getTargetCFrame()
             if targetCFrame then
                 local dest = targetCFrame.Position
                 local overhead = Vector3.new(dest.X, skyPos.Y, dest.Z)
                 local dir = (overhead - skyPos).Magnitude > 0.1 and (overhead - skyPos).Unit or hrp.CFrame.LookVector
-                ok = Util.safeTween(hrp, CFrame.new(overhead, overhead + dir), flySpeed)
+                ok = Util.tweenTo(hrp, CFrame.new(overhead, overhead + dir), flySpeed)
                 
-                -- BƯỚC 3: Hạ cánh
-                if ok then
+                -- Step 3: Land
+                if ok and not State.stopRequested then
                     targetCFrame = getTargetCFrame()
                     if targetCFrame then
-                        local finalCFrame = mode == "Player" and targetCFrame * CFrame.new(0, 0, 2) or targetCFrame
-                        Util.safeTween(hrp, finalCFrame, flySpeed)
-                        log("✅ Đã đến đích!")
+                        local finalCFrame = targetType == "Player" and targetCFrame * CFrame.new(0, 0, 2) or targetCFrame
+                        Util.tweenTo(hrp, finalCFrame, flySpeed)
                     end
                 end
             end
@@ -362,80 +457,78 @@ function Flight.startFly(mode, target)
         -- Reset
         workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
         State.isFlying = false
+        State.stopRequested = false
         Noclip.update()
-        UIUpdate.refreshAll()
+        if UIManager then UIManager.refreshAll() end
     end)
 end
 
 function Flight.stopFly()
     State.stopRequested = true
     if State.currentTween then
-        State.currentTween:Cancel()
+        pcall(function() State.currentTween:Cancel() end)
         State.currentTween = nil
     end
     State.isFlying = false
     workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
     Noclip.update()
-    log("🛑 Đã dừng bay")
+    if UIManager then UIManager.refreshAll() end
 end
 
 function Flight.startFollow()
     if State.isFlying then Flight.stopFly() end
-    if not State.selectedPlayer or not Util.debounce("startFollow") then return end
+    if not State.selectedPlayer or not State.selectedPlayer.Character then return end
+    
+    if not Util.debounce("startFollow") then return end
     
     State.isFollowing = true
     State.stopRequested = false
     workspace.Gravity = 0
     Noclip.update()
     
-    log("🧲 Bắt đầu bu người chơi:", State.selectedPlayer.Name)
-    
     task.spawn(function()
         local hasArrived = false
         
         while State.isFollowing and not State.stopRequested do
-            local targetPart = Util.getTargetPart(State.selectedPlayer)
-            local hrp = Util.getRoot()
+            local target = Util.getPlayerTarget(State.selectedPlayer)
+            local hrp = Util.getLocalRoot()
             
-            if not targetPart or not hrp then break end
+            if not target or not hrp then break end
             
             local flyHeight = tonumber(P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
             local flySpeed = tonumber(P_SpeedBox.Text) or CONSTANTS.FLY_SPEED_DEFAULT
             
             if not hasArrived then
-                -- Bay lên trời
+                -- Initial approach
                 local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
-                if not Util.safeTween(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed) then break end
+                if not Util.tweenTo(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed) then break end
                 
-                targetPart = Util.getTargetPart(State.selectedPlayer)
-                if not targetPart then break end
+                target = Util.getPlayerTarget(State.selectedPlayer)
+                if not target then break end
                 
-                -- Bay ngang
-                local overhead = Vector3.new(targetPart.Position.X, skyPos.Y, targetPart.Position.Z)
-                if not Util.safeTween(hrp, CFrame.new(overhead, overhead + (targetPart.Position - hrp.Position).Unit), flySpeed) then break end
+                local overhead = Vector3.new(target.Position.X, skyPos.Y, target.Position.Z)
+                if not Util.tweenTo(hrp, CFrame.new(overhead, overhead + (target.Position - hrp.Position).Unit), flySpeed) then break end
                 
-                targetPart = Util.getTargetPart(State.selectedPlayer)
-                if not targetPart then break end
+                target = Util.getPlayerTarget(State.selectedPlayer)
+                if not target then break end
                 
-                -- Hạ cánh
-                if not Util.safeTween(hrp, targetPart.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
+                if not Util.tweenTo(hrp, target.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
                 hasArrived = true
             else
-                -- Theo dõi
-                local dist = (hrp.Position - targetPart.Position).Magnitude
+                local dist = (hrp.Position - target.Position).Magnitude
                 if dist > 1.5 then
-                    if not Util.safeTween(hrp, targetPart.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
+                    if not Util.tweenTo(hrp, target.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
                 end
             end
             
             task.wait(0.05)
         end
         
-        -- Reset
         workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
         State.isFollowing = false
+        State.stopRequested = false
         Noclip.update()
-        UIUpdate.refreshAll()
+        if UIManager then UIManager.refreshAll() end
     end)
 end
 
@@ -443,22 +536,22 @@ function Flight.stopFollow()
     State.isFollowing = false
     State.stopRequested = true
     if State.currentTween then
-        State.currentTween:Cancel()
+        pcall(function() State.currentTween:Cancel() end)
         State.currentTween = nil
     end
     workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
     Noclip.update()
-    log("🧲 Đã dừng bu người chơi")
+    if UIManager then UIManager.refreshAll() end
 end
 
--- ==================== ESP SYSTEM ====================
+-- ==================== ESP SYSTEM (OPTIMIZED) ====================
 local ESP = {}
 
 function ESP.createPlayerESP(plr)
-    if State.espPlayers.cache[plr] then return end
+    if State.esp.players.cache[plr] then return end
     
     local bbg = Instance.new("BillboardGui")
-    bbg.Name = "ESP_Player_" .. plr.Name
+    bbg.Name = "ESP_Player"
     bbg.Size = UDim2.new(0, 220, 0, 50)
     bbg.AlwaysOnTop = true
     bbg.ExtentsOffset = Vector3.new(0, 3, 0)
@@ -472,80 +565,28 @@ function ESP.createPlayerESP(plr)
     label.TextColor3 = Color3.fromRGB(0, 255, 128)
     label.Parent = bbg
     
-    State.espPlayers.cache[plr] = {gui = bbg, label = label}
+    State.esp.players.cache[plr] = {gui = bbg, label = label}
 end
 
 function ESP.removePlayerESP(plr)
-    local data = State.espPlayers.cache[plr]
+    local data = State.esp.players.cache[plr]
     if data then
-        if data.gui then data.gui:Destroy() end
-        State.espPlayers.cache[plr] = nil
+        Util.cleanupObject(data.gui)
+        State.esp.players.cache[plr] = nil
     end
-end
-
-function ESP.removeAllPlayerESP()
-    for plr in pairs(State.espPlayers.cache) do
-        ESP.removePlayerESP(plr)
-    end
-    State.espPlayers.cache = {}
-end
-
-function ESP.updatePlayerESP()
-    local showAll = State.espPlayers.all
-    local showSingle = State.espPlayers.single
-    
-    if not showAll and not showSingle then
-        if next(State.espPlayers.cache) ~= nil then
-            ESP.removeAllPlayerESP()
-        end
-        return
-    end
-    
-    local myHrp = Util.getRoot()
-    
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr == LocalPlayer then continue end
-        
-        local shouldShow = showAll or (showSingle and State.selectedPlayer == plr)
-        
-        if shouldShow and plr.Character then
-            ESP.createPlayerESP(plr)
-            local data = State.espPlayers.cache[plr]
-            if data then
-                local target = Util.getTargetPart(plr)
-                if target then
-                    data.gui.Adornee = target
-                    data.gui.Parent = CoreGui
-                    
-                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-                    local dist = myHrp and math.floor((target.Position - myHrp.Position).Magnitude) or 0
-                    local hp = hum and math.floor(hum.Health) or 0
-                    
-                    if Util.isPlayerDown(plr) then
-                        data.label.TextColor3 = Color3.fromRGB(230, 30, 30)
-                        data.label.Text = string.format("🔴 %s [DOWN]\n❤️ %d | 📏 %dm", plr.Name, hp, dist)
-                    else
-                        data.label.TextColor3 = Color3.fromRGB(0, 255, 128)
-                        data.label.Text = string.format("👤 %s\n💚 %d | 📏 %dm", plr.Name, hp, dist)
-                    end
-                end
-            end
-        else
-            ESP.removePlayerESP(plr)
-        end
-    end
+    State.downedTimeTracker[plr] = nil
 end
 
 function ESP.createLocationESP(item)
-    if State.espLocations.cache[item] then return end
+    if State.esp.locations.cache[item] then return end
     
     local att = Instance.new("Attachment")
-    att.Name = "ESP_Loc_" .. item.name
+    att.Name = "ESP_LocAtt"
     att.WorldPosition = item.pos
     att.Parent = workspace.Terrain
     
     local bbg = Instance.new("BillboardGui")
-    bbg.Name = "ESP_LocGui_" .. item.name
+    bbg.Name = "ESP_Loc"
     bbg.Size = UDim2.new(0, 200, 0, 40)
     bbg.AlwaysOnTop = true
     bbg.Adornee = att
@@ -560,62 +601,23 @@ function ESP.createLocationESP(item)
     label.TextColor3 = Color3.fromRGB(255, 215, 0)
     label.Parent = bbg
     
-    bbg.Parent = ScreenGui
-    
-    State.espLocations.cache[item] = {gui = bbg, label = label, attachment = att}
+    State.esp.locations.cache[item] = {gui = bbg, label = label, attachment = att}
 end
 
 function ESP.removeLocationESP(item)
-    local data = State.espLocations.cache[item]
+    local data = State.esp.locations.cache[item]
     if data then
-        Util.cleanup(data.gui)
-        Util.cleanup(data.attachment)
-        State.espLocations.cache[item] = nil
-    end
-end
-
-function ESP.removeAllLocationESP()
-    for item in pairs(State.espLocations.cache) do
-        ESP.removeLocationESP(item)
-    end
-    State.espLocations.cache = {}
-end
-
-function ESP.updateLocationESP()
-    local showAll = State.espLocations.all
-    local showSingle = State.espLocations.single
-    
-    if not showAll and not showSingle then
-        if next(State.espLocations.cache) ~= nil then
-            ESP.removeAllLocationESP()
-        end
-        return
-    end
-    
-    local myHrp = Util.getRoot()
-    
-    for _, item in ipairs(State.savedLocations) do
-        local shouldShow = showAll or (showSingle and State.selectedLocation == item)
-        
-        if shouldShow then
-            ESP.createLocationESP(item)
-            local data = State.espLocations.cache[item]
-            if data then
-                data.attachment.WorldPosition = item.pos
-                local dist = myHrp and math.floor((item.pos - myHrp.Position).Magnitude) or 0
-                data.label.Text = string.format("📍 %s\n📏 %dm", item.name, dist)
-            end
-        else
-            ESP.removeLocationESP(item)
-        end
+        Util.cleanupObject(data.gui)
+        Util.cleanupObject(data.attachment)
+        State.esp.locations.cache[item] = nil
     end
 end
 
 function ESP.createWallESP(item)
-    if State.espWalls.cache[item] or not item.part or not item.part.Parent then return end
+    if State.esp.walls.cache[item] or not item.part or not item.part.Parent then return end
     
     local bbg = Instance.new("BillboardGui")
-    bbg.Name = "ESP_Wall_" .. item.name
+    bbg.Name = "ESP_Wall"
     bbg.Size = UDim2.new(0, 200, 0, 40)
     bbg.AlwaysOnTop = true
     bbg.Adornee = item.part
@@ -629,55 +631,121 @@ function ESP.createWallESP(item)
     label.TextColor3 = Color3.fromRGB(0, 220, 255)
     label.Parent = bbg
     
-    bbg.Parent = ScreenGui
-    
-    State.espWalls.cache[item] = {gui = bbg, label = label}
+    State.esp.walls.cache[item] = {gui = bbg, label = label}
 end
 
 function ESP.removeWallESP(item)
-    local data = State.espWalls.cache[item]
+    local data = State.esp.walls.cache[item]
     if data then
-        Util.cleanup(data.gui)
-        State.espWalls.cache[item] = nil
+        Util.cleanupObject(data.gui)
+        State.esp.walls.cache[item] = nil
     end
 end
 
-function ESP.removeAllWallESP()
-    for item in pairs(State.espWalls.cache) do
-        ESP.removeWallESP(item)
-    end
-    State.espWalls.cache = {}
-end
-
-function ESP.updateWallESP()
-    local showAll = State.espWalls.all
-    local showSingle = State.espWalls.single
+function ESP.updateAll()
+    -- Chỉ update mỗi 0.1s để tiết kiệm CPU
+    local myHrp = Util.getLocalRoot()
     
-    if not showAll and not showSingle then
-        if next(State.espWalls.cache) ~= nil then
-            ESP.removeAllWallESP()
+    -- Update Player ESP
+    if State.esp.players.all or State.esp.players.single then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr == LocalPlayer then continue end
+            
+            local shouldShow = State.esp.players.all or 
+                              (State.esp.players.single and State.selectedPlayer == plr)
+            
+            if shouldShow and plr.Character then
+                ESP.createPlayerESP(plr)
+                local data = State.esp.players.cache[plr]
+                if data then
+                    local target = Util.getPlayerTarget(plr)
+                    if target then
+                        data.gui.Adornee = target
+                        data.gui.Parent = (CoreGui:FindFirstChild("FlyBananaGUI") or 
+                                          LocalPlayer:FindFirstChild("PlayerGui"))
+                        
+                        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                        local dist = myHrp and math.floor((target.Position - myHrp.Position).Magnitude) or 0
+                        local hp = hum and math.floor(hum.Health) or 0
+                        local maxHp = hum and math.floor(hum.MaxHealth) or 100
+                        
+                        if Util.isPlayerDown(plr) then
+                            if not State.downedTimeTracker[plr] then
+                                State.downedTimeTracker[plr] = tick()
+                            end
+                            local elapsed = math.floor(tick() - State.downedTimeTracker[plr])
+                            data.label.TextColor3 = THEME.DANGER
+                            data.label.Text = string.format("🔴 %s [DOWN %ds]\n⚡ HP: %d/%d | 📏 %dm", 
+                                plr.Name, elapsed, hp, maxHp, dist)
+                        else
+                            State.downedTimeTracker[plr] = nil
+                            data.label.TextColor3 = Color3.fromRGB(0, 255, 128)
+                            data.label.Text = string.format("👤 %s\n💚 HP: %d/%d | 📏 %dm", 
+                                plr.Name, hp, maxHp, dist)
+                        end
+                    end
+                end
+            else
+                ESP.removePlayerESP(plr)
+            end
         end
-        return
+    else
+        for plr in pairs(State.esp.players.cache) do
+            ESP.removePlayerESP(plr)
+        end
     end
     
-    local myHrp = Util.getRoot()
-    
-    for _, item in ipairs(State.spawnedWalls) do
-        if item.part and item.part.Parent then
-            local shouldShow = showAll or (showSingle and State.selectedWall == item)
+    -- Update Location ESP
+    if State.esp.locations.all or State.esp.locations.single then
+        for _, item in ipairs(State.savedLocations) do
+            local shouldShow = State.esp.locations.all or 
+                              (State.esp.locations.single and State.selectedLocation == item)
             
             if shouldShow then
-                ESP.createWallESP(item)
-                local data = State.espWalls.cache[item]
+                ESP.createLocationESP(item)
+                local data = State.esp.locations.cache[item]
                 if data then
-                    data.gui.Adornee = item.part
-                    local dist = myHrp and math.floor((item.part.Position - myHrp.Position).Magnitude) or 0
-                    data.label.Text = string.format("🧱 %s\n📏 %dm", item.name, dist)
+                    data.attachment.WorldPosition = item.pos
+                    data.gui.Parent = (CoreGui:FindFirstChild("FlyBananaGUI") or 
+                                      LocalPlayer:FindFirstChild("PlayerGui"))
+                    local dist = myHrp and math.floor((item.pos - myHrp.Position).Magnitude) or 0
+                    data.label.Text = string.format("📍 %s\n📏 %dm", item.name, dist)
+                end
+            else
+                ESP.removeLocationESP(item)
+            end
+        end
+    else
+        for item in pairs(State.esp.locations.cache) do
+            ESP.removeLocationESP(item)
+        end
+    end
+    
+    -- Update Wall ESP
+    if State.esp.walls.all or State.esp.walls.single then
+        for _, item in ipairs(State.spawnedWalls) do
+            if item.part and item.part.Parent then
+                local shouldShow = State.esp.walls.all or 
+                                  (State.esp.walls.single and State.selectedWall == item)
+                
+                if shouldShow then
+                    ESP.createWallESP(item)
+                    local data = State.esp.walls.cache[item]
+                    if data then
+                        data.gui.Parent = (CoreGui:FindFirstChild("FlyBananaGUI") or 
+                                          LocalPlayer:FindFirstChild("PlayerGui"))
+                        local dist = myHrp and math.floor((item.part.Position - myHrp.Position).Magnitude) or 0
+                        data.label.Text = string.format("🧱 %s\n📏 %dm", item.name, dist)
+                    end
+                else
+                    ESP.removeWallESP(item)
                 end
             else
                 ESP.removeWallESP(item)
             end
-        else
+        end
+    else
+        for item in pairs(State.esp.walls.cache) do
             ESP.removeWallESP(item)
         end
     end
@@ -685,38 +753,38 @@ end
 
 -- ==================== GLOW & VISUAL ====================
 local function updateGlow()
-    local char = Util.getChar()
-    
+    local char = LocalPlayer.Character
     if not State.glowActive or not char then
-        Util.cleanup(State.glowLight)
+        Util.cleanupObject(State.glowLight)
+        State.glowLight = nil
         return
     end
     
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
-    if hrp then
-        if not State.glowLight or State.glowLight.Parent ~= hrp then
-            Util.cleanup(State.glowLight)
-            local light = Instance.new("PointLight")
-            light.Name = "BananaGlow"
-            light.Color = Color3.fromRGB(255, 245, 200)
-            light.Brightness = 1.2
-            light.Shadows = false
-            light.Parent = hrp
-            State.glowLight = light
+    local targetPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+    if targetPart then
+        if not State.glowLight or State.glowLight.Parent ~= targetPart then
+            Util.cleanupObject(State.glowLight)
+            State.glowLight = Instance.new("PointLight")
+            State.glowLight.Name = "BananaGlow"
+            State.glowLight.Color = Color3.fromRGB(255, 245, 200)
+            State.glowLight.Brightness = 1.2
+            State.glowLight.Shadows = false
+            State.glowLight.Parent = targetPart
         end
         
-        local range = tonumber(GlowRangeBox.Text) or CONSTANTS.GLOW_RANGE_DEFAULT
-        State.glowLight.Range = math.clamp(range, CONSTANTS.GLOW_RANGE_MIN, CONSTANTS.GLOW_RANGE_MAX)
+        local rangeVal = tonumber(GlowRangeBox and GlowRangeBox.Text) or CONSTANTS.GLOW_RANGE_DEFAULT
+        State.glowLight.Range = math.clamp(rangeVal, 5, 300)
     end
 end
 
 local function updateHeightPillar()
     if not State.showHeightPillar then
+        Util.cleanupObject(State.heightPillar)
+        State.heightPillar = nil
         if State.heightConn then
             State.heightConn:Disconnect()
             State.heightConn = nil
         end
-        Util.cleanup(State.heightPillar)
         return
     end
     
@@ -732,116 +800,1350 @@ local function updateHeightPillar()
         State.heightPillar.Parent = workspace
     end
     
-    if State.heightConn then
-        State.heightConn:Disconnect()
-    end
+    if State.heightConn then State.heightConn:Disconnect() end
     
     State.heightConn = RunService.RenderStepped:Connect(function()
-        local hrp = Util.getRoot()
+        local hrp = Util.getLocalRoot()
         if hrp and State.heightPillar then
-            local flyHeight = tonumber(P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
+            local flyHeight = tonumber(P_HeightBox and P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
             State.heightPillar.Size = Vector3.new(flyHeight, 2, 2)
-            State.heightPillar.CFrame = CFrame.new(hrp.Position + Vector3.new(0, flyHeight/2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+            State.heightPillar.CFrame = CFrame.new(hrp.Position + Vector3.new(0, flyHeight/2, 0)) * 
+                                       CFrame.Angles(0, 0, math.rad(90))
         end
     end)
 end
 
--- ==================== WALL SYSTEM ====================
-local function spawnWall()
-    if not Util.debounce("spawnWall") then return end
-    
-    local hrp = Util.getRoot()
-    if not hrp then return end
-    
-    local sizeX = math.clamp(tonumber(WallLenBox.Text) or 15, CONSTANTS.WALL_SIZE_MIN, CONSTANTS.WALL_SIZE_MAX)
-    local sizeY = math.clamp(tonumber(WallHeightBox.Text) or 10, CONSTANTS.WALL_SIZE_MIN, CONSTANTS.WALL_SIZE_MAX)
-    local sizeZ = math.clamp(tonumber(WallThickBox.Text) or 1, 0.1, 100)
-    local trans = math.clamp(tonumber(WallTransBox.Text) or 0.5, 0, 1)
-    
-    State.wallCounter = State.wallCounter + 1
-    local name = WallNameBox.Text
-    if name == "" or string.match(name, "^%s*$") then
-        name = "Tường #" .. State.wallCounter
-    end
-    
-    local wall = Instance.new("Part")
-    wall.Name = "Wall_" .. State.wallCounter
-    wall.Size = Vector3.new(sizeX, sizeY, sizeZ)
-    wall.CFrame = hrp.CFrame * CFrame.new(0, sizeY/2 - 3, -(sizeZ/2 + 4))
-    wall.Anchored = true
-    wall.CanCollide = wallCanCollide
-    wall.Material = Enum.Material.SmoothPlastic
-    wall.Transparency = trans
-    wall.Color = Color3.fromRGB(0, 170, 255)
-    wall.Parent = workspace
-    
-    local wallData = {id = State.wallCounter, name = name, part = wall}
-    table.insert(State.spawnedWalls, wallData)
-    WallNameBox.Text = ""
-    
-    log("🧱 Đã tạo:", name)
-    return wallData
-end
+-- ==================== BUILD MAIN GUI ====================
+-- Variables for UI elements that need global access
+local P_HeightBox, P_SpeedBox, GlowRangeBox
+local MainFrame, ScreenGui
 
-local function clearAllWalls()
-    ESP.removeAllWallESP()
-    for _, item in ipairs(State.spawnedWalls) do
-        Util.cleanup(item.part)
-    end
-    State.spawnedWalls = {}
-    State.selectedWall = nil
-    log("🗑️ Đã xóa tất cả tường")
-end
-
-local function removeWall(item, idx)
-    if State.selectedWall == item then State.selectedWall = nil end
-    ESP.removeWallESP(item)
-    Util.cleanup(item.part)
-    table.remove(State.spawnedWalls, idx)
-end
-
--- ==================== CODE EXECUTION ====================
-local function executeCode(code, name)
-    if #code == 0 then return false, "⚠️ Vui lòng nhập code!" end
-    
-    log("▶️ Đang chạy:", name)
+local function buildGUI()
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "FlyBananaGUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
     local success, err = pcall(function()
-        local fn, loadErr = loadstring(code)
-        if not fn then error(loadErr) end
-        fn()
+        ScreenGui.Parent = CoreGui
     end)
-    
-    if success then
-        log("✅ Hoàn thành:", name)
-    else
-        log("❌ Lỗi:", err)
+    if not success then
+        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     end
     
-    return success, err
-end
-
--- ==================== ANTI-KICK ====================
-if hookmetamethod then
-    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if State.blockServer and (method == "Kick" or method == "kick") then
-            log("🛡️ Đã chặn Kick!")
-            return nil
+    -- Toggle Button
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 48, 0, 48)
+    toggleBtn.Position = UDim2.new(1, -60, 1, -60)
+    toggleBtn.Text = "🍌"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    toggleBtn.BackgroundTransparency = 0.1
+    toggleBtn.TextColor3 = THEME.DARK
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextSize = 24
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.ZIndex = 100
+    toggleBtn.Parent = ScreenGui
+    UI.createCorner(toggleBtn, 1)
+    UI.createStroke(toggleBtn, THEME.ACCENT, 2)
+    
+    -- Main Frame
+    MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 540, 0, 340)
+    MainFrame.Position = UDim2.new(0.5, -270, 0.5, -170)
+    MainFrame.BackgroundColor3 = THEME.BG
+    MainFrame.BackgroundTransparency = 0.08
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Visible = true
+    MainFrame.ZIndex = 2
+    MainFrame.Parent = ScreenGui
+    UI.createCorner(MainFrame, 10)
+    UI.createStroke(MainFrame, Color3.fromRGB(180, 185, 200), 2)
+    
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = THEME.TITLE_BG
+    titleBar.BackgroundTransparency = 0.2
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 3
+    titleBar.Parent = MainFrame
+    UI.createCorner(titleBar, 10)
+    
+    local titleText = Instance.new("TextLabel")
+    titleText.Size = UDim2.new(1, -60, 1, 0)
+    titleText.Position = UDim2.new(0, 12, 0, 0)
+    titleText.Text = "🍌 BANANA FLY HUB"
+    titleText.BackgroundTransparency = 1
+    titleText.TextColor3 = THEME.TEXT_DARK
+    titleText.Font = Enum.Font.GothamBold
+    titleText.TextSize = 13
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.ZIndex = 4
+    titleText.Parent = titleBar
+    
+    -- Drag handle
+    local dragHandle = Instance.new("TextButton")
+    dragHandle.Size = UDim2.new(0, 85, 0, 24)
+    dragHandle.Position = UDim2.new(1, -118, 0, 3)
+    dragHandle.Text = "🖐️ Kéo"
+    dragHandle.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+    dragHandle.BackgroundTransparency = 0.3
+    dragHandle.TextColor3 = THEME.TEXT_DARK
+    dragHandle.Font = Enum.Font.SourceSansBold
+    dragHandle.TextSize = 10
+    dragHandle.ZIndex = 5
+    dragHandle.Parent = titleBar
+    UI.createCorner(dragHandle, 4)
+    
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 26, 0, 24)
+    closeBtn.Position = UDim2.new(1, -28, 0, 3)
+    closeBtn.BackgroundColor3 = THEME.DANGER
+    closeBtn.BackgroundTransparency = 0.2
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = THEME.TEXT_LIGHT
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.TextSize = 13
+    closeBtn.ZIndex = 5
+    closeBtn.Parent = titleBar
+    UI.createCorner(closeBtn, 4)
+    
+    -- Resize handles
+    local corners = {
+        {icon = "↖", pos = UDim2.new(0, 2, 0, 2), type = "TL"},
+        {icon = "↗", pos = UDim2.new(1, -18, 0, 2), type = "TR"},
+        {icon = "↙", pos = UDim2.new(0, 2, 1, -18), type = "BL"},
+        {icon = "↘", pos = UDim2.new(1, -18, 1, -18), type = "BR"},
+    }
+    
+    local resizeState = {active = false, corner = nil, startSize = nil, startPos = nil, startMouse = nil}
+    local minSize = Vector2.new(440, 260)
+    
+    for _, corner in ipairs(corners) do
+        local handle = Instance.new("TextButton")
+        handle.Size = UDim2.new(0, 16, 0, 16)
+        handle.Position = corner.pos
+        handle.Text = corner.icon
+        handle.BackgroundColor3 = THEME.ACCENT
+        handle.BackgroundTransparency = 0.3
+        handle.TextColor3 = THEME.TEXT_LIGHT
+        handle.Font = Enum.Font.GothamBold
+        handle.TextSize = 10
+        handle.BorderSizePixel = 0
+        handle.ZIndex = 10
+        handle.Parent = MainFrame
+        UI.createCorner(handle, 3)
+        
+        handle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                resizeState.active = true
+                resizeState.corner = corner.type
+                resizeState.startSize = MainFrame.AbsoluteSize
+                resizeState.startPos = MainFrame.AbsolutePosition
+                resizeState.startMouse = UserInputService:GetMouseLocation()
+            end
+        end)
+    end
+    
+    -- Tab bar
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(0, 100, 1, -30)
+    tabBar.Position = UDim2.new(1, -100, 0, 30)
+    tabBar.BackgroundColor3 = THEME.TITLE_BG
+    tabBar.BackgroundTransparency = 0.3
+    tabBar.BorderSizePixel = 0
+    tabBar.ZIndex = 3
+    tabBar.Parent = MainFrame
+    
+    local tabList = Instance.new("UIListLayout")
+    tabList.FillDirection = Enum.FillDirection.Vertical
+    tabList.SortOrder = Enum.SortOrder.LayoutOrder
+    tabList.Padding = UDim.new(0, 4)
+    tabList.Parent = tabBar
+    
+    local tabPadding = Instance.new("UIPadding")
+    tabPadding.PaddingTop = UDim.new(0, 6)
+    tabPadding.PaddingLeft = UDim.new(0, 4)
+    tabPadding.PaddingRight = UDim.new(0, 4)
+    tabPadding.Parent = tabBar
+    
+    -- Content area
+    local contentArea = Instance.new("Frame")
+    contentArea.Size = UDim2.new(1, -100, 1, -30)
+    contentArea.Position = UDim2.new(0, 0, 0, 30)
+    contentArea.BackgroundTransparency = 1
+    contentArea.BorderSizePixel = 0
+    contentArea.ZIndex = 3
+    contentArea.Parent = MainFrame
+    
+    -- Tab creation function
+    local tabs = {}
+    local tabContents = {}
+    
+    local function createTab(name, icon, order)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -8, 0, 28)
+        btn.Text = icon .. " " .. name
+        btn.BackgroundColor3 = THEME.TAB_INACTIVE
+        btn.BackgroundTransparency = 0.3
+        btn.TextColor3 = THEME.TEXT_DARK
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 9
+        btn.BorderSizePixel = 0
+        btn.LayoutOrder = order
+        btn.ZIndex = 4
+        btn.Parent = tabBar
+        UI.createCorner(btn, 6)
+        
+        local page = Instance.new("ScrollingFrame")
+        page.Size = UDim2.new(1, 0, 1, 0)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel = 0
+        page.ScrollBarThickness = 5
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        page.Visible = false
+        page.ZIndex = 4
+        page.Parent = contentArea
+        
+        local idx = #tabs + 1
+        btn.MouseButton1Click:Connect(function()
+            for i, t in ipairs(tabContents) do
+                t.Visible = (i == idx)
+            end
+            for i, t in ipairs(tabs) do
+                t.BackgroundColor3 = (i == idx) and THEME.TAB_ACTIVE or THEME.TAB_INACTIVE
+                t.BackgroundTransparency = (i == idx) and 0.2 or 0.5
+            end
+            State.activeTab = name
+        end)
+        
+        table.insert(tabs, btn)
+        table.insert(tabContents, page)
+        return page
+    end
+    
+    -- Create all tabs
+    local playerTab = createTab("Người Chơi", "👤", 1)
+    local locationTab = createTab("Tọa Độ", "📍", 2)
+    local wallTab = createTab("Tường", "🧱", 3)
+    local moveTab = createTab("Di Chuyển", "🏃", 4)
+    local envTab = createTab("Môi Trường", "⚙️", 5)
+    local camTab = createTab("Camera", "📷", 6)
+    local codeTab = createTab("Code", "💻", 7)
+    
+    -- Activate first tab
+    tabContents[1].Visible = true
+    tabs[1].BackgroundColor3 = THEME.TAB_ACTIVE
+    tabs[1].BackgroundTransparency = 0.2
+    
+    -- ==================== POPULATE TABS ====================
+    
+    -- TAB 1: PLAYERS
+    local function buildPlayerTab()
+        local y = 6
+        
+        -- Search box
+        local searchBox = Instance.new("TextBox")
+        searchBox.Size = UDim2.new(0.65, -8, 0, 24)
+        searchBox.Position = UDim2.new(0, 6, 0, y)
+        searchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        searchBox.BackgroundTransparency = 0.3
+        searchBox.PlaceholderText = "🔍 Tìm kiếm..."
+        searchBox.Text = ""
+        searchBox.TextColor3 = THEME.TEXT_DARK
+        searchBox.Font = Enum.Font.SourceSans
+        searchBox.TextSize = 11
+        searchBox.BorderSizePixel = 0
+        searchBox.ZIndex = 6
+        searchBox.Parent = playerTab
+        UI.createCorner(searchBox, 5)
+        
+        local refreshBtn = Instance.new("TextButton")
+        refreshBtn.Size = UDim2.new(0.25, -4, 0, 24)
+        refreshBtn.Position = UDim2.new(0.68, 6, 0, y)
+        refreshBtn.Text = "🔄"
+        refreshBtn.BackgroundColor3 = Color3.fromRGB(220, 225, 235)
+        refreshBtn.BackgroundTransparency = 0.3
+        refreshBtn.TextColor3 = THEME.TEXT_DARK
+        refreshBtn.Font = Enum.Font.GothamBold
+        refreshBtn.TextSize = 12
+        refreshBtn.BorderSizePixel = 0
+        refreshBtn.ZIndex = 6
+        refreshBtn.Parent = playerTab
+        UI.createCorner(refreshBtn, 5)
+        
+        y = y + 28
+        
+        -- Player list
+        local playerList = Instance.new("ScrollingFrame")
+        playerList.Size = UDim2.new(0.58, 0, 1, -100)
+        playerList.Position = UDim2.new(0, 4, 0, y)
+        playerList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        playerList.BackgroundTransparency = 0.7
+        playerList.BorderSizePixel = 0
+        playerList.ScrollBarThickness = 4
+        playerList.ZIndex = 6
+        playerList.Parent = playerTab
+        
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Parent = playerList
+        
+        -- Right panel controls
+        local rightPanel = Instance.new("ScrollingFrame")
+        rightPanel.Size = UDim2.new(0.38, 0, 1, -100)
+        rightPanel.Position = UDim2.new(0.60, 4, 0, y)
+        rightPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        rightPanel.BackgroundTransparency = 0.6
+        rightPanel.BorderSizePixel = 0
+        rightPanel.ScrollBarThickness = 3
+        rightPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        rightPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
+        rightPanel.ZIndex = 6
+        rightPanel.Parent = playerTab
+        UI.createCorner(rightPanel, 6)
+        
+        local panelLayout = Instance.new("UIListLayout")
+        panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        panelLayout.Padding = UDim.new(0, 4)
+        panelLayout.Parent = rightPanel
+        
+        local panelPadding = Instance.new("UIPadding")
+        panelPadding.PaddingTop = UDim.new(0, 4)
+        panelPadding.PaddingLeft = UDim.new(0, 4)
+        panelPadding.PaddingRight = UDim.new(0, 4)
+        panelPadding.Parent = rightPanel
+        
+        -- Control buttons
+        local antiNoclipBtn = UI.createButton(rightPanel, "🛡️ Chống Xuyên Tường: OFF", THEME.TAB_INACTIVE)
+        antiNoclipBtn.LayoutOrder = 1
+        
+        local followBtn = UI.createButton(rightPanel, "🧲 Bu Người Chơi: OFF", THEME.TAB_INACTIVE)
+        followBtn.LayoutOrder = 2
+        
+        local espAllBtn = UI.createButton(rightPanel, "📡 ESP Tất Cả: OFF", THEME.TAB_INACTIVE)
+        espAllBtn.LayoutOrder = 3
+        
+        local espSingleBtn = UI.createButton(rightPanel, "🎯 ESP Lẻ: OFF", THEME.TAB_INACTIVE)
+        espSingleBtn.LayoutOrder = 4
+        
+        local glowBtn = UI.createButton(rightPanel, "💡 Phát Sáng: OFF", THEME.TAB_INACTIVE)
+        glowBtn.LayoutOrder = 5
+        
+        local glowRangeLabel = UI.createLabel(rightPanel, "Bán kính sáng:")
+        glowRangeLabel.LayoutOrder = 6
+        
+        GlowRangeBox = UI.createTextBox(rightPanel, "50", "50")
+        GlowRangeBox.LayoutOrder = 7
+        
+        local heightLabel = UI.createLabel(rightPanel, "Chiều cao bay:")
+        heightLabel.LayoutOrder = 8
+        
+        P_HeightBox = UI.createTextBox(rightPanel, "150", "150")
+        P_HeightBox.LayoutOrder = 9
+        
+        local speedLabel = UI.createLabel(rightPanel, "Tốc độ bay:")
+        speedLabel.LayoutOrder = 10
+        
+        P_SpeedBox = UI.createTextBox(rightPanel, "100", "100")
+        P_SpeedBox.LayoutOrder = 11
+        
+        local pillarBtn = UI.createButton(rightPanel, "💈 Trụ Visual: OFF", THEME.TAB_INACTIVE)
+        pillarBtn.LayoutOrder = 12
+        
+        -- Event handlers
+        antiNoclipBtn.MouseButton1Click:Connect(function()
+            State.antiNoclipActive = not State.antiNoclipActive
+            antiNoclipBtn.Text = State.antiNoclipActive and "🛡️ Chống Xuyên Tường: ON" or "🛡️ Chống Xuyên Tường: OFF"
+            antiNoclipBtn.BackgroundColor3 = State.antiNoclipActive and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+            Noclip.update()
+        end)
+        
+        followBtn.MouseButton1Click:Connect(function()
+            if State.isFollowing then
+                Flight.stopFollow()
+                followBtn.Text = "🧲 Bu Người Chơi: OFF"
+                followBtn.BackgroundColor3 = THEME.TAB_INACTIVE
+            else
+                Flight.startFollow()
+                followBtn.Text = "🧲 Bu Người Chơi: ON"
+                followBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end)
+        
+        espAllBtn.MouseButton1Click:Connect(function()
+            State.esp.players.all = not State.esp.players.all
+            espAllBtn.Text = State.esp.players.all and "📡 ESP Tất Cả: ON" or "📡 ESP Tất Cả: OFF"
+            espAllBtn.BackgroundColor3 = State.esp.players.all and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+            if not State.esp.players.all then
+                for plr in pairs(State.esp.players.cache) do
+                    ESP.removePlayerESP(plr)
+                end
+            end
+        end)
+        
+        espSingleBtn.MouseButton1Click:Connect(function()
+            State.esp.players.single = not State.esp.players.single
+            espSingleBtn.Text = State.esp.players.single and "🎯 ESP Lẻ: ON" or "🎯 ESP Lẻ: OFF"
+            espSingleBtn.BackgroundColor3 = State.esp.players.single and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+        end)
+        
+        glowBtn.MouseButton1Click:Connect(function()
+            State.glowActive = not State.glowActive
+            glowBtn.Text = State.glowActive and "💡 Phát Sáng: ON" or "💡 Phát Sáng: OFF"
+            glowBtn.BackgroundColor3 = State.glowActive and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+            updateGlow()
+        end)
+        
+        pillarBtn.MouseButton1Click:Connect(function()
+            State.showHeightPillar = not State.showHeightPillar
+            pillarBtn.Text = State.showHeightPillar and "💈 Trụ Visual: ON" or "💈 Trụ Visual: OFF"
+            pillarBtn.BackgroundColor3 = State.showHeightPillar and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+            updateHeightPillar()
+        end)
+        
+        -- Player list update function
+        local function updatePlayerList()
+            for _, child in pairs(playerList:GetChildren()) do
+                if child:IsA("Frame") then child:Destroy() end
+            end
+            
+            local filterText = string.lower(searchBox.Text)
+            local count = 0
+            
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    local nameMatch = string.find(string.lower(plr.Name), filterText, 1, true)
+                    local displayMatch = string.find(string.lower(plr.DisplayName), filterText, 1, true)
+                    
+                    if filterText == "" or nameMatch or displayMatch then
+                        count = count + 1
+                        local isSelected = (State.selectedPlayer == plr)
+                        local isDown = Util.isPlayerDown(plr)
+                        
+                        local itemContainer = Instance.new("Frame")
+                        itemContainer.Size = UDim2.new(1, 0, 0, 28)
+                        itemContainer.BackgroundColor3 = isSelected and THEME.ACCENT or 
+                                                         (count % 2 == 0 and THEME.STRIPE_EVEN or THEME.STRIPE_ODD)
+                        itemContainer.BackgroundTransparency = isSelected and 0.25 or 0.45
+                        itemContainer.BorderSizePixel = 0
+                        itemContainer.ZIndex = 7
+                        itemContainer.Parent = playerList
+                        
+                        local nameWidth = isSelected and 0.58 or 0.92
+                        local nameBtn = Instance.new("TextButton")
+                        nameBtn.Size = UDim2.new(nameWidth, 0, 1, 0)
+                        nameBtn.BackgroundTransparency = 1
+                        nameBtn.Font = Enum.Font.SourceSansBold
+                        nameBtn.TextSize = 11
+                        nameBtn.TextXAlignment = Enum.TextXAlignment.Left
+                        nameBtn.ZIndex = 8
+                        nameBtn.Parent = itemContainer
+                        
+                        if isDown then
+                            nameBtn.Text = "  🔴 " .. plr.DisplayName
+                            nameBtn.TextColor3 = isSelected and THEME.TEXT_LIGHT or THEME.DANGER
+                        else
+                            nameBtn.Text = "  👤 " .. plr.DisplayName
+                            nameBtn.TextColor3 = isSelected and THEME.TEXT_LIGHT or THEME.TEXT_DARK
+                        end
+                        
+                        nameBtn.MouseButton1Click:Connect(function()
+                            State.selectedPlayer = plr
+                            updatePlayerList()
+                        end)
+                        
+                        if isSelected then
+                            local flyBtn = Instance.new("TextButton")
+                            flyBtn.Size = UDim2.new(0.35, -4, 0.8, 0)
+                            flyBtn.Position = UDim2.new(0.63, 0, 0.1, 0)
+                            flyBtn.Font = Enum.Font.SourceSansBold
+                            flyBtn.TextSize = 10
+                            flyBtn.TextColor3 = THEME.TEXT_LIGHT
+                            flyBtn.BorderSizePixel = 0
+                            flyBtn.ZIndex = 8
+                            flyBtn.Parent = itemContainer
+                            UI.createCorner(flyBtn, 4)
+                            
+                            if State.isFlying and State.selectedPlayer == plr then
+                                flyBtn.Text = "🛑 Dừng"
+                                flyBtn.BackgroundColor3 = THEME.DANGER
+                            else
+                                flyBtn.Text = "🚀 Bay"
+                                flyBtn.BackgroundColor3 = THEME.SUCCESS
+                            end
+                            
+                            flyBtn.MouseButton1Click:Connect(function()
+                                if State.isFlying then
+                                    Flight.stopFly()
+                                else
+                                    Flight.startFly("Player", plr)
+                                end
+                                updatePlayerList()
+                            end)
+                        end
+                    end
+                end
+            end
+            playerList.CanvasSize = UDim2.new(0, 0, 0, count * 28)
         end
-        return oldNamecall(self, ...)
-    end)
-end
-
--- ==================== FREEZE OTHERS ====================
-RunService.Stepped:Connect(function()
-    if State.blockServer then
-        local hum = Util.getHumanoid()
-        local root = Util.getRoot()
-        if hum and hum.Sit then hum.Sit = false end
-        if root and not State.freeCam and root.Anchored then root.Anchored = false end
+        
+        searchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
+        refreshBtn.MouseButton1Click:Connect(updatePlayerList)
+        
+        return updatePlayerList, rightPanel
     end
     
+    local updatePlayerList = buildPlayerTab()
+    
+    -- TAB 2: LOCATIONS
+    local function buildLocationTab()
+        local y = 6
+        
+        local nameBox = Instance.new("TextBox")
+        nameBox.Size = UDim2.new(0.65, -8, 0, 24)
+        nameBox.Position = UDim2.new(0, 6, 0, y)
+        nameBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        nameBox.BackgroundTransparency = 0.3
+        nameBox.PlaceholderText = "Tên điểm..."
+        nameBox.Text = ""
+        nameBox.TextColor3 = THEME.TEXT_DARK
+        nameBox.Font = Enum.Font.SourceSans
+        nameBox.TextSize = 11
+        nameBox.BorderSizePixel = 0
+        nameBox.ZIndex = 6
+        nameBox.Parent = locationTab
+        UI.createCorner(nameBox, 5)
+        
+        local saveBtn = Instance.new("TextButton")
+        saveBtn.Size = UDim2.new(0.28, -4, 0, 24)
+        saveBtn.Position = UDim2.new(0.68, 6, 0, y)
+        saveBtn.Text = "📌 Lưu"
+        saveBtn.BackgroundColor3 = THEME.SUCCESS
+        saveBtn.BackgroundTransparency = 0.2
+        saveBtn.TextColor3 = THEME.TEXT_LIGHT
+        saveBtn.Font = Enum.Font.GothamBold
+        saveBtn.TextSize = 10
+        saveBtn.BorderSizePixel = 0
+        saveBtn.ZIndex = 6
+        saveBtn.Parent = locationTab
+        UI.createCorner(saveBtn, 5)
+        
+        y = y + 28
+        
+        local espAllBtn = UI.createButton(locationTab, "📍 ESP Tất Cả: OFF", THEME.TAB_INACTIVE)
+        espAllBtn.Size = UDim2.new(0.48, 0, 0, 22)
+        espAllBtn.Position = UDim2.new(0, 6, 0, y)
+        
+        local espSingleBtn = UI.createButton(locationTab, "🎯 ESP Lẻ: OFF", THEME.TAB_INACTIVE)
+        espSingleBtn.Size = UDim2.new(0.48, 0, 0, 22)
+        espSingleBtn.Position = UDim2.new(0.50, 4, 0, y)
+        
+        y = y + 26
+        
+        local savedList = Instance.new("ScrollingFrame")
+        savedList.Size = UDim2.new(1, -12, 1, -60)
+        savedList.Position = UDim2.new(0, 6, 0, y)
+        savedList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        savedList.BackgroundTransparency = 0.7
+        savedList.BorderSizePixel = 0
+        savedList.ScrollBarThickness = 4
+        savedList.ZIndex = 6
+        savedList.Parent = locationTab
+        
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Parent = savedList
+        
+        local function updateSavedList()
+            for _, child in pairs(savedList:GetChildren()) do
+                if child:IsA("Frame") then child:Destroy() end
+            end
+            
+            for idx, item in ipairs(State.savedLocations) do
+                local isSelected = (State.selectedLocation == item)
+                
+                local container = Instance.new("Frame")
+                container.Size = UDim2.new(1, 0, 0, 26)
+                container.BackgroundColor3 = isSelected and THEME.SUCCESS or 
+                                             (idx % 2 == 0 and THEME.STRIPE_EVEN or THEME.STRIPE_ODD)
+                container.BackgroundTransparency = isSelected and 0.25 or 0.45
+                container.BorderSizePixel = 0
+                container.ZIndex = 7
+                container.Parent = savedList
+                
+                local nameBtn = Instance.new("TextButton")
+                nameBtn.Size = UDim2.new(0.52, 0, 1, 0)
+                nameBtn.BackgroundTransparency = 1
+                nameBtn.Text = "📍 " .. item.name
+                nameBtn.TextColor3 = isSelected and THEME.TEXT_LIGHT or THEME.TEXT_DARK
+                nameBtn.Font = Enum.Font.SourceSansBold
+                nameBtn.TextSize = 10
+                nameBtn.TextXAlignment = Enum.TextXAlignment.Left
+                nameBtn.TextTruncate = Enum.TextTruncate.AtEnd
+                nameBtn.ZIndex = 8
+                nameBtn.Parent = container
+                
+                local flyBtn = Instance.new("TextButton")
+                flyBtn.Size = UDim2.new(0.22, 0, 0.8, 0)
+                flyBtn.Position = UDim2.new(0.54, 0, 0.1, 0)
+                flyBtn.Font = Enum.Font.SourceSansBold
+                flyBtn.TextSize = 9
+                flyBtn.TextColor3 = THEME.TEXT_LIGHT
+                flyBtn.BorderSizePixel = 0
+                flyBtn.ZIndex = 8
+                flyBtn.Parent = container
+                UI.createCorner(flyBtn, 4)
+                
+                if State.isFlying and State.selectedLocation == item then
+                    flyBtn.Text = "🛑"
+                    flyBtn.BackgroundColor3 = THEME.DANGER
+                else
+                    flyBtn.Text = "🚀"
+                    flyBtn.BackgroundColor3 = THEME.SUCCESS
+                end
+                
+                local deleteBtn = Instance.new("TextButton")
+                deleteBtn.Size = UDim2.new(0.20, -4, 0.8, 0)
+                deleteBtn.Position = UDim2.new(0.78, 0, 0.1, 0)
+                deleteBtn.Text = "🗑"
+                deleteBtn.BackgroundColor3 = THEME.DANGER
+                deleteBtn.BackgroundTransparency = 0.2
+                deleteBtn.TextColor3 = THEME.TEXT_LIGHT
+                deleteBtn.Font = Enum.Font.SourceSansBold
+                deleteBtn.TextSize = 10
+                deleteBtn.BorderSizePixel = 0
+                deleteBtn.ZIndex = 8
+                deleteBtn.Parent = container
+                UI.createCorner(deleteBtn, 4)
+                
+                nameBtn.MouseButton1Click:Connect(function()
+                    State.selectedLocation = item
+                    updateSavedList()
+                end)
+                
+                flyBtn.MouseButton1Click:Connect(function()
+                    if State.isFlying then
+                        Flight.stopFly()
+                    else
+                        Flight.startFly("Location", item)
+                    end
+                    updateSavedList()
+                end)
+                
+                deleteBtn.MouseButton1Click:Connect(function()
+                    if State.selectedLocation == item then State.selectedLocation = nil end
+                    ESP.removeLocationESP(item)
+                    table.remove(State.savedLocations, idx)
+                    updateSavedList()
+                end)
+            end
+            savedList.CanvasSize = UDim2.new(0, 0, 0, #State.savedLocations * 26)
+        end
+        
+        saveBtn.MouseButton1Click:Connect(function()
+            local hrp = Util.getLocalRoot()
+            if hrp then
+                local name = nameBox.Text
+                if name == "" or string.match(name, "^%s*$") then
+                    name = "Điểm " .. (#State.savedLocations + 1)
+                end
+                table.insert(State.savedLocations, {name = name, pos = hrp.Position})
+                nameBox.Text = ""
+                updateSavedList()
+            end
+        end)
+        
+        espAllBtn.MouseButton1Click:Connect(function()
+            State.esp.locations.all = not State.esp.locations.all
+            espAllBtn.Text = State.esp.locations.all and "📍 ESP Tất Cả: ON" or "📍 ESP Tất Cả: OFF"
+            espAllBtn.BackgroundColor3 = State.esp.locations.all and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+        end)
+        
+        espSingleBtn.MouseButton1Click:Connect(function()
+            State.esp.locations.single = not State.esp.locations.single
+            espSingleBtn.Text = State.esp.locations.single and "🎯 ESP Lẻ: ON" or "🎯 ESP Lẻ: OFF"
+            espSingleBtn.BackgroundColor3 = State.esp.locations.single and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+        end)
+        
+        return updateSavedList
+    end
+    
+    local updateSavedList = buildLocationTab()
+    
+    -- TAB 3: WALLS
+    local function buildWallTab()
+        local y = 6
+        
+        -- Wall list (left)
+        local wallList = Instance.new("ScrollingFrame")
+        wallList.Size = UDim2.new(0.48, 0, 1, -30)
+        wallList.Position = UDim2.new(0, 6, 0, y)
+        wallList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        wallList.BackgroundTransparency = 0.7
+        wallList.BorderSizePixel = 0
+        wallList.ScrollBarThickness = 4
+        wallList.ZIndex = 6
+        wallList.Parent = wallTab
+        
+        local wallListLayout = Instance.new("UIListLayout")
+        wallListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        wallListLayout.Parent = wallList
+        
+        -- Wall controls (right)
+        local wallControls = Instance.new("ScrollingFrame")
+        wallControls.Size = UDim2.new(0.48, 0, 1, -30)
+        wallControls.Position = UDim2.new(0.50, 6, 0, y)
+        wallControls.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        wallControls.BackgroundTransparency = 0.6
+        wallControls.BorderSizePixel = 0
+        wallControls.ScrollBarThickness = 3
+        wallControls.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        wallControls.CanvasSize = UDim2.new(0, 0, 0, 0)
+        wallControls.ZIndex = 6
+        wallControls.Parent = wallTab
+        UI.createCorner(wallControls, 6)
+        
+        local controlLayout = Instance.new("UIListLayout")
+        controlLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        controlLayout.Padding = UDim.new(0, 4)
+        controlLayout.Parent = wallControls
+        
+        local controlPadding = Instance.new("UIPadding")
+        controlPadding.PaddingTop = UDim.new(0, 4)
+        controlPadding.PaddingLeft = UDim.new(0, 4)
+        controlPadding.PaddingRight = UDim.new(0, 4)
+        controlPadding.Parent = wallControls
+        
+        -- Wall ESP buttons
+        local wallEspAllBtn = UI.createButton(wallControls, "📡 ESP All: OFF", THEME.TAB_INACTIVE)
+        wallEspAllBtn.LayoutOrder = 1
+        wallEspAllBtn.TextSize = 10
+        
+        local wallEspSingleBtn = UI.createButton(wallControls, "🎯 ESP Lẻ: OFF", THEME.TAB_INACTIVE)
+        wallEspSingleBtn.LayoutOrder = 2
+        wallEspSingleBtn.TextSize = 10
+        
+        -- Wall parameters
+        UI.createLabel(wallControls, "Tên Tường:").LayoutOrder = 3
+        local wallNameBox = UI.createTextBox(wallControls, "Nhập tên...", "")
+        wallNameBox.LayoutOrder = 4
+        
+        UI.createLabel(wallControls, "Chiều dài (X):").LayoutOrder = 5
+        local wallLenBox = UI.createTextBox(wallControls, "15", "15")
+        wallLenBox.LayoutOrder = 6
+        
+        UI.createLabel(wallControls, "Chiều cao (Y):").LayoutOrder = 7
+        local wallHeightBox = UI.createTextBox(wallControls, "10", "10")
+        wallHeightBox.LayoutOrder = 8
+        
+        UI.createLabel(wallControls, "Độ dày (Z):").LayoutOrder = 9
+        local wallThickBox = UI.createTextBox(wallControls, "1", "1")
+        wallThickBox.LayoutOrder = 10
+        
+        UI.createLabel(wallControls, "Trong suốt:").LayoutOrder = 11
+        local wallTransBox = UI.createTextBox(wallControls, "0.5", "0.5")
+        wallTransBox.LayoutOrder = 12
+        
+        local wallCollide = true
+        local collideBtn = UI.createButton(wallControls, "🧱 Va Chạm: ON", THEME.TAB_INACTIVE)
+        collideBtn.LayoutOrder = 13
+        collideBtn.TextSize = 10
+        
+        local spawnBtn = UI.createButton(wallControls, "➕ ĐẶT TƯỜNG", THEME.SUCCESS)
+        spawnBtn.LayoutOrder = 14
+        
+        local clearBtn = UI.createButton(wallControls, "🗑 XÓA HẾT", THEME.DANGER)
+        clearBtn.LayoutOrder = 15
+        
+        collideBtn.MouseButton1Click:Connect(function()
+            wallCollide = not wallCollide
+            collideBtn.Text = wallCollide and "🧱 Va Chạm: ON" or "🧱 Va Chạm: OFF"
+        end)
+        
+        local function updateWallList()
+            for _, child in pairs(wallList:GetChildren()) do
+                if child:IsA("Frame") then child:Destroy() end
+            end
+            
+            for idx, item in ipairs(State.spawnedWalls) do
+                local isSelected = (State.selectedWall == item)
+                
+                local container = Instance.new("Frame")
+                container.Size = UDim2.new(1, 0, 0, 26)
+                container.BackgroundColor3 = isSelected and THEME.SUCCESS or 
+                                             (idx % 2 == 0 and THEME.STRIPE_EVEN or THEME.STRIPE_ODD)
+                container.BackgroundTransparency = isSelected and 0.25 or 0.45
+                container.BorderSizePixel = 0
+                container.ZIndex = 7
+                container.Parent = wallList
+                
+                local nameBtn = Instance.new("TextButton")
+                nameBtn.Size = UDim2.new(0.50, 0, 1, 0)
+                nameBtn.BackgroundTransparency = 1
+                nameBtn.Text = "🧱 " .. item.name
+                nameBtn.TextColor3 = isSelected and THEME.TEXT_LIGHT or THEME.TEXT_DARK
+                nameBtn.Font = Enum.Font.SourceSansBold
+                nameBtn.TextSize = 9
+                nameBtn.TextXAlignment = Enum.TextXAlignment.Left
+                nameBtn.TextTruncate = Enum.TextTruncate.AtEnd
+                nameBtn.ZIndex = 8
+                nameBtn.Parent = container
+                
+                local flyBtn = Instance.new("TextButton")
+                flyBtn.Size = UDim2.new(0.22, 0, 0.8, 0)
+                flyBtn.Position = UDim2.new(0.52, 0, 0.1, 0)
+                flyBtn.Font = Enum.Font.SourceSansBold
+                flyBtn.TextSize = 9
+                flyBtn.TextColor3 = THEME.TEXT_LIGHT
+                flyBtn.BorderSizePixel = 0
+                flyBtn.ZIndex = 8
+                flyBtn.Parent = container
+                UI.createCorner(flyBtn, 4)
+                
+                if State.isFlying and State.selectedWall == item then
+                    flyBtn.Text = "🛑"
+                    flyBtn.BackgroundColor3 = THEME.DANGER
+                else
+                    flyBtn.Text = "🚀"
+                    flyBtn.BackgroundColor3 = THEME.SUCCESS
+                end
+                
+                local deleteBtn = Instance.new("TextButton")
+                deleteBtn.Size = UDim2.new(0.22, -4, 0.8, 0)
+                deleteBtn.Position = UDim2.new(0.76, 0, 0.1, 0)
+                deleteBtn.Text = "🗑"
+                deleteBtn.BackgroundColor3 = THEME.DANGER
+                deleteBtn.BackgroundTransparency = 0.2
+                deleteBtn.TextColor3 = THEME.TEXT_LIGHT
+                deleteBtn.Font = Enum.Font.SourceSansBold
+                deleteBtn.TextSize = 9
+                deleteBtn.BorderSizePixel = 0
+                deleteBtn.ZIndex = 8
+                deleteBtn.Parent = container
+                UI.createCorner(deleteBtn, 4)
+                
+                nameBtn.MouseButton1Click:Connect(function()
+                    State.selectedWall = item
+                    updateWallList()
+                end)
+                
+                flyBtn.MouseButton1Click:Connect(function()
+                    if State.isFlying then
+                        Flight.stopFly()
+                    else
+                        Flight.startFly("Wall", item)
+                    end
+                    updateWallList()
+                end)
+                
+                deleteBtn.MouseButton1Click:Connect(function()
+                    if State.selectedWall == item then State.selectedWall = nil end
+                    ESP.removeWallESP(item)
+                    Util.cleanupObject(item.part)
+                    table.remove(State.spawnedWalls, idx)
+                    updateWallList()
+                end)
+            end
+            wallList.CanvasSize = UDim2.new(0, 0, 0, #State.spawnedWalls * 26)
+        end
+        
+        spawnBtn.MouseButton1Click:Connect(function()
+            if not Util.debounce("spawnWall") then return end
+            local hrp = Util.getLocalRoot()
+            if not hrp then return end
+            
+            local sizeX = math.clamp(tonumber(wallLenBox.Text) or 15, 0.5, 500)
+            local sizeY = math.clamp(tonumber(wallHeightBox.Text) or 10, 0.5, 500)
+            local sizeZ = math.clamp(tonumber(wallThickBox.Text) or 1, 0.1, 100)
+            local trans = math.clamp(tonumber(wallTransBox.Text) or 0.5, 0, 1)
+            
+            State.wallCounter = State.wallCounter + 1
+            local name = wallNameBox.Text
+            if name == "" or string.match(name, "^%s*$") then
+                name = "Tường #" .. State.wallCounter
+            end
+            
+            local wall = Instance.new("Part")
+            wall.Name = "Wall_" .. State.wallCounter
+            wall.Size = Vector3.new(sizeX, sizeY, sizeZ)
+            wall.CFrame = hrp.CFrame * CFrame.new(0, (sizeY/2) - 3, -(sizeZ/2 + 4))
+            wall.Anchored = true
+            wall.CanCollide = wallCollide
+            wall.Material = Enum.Material.SmoothPlastic
+            wall.Transparency = trans
+            wall.Color = Color3.fromRGB(0, 170, 255)
+            wall.Parent = workspace
+            
+            table.insert(State.spawnedWalls, {id = State.wallCounter, name = name, part = wall})
+            wallNameBox.Text = ""
+            updateWallList()
+        end)
+        
+        clearBtn.MouseButton1Click:Connect(function()
+            for _, item in ipairs(State.spawnedWalls) do
+                ESP.removeWallESP(item)
+                Util.cleanupObject(item.part)
+            end
+            State.spawnedWalls = {}
+            State.selectedWall = nil
+            updateWallList()
+        end)
+        
+        wallEspAllBtn.MouseButton1Click:Connect(function()
+            State.esp.walls.all = not State.esp.walls.all
+            wallEspAllBtn.Text = State.esp.walls.all and "📡 ESP All: ON" or "📡 ESP All: OFF"
+            wallEspAllBtn.BackgroundColor3 = State.esp.walls.all and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+        end)
+        
+        wallEspSingleBtn.MouseButton1Click:Connect(function()
+            State.esp.walls.single = not State.esp.walls.single
+            wallEspSingleBtn.Text = State.esp.walls.single and "🎯 ESP Lẻ: ON" or "🎯 ESP Lẻ: OFF"
+            wallEspSingleBtn.BackgroundColor3 = State.esp.walls.single and Color3.fromRGB(255, 255, 255) or THEME.TAB_INACTIVE
+        end)
+        
+        return updateWallList
+    end
+    
+    local updateWallList = buildWallTab()
+    
+    -- TAB 4: MOVEMENT
+    local function buildMoveTab()
+        local y = 6
+        
+        UI.createLabel(moveTab, "⚡ Tốc độ chạy:").Position = UDim2.new(0, 8, 0, y)
+        y = y + 14
+        local wsBox = UI.createTextBox(moveTab, "16", "16")
+        wsBox.Size = UDim2.new(0, 60, 0, 22)
+        wsBox.Position = UDim2.new(0, 8, 0, y)
+        y = y + 28
+        
+        UI.createLabel(moveTab, "📦 Lực nhảy:").Position = UDim2.new(0, 8, 0, y)
+        y = y + 14
+        local jpBox = UI.createTextBox(moveTab, "50", "50")
+        jpBox.Size = UDim2.new(0, 60, 0, 22)
+        jpBox.Position = UDim2.new(0, 8, 0, y)
+        y = y + 30
+        
+        local noclipBtn = UI.createButton(moveTab, "🚶 NoClip: TẮT", THEME.TAB_INACTIVE)
+        noclipBtn.Position = UDim2.new(0, 8, 0, y)
+        noclipBtn.Size = UDim2.new(0, 130, 0, 24)
+        y = y + 28
+        
+        local infJumpBtn = UI.createButton(moveTab, "🦘 Nhảy Vô Hạn: TẮT", THEME.TAB_INACTIVE)
+        infJumpBtn.Position = UDim2.new(0, 8, 0, y)
+        infJumpBtn.Size = UDim2.new(0, 130, 0, 24)
+        y = y + 28
+        
+        local clickTpBtn = UI.createButton(moveTab, "🎯 Click TP: TẮT", THEME.TAB_INACTIVE)
+        clickTpBtn.Position = UDim2.new(0, 8, 0, y)
+        clickTpBtn.Size = UDim2.new(0, 160, 0, 24)
+        
+        wsBox.FocusLost:Connect(function(e)
+            if not e then return end
+            local n = tonumber(wsBox.Text)
+            if n and n > 0 then State.walkSpeed = n else wsBox.Text = tostring(State.walkSpeed) end
+            Util.updateChar()
+        end)
+        
+        jpBox.FocusLost:Connect(function(e)
+            if not e then return end
+            local n = tonumber(jpBox.Text)
+            if n and n > 0 then State.jumpPower = n else jpBox.Text = tostring(State.jumpPower) end
+            Util.updateChar()
+        end)
+        
+        noclipBtn.MouseButton1Click:Connect(function()
+            State.noclipActive = not State.noclipActive
+            noclipBtn.Text = State.noclipActive and "🚶 NoClip: BẬT" or "🚶 NoClip: TẮT"
+            noclipBtn.BackgroundColor3 = State.noclipActive and THEME.SUCCESS or THEME.TAB_INACTIVE
+            Noclip.update()
+        end)
+        
+        infJumpBtn.MouseButton1Click:Connect(function()
+            State.infJump = not State.infJump
+            infJumpBtn.Text = State.infJump and "🦘 Nhảy Vô Hạn: BẬT" or "🦘 Nhảy Vô Hạn: TẮT"
+            infJumpBtn.BackgroundColor3 = State.infJump and THEME.SUCCESS or THEME.TAB_INACTIVE
+        end)
+        
+        clickTpBtn.MouseButton1Click:Connect(function()
+            State.clickTp = not State.clickTp
+            clickTpBtn.Text = State.clickTp and "🎯 Click TP: BẬT" or "🎯 Click TP: TẮT"
+            clickTpBtn.BackgroundColor3 = State.clickTp and THEME.SUCCESS or THEME.TAB_INACTIVE
+        end)
+        
+        moveTab.CanvasSize = UDim2.new(0, 0, 0, y + 40)
+    end
+    
+    buildMoveTab()
+    
+    -- TAB 5: ENVIRONMENT
+    local function buildEnvTab()
+        local y = 6
+        
+        local darkBtn = UI.createButton(envTab, "🌙 Trời tối", Color3.fromRGB(60, 60, 100))
+        darkBtn.Position = UDim2.new(0, 8, 0, y)
+        darkBtn.Size = UDim2.new(0, 100, 0, 24)
+        
+        local brightBtn = UI.createButton(envTab, "☀️ Trời sáng", THEME.WARNING)
+        brightBtn.Position = UDim2.new(0, 112, 0, y)
+        brightBtn.Size = UDim2.new(0, 100, 0, 24)
+        y = y + 28
+        
+        local fogBtn = UI.createButton(envTab, "🌫️ Sương mù: TẮT", THEME.TAB_INACTIVE)
+        fogBtn.Position = UDim2.new(0, 8, 0, y)
+        fogBtn.Size = UDim2.new(0, 100, 0, 24)
+        
+        local fullBrightBtn = UI.createButton(envTab, "💡 Sáng đêm: TẮT", THEME.TAB_INACTIVE)
+        fullBrightBtn.Position = UDim2.new(0, 112, 0, y)
+        fullBrightBtn.Size = UDim2.new(0, 100, 0, 24)
+        y = y + 28
+        
+        local antiAfkBtn = UI.createButton(envTab, "🛡️ Anti-AFK: BẬT", THEME.SUCCESS)
+        antiAfkBtn.Position = UDim2.new(0, 8, 0, y)
+        antiAfkBtn.Size = UDim2.new(0, 160, 0, 24)
+        y = y + 28
+        
+        local freezeBtn = UI.createButton(envTab, "🥶 Đóng Băng Người Khác: TẮT", THEME.TAB_INACTIVE)
+        freezeBtn.Position = UDim2.new(0, 8, 0, y)
+        freezeBtn.Size = UDim2.new(0, 200, 0, 24)
+        
+        darkBtn.MouseButton1Click:Connect(function()
+            TweenService:Create(Lighting, TweenInfo.new(1), {
+                ClockTime = 0,
+                Brightness = 0.3,
+            }):Play()
+        end)
+        
+        brightBtn.MouseButton1Click:Connect(function()
+            TweenService:Create(Lighting, TweenInfo.new(1), {
+                ClockTime = 14,
+                Brightness = 2,
+            }):Play()
+        end)
+        
+        fogBtn.MouseButton1Click:Connect(function()
+            State.fog = not State.fog
+            fogBtn.Text = State.fog and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
+            fogBtn.BackgroundColor3 = State.fog and Color3.fromRGB(70, 70, 70) or THEME.TAB_INACTIVE
+            TweenService:Create(Lighting, TweenInfo.new(1), {
+                FogEnd = State.fog and 80 or 100000,
+                FogStart = 0,
+            }):Play()
+        end)
+        
+        fullBrightBtn.MouseButton1Click:Connect(function()
+            State.fullBright = not State.fullBright
+            fullBrightBtn.Text = State.fullBright and "💡 Sáng đêm: BẬT" or "💡 Sáng đêm: TẮT"
+            fullBrightBtn.BackgroundColor3 = State.fullBright and THEME.SUCCESS or THEME.TAB_INACTIVE
+            if State.fullBright then
+                Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+                Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+                Lighting.Brightness = 2
+            else
+                Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+                Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
+                Lighting.Brightness = 1.2
+            end
+        end)
+        
+        antiAfkBtn.MouseButton1Click:Connect(function()
+            State.antiAfk = not State.antiAfk
+            antiAfkBtn.Text = State.antiAfk and "🛡️ Anti-AFK: BẬT" or "🛡️ Anti-AFK: TẮT"
+            antiAfkBtn.BackgroundColor3 = State.antiAfk and THEME.SUCCESS or THEME.TAB_INACTIVE
+        end)
+        
+        freezeBtn.MouseButton1Click:Connect(function()
+            State.freezeOthers = not State.freezeOthers
+            freezeBtn.Text = State.freezeOthers and "🥶 Đóng Băng: BẬT" or "🥶 Đóng Băng: TẮT"
+            freezeBtn.BackgroundColor3 = State.freezeOthers and THEME.ACCENT or THEME.TAB_INACTIVE
+            if not State.freezeOthers then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        for _, part in ipairs(p.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then part.Anchored = false end
+                        end
+                    end
+                end
+            end
+        end)
+        
+        envTab.CanvasSize = UDim2.new(0, 0, 0, y + 50)
+    end
+    
+    buildEnvTab()
+    
+    -- TAB 6: CAMERA
+    local function buildCamTab()
+        local y = 6
+        
+        local ccBtn = UI.createButton(camTab, "📷 Camera Tùy Chỉnh: TẮT", THEME.TAB_INACTIVE)
+        ccBtn.Position = UDim2.new(0, 8, 0, y)
+        y = y + 28
+        
+        local fcBtn = UI.createButton(camTab, "🎥 Camera Tự Do: TẮT", THEME.TAB_INACTIVE)
+        fcBtn.Position = UDim2.new(0, 8, 0, y)
+        y = y + 28
+        
+        UI.createLabel(camTab, "FOV (30-120):").Position = UDim2.new(0, 8, 0, y)
+        y = y + 14
+        local fovBox = UI.createTextBox(camTab, "70", "70")
+        fovBox.Size = UDim2.new(0, 60, 0, 22)
+        fovBox.Position = UDim2.new(0, 8, 0, y)
+        
+        ccBtn.MouseButton1Click:Connect(function()
+            State.customCam = not State.customCam
+            ccBtn.Text = State.customCam and "📷 Camera Tùy Chỉnh: BẬT" or "📷 Camera Tùy Chỉnh: TẮT"
+            ccBtn.BackgroundColor3 = State.customCam and THEME.WARNING or THEME.TAB_INACTIVE
+        end)
+        
+        fcBtn.MouseButton1Click:Connect(function()
+            State.freeCam = not State.freeCam
+            fcBtn.Text = State.freeCam and "🎥 Camera Tự Do: BẬT" or "🎥 Camera Tự Do: TẮT"
+            fcBtn.BackgroundColor3 = State.freeCam and Color3.fromRGB(0, 160, 200) or THEME.TAB_INACTIVE
+        end)
+        
+        fovBox.FocusLost:Connect(function(e)
+            if not e then return end
+            local n = tonumber(fovBox.Text)
+            if n and n >= 30 and n <= 120 then
+                State.fov = n
+                workspace.CurrentCamera.FieldOfView = n
+            else
+                fovBox.Text = tostring(State.fov)
+            end
+        end)
+        
+        camTab.CanvasSize = UDim2.new(0, 0, 0, y + 40)
+    end
+    
+    buildCamTab()
+    
+    -- TAB 7: CODE
+    local function buildCodeTab()
+        local y = 6
+        
+        UI.createLabel(codeTab, "💻 Nhập Code:").Position = UDim2.new(0, 8, 0, y)
+        y = y + 14
+        
+        local codeInput = Instance.new("TextBox")
+        codeInput.Size = UDim2.new(1, -16, 0, 80)
+        codeInput.Position = UDim2.new(0, 8, 0, y)
+        codeInput.BackgroundColor3 = Color3.fromRGB(245, 245, 255)
+        codeInput.BackgroundTransparency = 0
+        codeInput.PlaceholderText = "-- Nhập code Lua tại đây..."
+        codeInput.Text = ""
+        codeInput.TextColor3 = Color3.fromRGB(20, 20, 20)
+        codeInput.Font = Enum.Font.Code
+        codeInput.TextSize = 11
+        codeInput.BorderSizePixel = 0
+        codeInput.MultiLine = true
+        codeInput.TextXAlignment = Enum.TextXAlignment.Left
+        codeInput.TextYAlignment = Enum.TextYAlignment.Top
+        codeInput.ZIndex = 8
+        codeInput.Parent = codeTab
+        UI.createCorner(codeInput, 5)
+        UI.createStroke(codeInput, Color3.fromRGB(100, 120, 200), 1.5)
+        
+        y = y + 86
+        
+        local runBtn = UI.createButton(codeTab, "▶ Chạy Code", THEME.SUCCESS)
+        runBtn.Size = UDim2.new(0, 100, 0, 24)
+        runBtn.Position = UDim2.new(0, 8, 0, y)
+        
+        local stopBtn = UI.createButton(codeTab, "⏹ Dừng", THEME.DANGER)
+        stopBtn.Size = UDim2.new(0, 80, 0, 24)
+        stopBtn.Position = UDim2.new(0, 112, 0, y)
+        y = y + 28
+        
+        local statusLabel = UI.createLabel(codeTab, "Sẵn sàng")
+        statusLabel.Position = UDim2.new(0, 8, 0, y)
+        statusLabel.TextColor3 = THEME.WARNING
+        
+        runBtn.MouseButton1Click:Connect(function()
+            local code = codeInput.Text
+            if #code == 0 then
+                statusLabel.Text = "⚠️ Vui lòng nhập code!"
+                return
+            end
+            
+            statusLabel.Text = "⏳ Đang thực thi..."
+            task.spawn(function()
+                local success, err = pcall(function()
+                    local fn = loadstring(code)
+                    if fn then fn() end
+                end)
+                
+                if success then
+                    statusLabel.Text = "✅ Hoàn thành!"
+                    statusLabel.TextColor3 = THEME.SUCCESS
+                else
+                    statusLabel.Text = "❌ Lỗi: " .. tostring(err)
+                    statusLabel.TextColor3 = THEME.DANGER
+                end
+                
+                State.totalRuns = State.totalRuns + 1
+            end)
+        end)
+        
+        stopBtn.MouseButton1Click:Connect(function()
+            statusLabel.Text = "⏹ Đã dừng"
+            statusLabel.TextColor3 = THEME.WARNING
+        end)
+        
+        codeTab.CanvasSize = UDim2.new(0, 0, 0, y + 40)
+    end
+    
+    buildCodeTab()
+    
+    -- ==================== UI EVENTS ====================
+    -- Toggle menu
+    toggleBtn.MouseButton1Click:Connect(function()
+        MainFrame.Visible = not MainFrame.Visible
+        toggleBtn.Text = MainFrame.Visible and "✕" or "🍌"
+    end)
+    
+    -- Drag functionality
+    local dragging = false
+    local dragStart, startPos
+    
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, 
+                                          startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    -- Resize functionality
+    UserInputService.InputChanged:Connect(function(input)
+        if resizeState.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local currentMouse = UserInputService:GetMouseLocation()
+            local delta = currentMouse - resizeState.startMouse
+            
+            local newW = resizeState.startSize.X
+            local newH = resizeState.startSize.Y
+            local newX = resizeState.startPos.X
+            local newY = resizeState.startPos.Y
+            
+            if resizeState.corner == "BR" then
+                newW = math.max(minSize.X, resizeState.startSize.X + delta.X)
+                newH = math.max(minSize.Y, resizeState.startSize.Y + delta.Y)
+            elseif resizeState.corner == "BL" then
+                newW = math.max(minSize.X, resizeState.startSize.X - delta.X)
+                newH = math.max(minSize.Y, resizeState.startSize.Y + delta.Y)
+                newX = resizeState.startPos.X + (resizeState.startSize.X - newW)
+            elseif resizeState.corner == "TR" then
+                newW = math.max(minSize.X, resizeState.startSize.X + delta.X)
+                newH = math.max(minSize.Y, resizeState.startSize.Y - delta.Y)
+                newY = resizeState.startPos.Y + (resizeState.startSize.Y - newH)
+            elseif resizeState.corner == "TL" then
+                newW = math.max(minSize.X, resizeState.startSize.X - delta.X)
+                newH = math.max(minSize.Y, resizeState.startSize.Y - delta.Y)
+                newX = resizeState.startPos.X + (resizeState.startSize.X - newW)
+                newY = resizeState.startPos.Y + (resizeState.startSize.Y - newH)
+            end
+            
+            MainFrame.Size = UDim2.new(0, newW, 0, newH)
+            MainFrame.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            resizeState.active = false
+        end
+    end)
+    
+    -- Close button
+    closeBtn.MouseButton1Click:Connect(function()
+        Flight.stopFly()
+        Flight.stopFollow()
+        State.antiNoclipActive = false
+        Noclip.update()
+        
+        for plr in pairs(State.esp.players.cache) do
+            ESP.removePlayerESP(plr)
+        end
+        for item in pairs(State.esp.locations.cache) do
+            ESP.removeLocationESP(item)
+        end
+        for item in pairs(State.esp.walls.cache) do
+            ESP.removeWallESP(item)
+        end
+        
+        for _, item in ipairs(State.spawnedWalls) do
+            Util.cleanupObject(item.part)
+        end
+        
+        Util.cleanupObject(State.glowLight)
+        Util.cleanupObject(State.heightPillar)
+        if State.heightConn then State.heightConn:Disconnect() end
+        
+        ScreenGui:Destroy()
+    end)
+    
+    return {
+        updatePlayerList = updatePlayerList,
+        updateSavedList = updateSavedList,
+        updateWallList = updateWallList,
+    }
+end
+
+-- ==================== UIMANAGER ====================
+local UIManager = {}
+UIManager = buildGUI()
+
+-- ==================== GLOBAL EVENTS ====================
+-- Infinite Jump
+UserInputService.JumpRequest:Connect(function()
+    if State.infJump then
+        local h = Util.getLocalHumanoid()
+        if h then
+            h:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Click Teleport
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if State.clickTp and input.UserInputType == Enum.UserInputType.MouseButton1 and 
+       UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        local mouse = LocalPlayer:GetMouse()
+        local hrp = Util.getLocalRoot()
+        if hrp and mouse.Hit then
+            hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
+        end
+    end
+end)
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    if State.antiAfk then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
+
+-- Freeze others
+RunService.Stepped:Connect(function()
     if State.freezeOthers then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
@@ -855,1325 +2157,11 @@ RunService.Stepped:Connect(function()
     end
 end)
 
-local function unfreezeAll()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            for _, part in ipairs(p.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = false
-                end
-            end
-        end
-    end
-end
-
--- ==================== INFINITE JUMP ====================
-UserInputService.JumpRequest:Connect(function()
-    if State.infJump then
-        local hum = Util.getHumanoid()
-        if hum then
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-    end
-end)
-
--- ==================== CLICK TELEPORT ====================
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if State.clickTp and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-        local mouse = LocalPlayer:GetMouse()
-        local root = Util.getRoot()
-        if root and mouse.Hit then
-            root.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
-        end
-    end
-end)
-
--- ==================== UI CONSTRUCTION ====================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "UltimateFlyGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local success, err = pcall(function()
-    ScreenGui.Parent = CoreGui
-end)
-if not success then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
--- Theme
-local T = {
-    BG = Color3.fromRGB(240, 242, 248),
-    TITLE = Color3.fromRGB(215, 220, 230),
-    ACCENT = Color3.fromRGB(0, 140, 240),
-    SUCCESS = Color3.fromRGB(40, 170, 90),
-    DANGER = Color3.fromRGB(230, 30, 30),
-    WARNING = Color3.fromRGB(255, 180, 0),
-    PURPLE = Color3.fromRGB(130, 60, 200),
-    TEXT = Color3.fromRGB(15, 15, 25),
-    TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
-    GRAY = Color3.fromRGB(110, 115, 125),
-}
-
--- Helper functions
-local function New(cls, props, parent)
-    local obj = Instance.new(cls)
-    for k, v in pairs(props or {}) do obj[k] = v end
-    if parent then obj.Parent = parent end
-    return obj
-end
-
-local function Corner(p, r)
-    return New("UICorner", {CornerRadius = r or UDim.new(0, 6)}, p)
-end
-
-local function Stroke(p, c, t)
-    return New("UIStroke", {Color = c or Color3.fromRGB(170, 175, 190), Thickness = t or 1.2}, p)
-end
-
--- Toggle Button
-local ToggleBtn = New("TextButton", {
-    Size = UDim2.new(0, 48, 0, 48),
-    Position = UDim2.new(1, -60, 1, -60),
-    Text = "🍌",
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamBold,
-    TextSize = 24,
-    BorderSizePixel = 0,
-    ZIndex = 1000,
-}, ScreenGui)
-Corner(ToggleBtn, UDim.new(1, 0))
-Stroke(ToggleBtn, T.ACCENT, 2)
-
--- Main Frame
-local MainFrame = New("Frame", {
-    Name = "MainFrame",
-    Size = UDim2.new(0, 580, 0, 420),
-    Position = UDim2.new(0.5, -290, 0.5, -210),
-    BackgroundColor3 = T.BG,
-    BackgroundTransparency = 0.08,
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 2,
-}, ScreenGui)
-Corner(MainFrame, UDim.new(0, 10))
-Stroke(MainFrame)
-
--- Caro Pattern
-local Pattern = New("ImageLabel", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    Image = "rbxassetid://9822602710",
-    ScaleType = Enum.ScaleType.Tile,
-    TileSize = UDim2.new(0, 20, 0, 20),
-    ImageTransparency = 0.85,
-    ImageColor3 = Color3.fromRGB(150, 160, 185),
-    ZIndex = 2,
-}, MainFrame)
-Corner(Pattern, UDim.new(0, 10))
-
--- Title Bar
-local TitleBar = New("Frame", {
-    Size = UDim2.new(1, -110, 0, 30),
-    BackgroundColor3 = T.TITLE,
-    BackgroundTransparency = 0.2,
-    BorderSizePixel = 0,
-    ZIndex = 3,
-}, MainFrame)
-Corner(TitleBar, UDim.new(0, 10))
-
-New("TextLabel", {
-    Size = UDim2.new(1, -10, 1, 0),
-    Position = UDim2.new(0, 8, 0, 0),
-    Text = "🍌 ULTIMATE FLY & ESP HUB",
-    BackgroundTransparency = 1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 4,
-}, TitleBar)
-
--- Close Button
-local CloseBtn = New("TextButton", {
-    Size = UDim2.new(0, 28, 0, 28),
-    Position = UDim2.new(1, -30, 0, 1),
-    Text = "✕",
-    BackgroundColor3 = T.DANGER,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.GothamBold,
-    TextSize = 14,
-    BorderSizePixel = 0,
-    ZIndex = 4,
-}, TitleBar)
-Corner(CloseBtn, UDim.new(0, 4))
-
--- Minimize Button
-local MinimizeBtn = New("TextButton", {
-    Size = UDim2.new(0, 28, 0, 28),
-    Position = UDim2.new(1, -62, 0, 1),
-    Text = "─",
-    BackgroundColor3 = T.TITLE,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamBold,
-    TextSize = 18,
-    BorderSizePixel = 0,
-    ZIndex = 4,
-}, TitleBar)
-Corner(MinimizeBtn, UDim.new(0, 4))
-
--- Drag Handle
-local DragBtn = New("TextButton", {
-    Size = UDim2.new(0, 80, 0, 24),
-    Position = UDim2.new(1, -150, 0, 3),
-    Text = "🖐️ Kéo",
-    BackgroundColor3 = T.TITLE,
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 10,
-    ZIndex = 5,
-}, MainFrame)
-Corner(DragBtn, UDim.new(0, 4))
-
--- Lưu các references cho UI cập nhập
-local P_HeightBox, P_SpeedBox, GlowRangeBox, WallNameBox, WallLenBox, WallHeightBox, WallThickBox, WallTransBox
-local wallCanCollide = true
-
--- ==================== DRAG & RESIZE ====================
-local dragging, dragStart, startPos
-
-DragBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        DragBtn.BackgroundColor3 = T.SUCCESS
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-        DragBtn.BackgroundColor3 = T.TITLE
-    end
-end)
-
--- ==================== MENU TOGGLE ====================
-local function setMenuVisible(visible)
-    MainFrame.Visible = visible
-    ToggleBtn.Text = visible and "✕" or "🍌"
-end
-
-ToggleBtn.MouseButton1Click:Connect(function() setMenuVisible(not MainFrame.Visible) end)
-MinimizeBtn.MouseButton1Click:Connect(function() setMenuVisible(false) end)
-CloseBtn.MouseButton1Click:Connect(function()
-    -- Cleanup
-    Flight.stopFly()
-    Flight.stopFollow()
-    Noclip.disable()
-    ESP.removeAllPlayerESP()
-    ESP.removeAllLocationESP()
-    ESP.removeAllWallESP()
-    clearAllWalls()
-    Util.cleanup(State.glowLight)
-    Util.cleanup(State.heightPillar)
-    if State.heightConn then State.heightConn:Disconnect() end
-    ScreenGui:Destroy()
-end)
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
-        setMenuVisible(not MainFrame.Visible)
-    end
-end)
-
--- ==================== TAB SYSTEM ====================
-local TabBar = New("ScrollingFrame", {
-    Size = UDim2.new(0, 105, 1, -30),
-    Position = UDim2.new(1, -105, 0, 30),
-    BackgroundColor3 = T.TITLE,
-    BackgroundTransparency = 0.3,
-    BorderSizePixel = 0,
-    ZIndex = 3,
-    ScrollBarThickness = 3,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-}, MainFrame)
-
-New("UIListLayout", {
-    FillDirection = Enum.FillDirection.Vertical,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 4),
-}, TabBar)
-
-New("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 4)}, TabBar)
-
-local ContentArea = New("Frame", {
-    Size = UDim2.new(1, -105, 1, -30),
-    Position = UDim2.new(0, 0, 0, 30),
-    BackgroundTransparency = 1,
-    ZIndex = 3,
-}, MainFrame)
-
-local tabs = {}
-local tabContents = {}
-
-local function switchTab(index)
-    for _, c in ipairs(tabContents) do c.Visible = false end
-    for _, b in ipairs(tabs) do
-        b.BackgroundColor3 = T.BG
-        b.BackgroundTransparency = 0.3
-    end
-    if tabContents[index] and tabs[index] then
-        tabContents[index].Visible = true
-        tabs[index].BackgroundColor3 = T.ACCENT
-        tabs[index].BackgroundTransparency = 0.2
-        State.activeTab = index
-    end
-end
-
-local function addTab(name, icon, order)
-    local btn = New("TextButton", {
-        Size = UDim2.new(1, -8, 0, 30),
-        Text = icon .. " " .. name,
-        BackgroundColor3 = T.BG,
-        BackgroundTransparency = 0.3,
-        TextColor3 = T.TEXT,
-        Font = Enum.Font.GothamBold,
-        TextSize = 9,
-        BorderSizePixel = 0,
-        LayoutOrder = order,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 4,
-    }, TabBar)
-    Corner(btn, UDim.new(0, 6))
-    
-    local sf = New("ScrollingFrame", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 5,
-        CanvasSize = UDim2.new(0, 0, 0, 0),
-        Visible = false,
-        ZIndex = 4,
-    }, ContentArea)
-    
-    local idx = #tabs + 1
-    btn.Activated:Connect(function() switchTab(idx) end)
-    
-    table.insert(tabs, btn)
-    table.insert(tabContents, sf)
-    TabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
-    return sf
-end
-
--- Create 7 tabs
-local playerTab = addTab("Người Chơi", "👤", 1)
-local moveTab = addTab("Di Chuyển", "🏃", 2)
-local locTab = addTab("Tọa Độ", "📍", 3)
-local wallTab = addTab("Tường Kính", "🧱", 4)
-local codeTab = addTab("Code", "💻", 5)
-local envTab = addTab("Môi Trường", "⚙️", 6)
-local gfxTab = addTab("Đồ Họa", "🎨", 7)
-
-switchTab(1)
-
--- ==================== TAB 1: NGƯỜI CHƠI ====================
-local py = 8
-
--- Search + Refresh
-local SearchBox = New("TextBox", {
-    Size = UDim2.new(0.68, 0, 0, 26),
-    Position = UDim2.new(0, 8, 0, py),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    PlaceholderText = "🔍 Tìm tên...",
-    Text = "",
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, playerTab)
-Corner(SearchBox, UDim.new(0, 5))
-Stroke(SearchBox)
-
-local RefreshBtn = New("TextButton", {
-    Size = UDim2.new(0.28, 0, 0, 26),
-    Position = UDim2.new(0.70, 0, 0, py),
-    Text = "🔄 Tải Lại",
-    BackgroundColor3 = T.TITLE,
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, playerTab)
-Corner(RefreshBtn, UDim.new(0, 5))
-
-py = py + 30
-
--- Player List
-local PlayerList = New("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 0.45, 0),
-    Position = UDim2.new(0, 8, 0, py),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.7,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 5,
-    ZIndex = 5,
-}, playerTab)
-Corner(PlayerList, UDim.new(0, 6))
-
-New("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder}, PlayerList)
-
-py = py + PlayerList.Size.Y.Offset + 6
-
--- Control buttons
-local controls = {
-    {name = "AntiNoclipBtn", text = "🛡️ Chống Xuyên Tường: OFF", color = T.GRAY, callback = function(btn)
-        State.antiNoclipActive = not State.antiNoclipActive
-        btn.Text = State.antiNoclipActive and "🛡️ Chống Xuyên Tường: ON" or "🛡️ Chống Xuyên Tường: OFF"
-        btn.BackgroundColor3 = State.antiNoclipActive and Color3.fromRGB(255, 255, 255) or T.GRAY
-        Noclip.update()
-    end},
-    {name = "FollowBtn", text = "🧲 Bu Người Chơi: OFF", color = T.GRAY, callback = function(btn)
-        if State.isFollowing then
-            Flight.stopFollow()
-            btn.Text = "🧲 Bu Người Chơi: OFF"
-            btn.BackgroundColor3 = T.GRAY
-        else
-            Flight.startFollow()
-            btn.Text = "🧲 Bu Người Chơi: ON"
-            btn.BackgroundColor3 = T.SUCCESS
-        end
-    end},
-    {name = "EspAllBtn", text = "📡 ESP Tất Cả: OFF", color = T.GRAY, callback = function(btn)
-        State.espPlayers.all = not State.espPlayers.all
-        btn.Text = State.espPlayers.all and "📡 ESP Tất Cả: ON" or "📡 ESP Tất Cả: OFF"
-        btn.BackgroundColor3 = State.espPlayers.all and T.SUCCESS or T.GRAY
-    end},
-    {name = "EspSingleBtn", text = "🎯 ESP Lẻ: OFF", color = T.GRAY, callback = function(btn)
-        State.espPlayers.single = not State.espPlayers.single
-        btn.Text = State.espPlayers.single and "🎯 ESP Lẻ: ON" or "🎯 ESP Lẻ: OFF"
-        btn.BackgroundColor3 = State.espPlayers.single and T.SUCCESS or T.GRAY
-    end},
-    {name = "FreezeBtn", text = "🥶 Đóng Băng Người Khác: OFF", color = T.GRAY, callback = function(btn)
-        State.freezeOthers = not State.freezeOthers
-        btn.Text = State.freezeOthers and "🥶 Đóng Băng Người Khác: ON" or "🥶 Đóng Băng Người Khác: OFF"
-        btn.BackgroundColor3 = State.freezeOthers and T.ACCENT or T.GRAY
-        if not State.freezeOthers then unfreezeAll() end
-    end},
-    {name = "BlockServerBtn", text = "🛡️ Anti-Kick: OFF", color = T.GRAY, callback = function(btn)
-        State.blockServer = not State.blockServer
-        btn.Text = State.blockServer and "🛡️ Anti-Kick: ON" or "🛡️ Anti-Kick: OFF"
-        btn.BackgroundColor3 = State.blockServer and T.SUCCESS or T.GRAY
-    end},
-}
-
-for _, ctrl in ipairs(controls) do
-    local btn = New("TextButton", {
-        Name = ctrl.name,
-        Size = UDim2.new(1, -16, 0, 26),
-        Position = UDim2.new(0, 8, 0, py),
-        Text = ctrl.text,
-        BackgroundColor3 = ctrl.color,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 11,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, playerTab)
-    Corner(btn, UDim.new(0, 5))
-    Stroke(btn)
-    
-    btn.Activated:Connect(function() ctrl.callback(btn) end)
-    py = py + 30
-end
-
--- Server hop buttons
-local rejoinBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 26),
-    Position = UDim2.new(0, 8, 0, py),
-    Text = "🔄 Vào Lại Server",
-    BackgroundColor3 = T.ACCENT,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, playerTab)
-Corner(rejoinBtn, UDim.new(0, 5))
-rejoinBtn.Activated:Connect(function()
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-end)
-
-local hopBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 26),
-    Position = UDim2.new(0.52, 0, 0, py),
-    Text = "🌐 Đổi Server",
-    BackgroundColor3 = T.PURPLE,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, playerTab)
-Corner(hopBtn, UDim.new(0, 5))
-hopBtn.Activated:Connect(function()
-    local servers = {}
-    pcall(function()
-        local res = request({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
-        local body = HttpService:JSONDecode(res.Body)
-        if body and body.data then
-            for _, s in ipairs(body.data) do
-                if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                    table.insert(servers, s.id)
-                end
-            end
-        end
-    end)
-    if #servers > 0 then
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
-    else
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
-    end
-end)
-
-py = py + 34
-
-playerTab.CanvasSize = UDim2.new(0, 0, 0, py + 20)
-
--- ==================== TAB 2: DI CHUYỂN ====================
-local my = 8
-
--- WalkSpeed
-New("TextLabel", {
-    Size = UDim2.new(1, -16, 0, 14),
-    Position = UDim2.new(0, 8, 0, my),
-    Text = "🏃 Tốc độ chạy",
-    BackgroundTransparency = 1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamMedium,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 5,
-}, moveTab)
-
-local wsBox = New("TextBox", {
-    Size = UDim2.new(0, 60, 0, 24),
-    Position = UDim2.new(0, 8, 0, my + 16),
-    Text = "16",
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, moveTab)
-Corner(wsBox, UDim.new(0, 5))
-
-wsBox.FocusLost:Connect(function(e)
-    if not e then return end
-    local n = tonumber(wsBox.Text)
-    if n and n > 0 then
-        State.walkSpeed = n
-        Util.updateMovement()
-    else
-        wsBox.Text = tostring(State.walkSpeed)
-    end
-end)
-
--- JumpPower
-New("TextLabel", {
-    Size = UDim2.new(0, 60, 0, 14),
-    Position = UDim2.new(0, 80, 0, my),
-    Text = "📦 Lực nhảy",
-    BackgroundTransparency = 1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamMedium,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 5,
-}, moveTab)
-
-local jpBox = New("TextBox", {
-    Size = UDim2.new(0, 60, 0, 24),
-    Position = UDim2.new(0, 80, 0, my + 16),
-    Text = "50",
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, moveTab)
-Corner(jpBox, UDim.new(0, 5))
-
-jpBox.FocusLost:Connect(function(e)
-    if not e then return end
-    local n = tonumber(jpBox.Text)
-    if n and n > 0 then
-        State.jumpPower = n
-        Util.updateMovement()
-    else
-        jpBox.Text = tostring(State.jumpPower)
-    end
-end)
-
-my = my + 48
-
--- Fly Speed
-New("TextLabel", {
-    Size = UDim2.new(1, -16, 0, 14),
-    Position = UDim2.new(0, 8, 0, my),
-    Text = "⚡ Tốc độ bay",
-    BackgroundTransparency = 1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamMedium,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 5,
-}, moveTab)
-
-local flySpdBox = New("TextBox", {
-    Size = UDim2.new(0, 60, 0, 24),
-    Position = UDim2.new(0, 8, 0, my + 16),
-    Text = "50",
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, moveTab)
-Corner(flySpdBox, UDim.new(0, 5))
-
-flySpdBox.FocusLost:Connect(function(e)
-    if not e then return end
-    local n = tonumber(flySpdBox.Text)
-    if n and n > 0 then
-        State.flySpeed = n
-    else
-        flySpdBox.Text = tostring(State.flySpeed)
-    end
-end)
-
--- NoClip Toggle
-local noclipBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 24),
-    Position = UDim2.new(0, 80, 0, my + 16),
-    Text = "🚶 NoClip: OFF",
-    BackgroundColor3 = T.GRAY,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, moveTab)
-Corner(noclipBtn, UDim.new(0, 5))
-noclipBtn.Activated:Connect(function()
-    State.noclipActive = not State.noclipActive
-    noclipBtn.Text = State.noclipActive and "🚶 NoClip: ON" or "🚶 NoClip: OFF"
-    noclipBtn.BackgroundColor3 = State.noclipActive and T.SUCCESS or T.GRAY
-    Noclip.update()
-end)
-
-my = my + 48
-
--- Movement buttons
-local movButtons = {
-    {text = "🕊️ Bay: OFF", callback = function(btn)
-        if State.isFlying then
-            Flight.stopFly()
-        else
-            if not State.selectedPlayer then
-                log("⚠️ Chưa chọn người chơi!")
-                return
-            end
-            Flight.startFly("Player", State.selectedPlayer)
-        end
-        btn.Text = State.isFlying and "🕊️ Bay: ON" or "🕊️ Bay: OFF"
-        btn.BackgroundColor3 = State.isFlying and T.ACCENT or T.GRAY
-    end},
-    {text = "🦘 Nhảy Vô Hạn: OFF", callback = function(btn)
-        State.infJump = not State.infJump
-        btn.Text = State.infJump and "🦘 Nhảy Vô Hạn: ON" or "🦘 Nhảy Vô Hạn: OFF"
-        btn.BackgroundColor3 = State.infJump and T.SUCCESS or T.GRAY
-    end},
-    {text = "🎯 Click TP: OFF", callback = function(btn)
-        State.clickTp = not State.clickTp
-        btn.Text = State.clickTp and "🎯 Click TP: ON" or "🎯 Click TP: OFF"
-        btn.BackgroundColor3 = State.clickTp and T.SUCCESS or T.GRAY
-    end},
-}
-
-for i, mb in ipairs(movButtons) do
-    local x = i % 2 == 1 and 8 or 120
-    local y = (i - 1) // 2 * 30 + my
-    
-    local btn = New("TextButton", {
-        Size = UDim2.new(0, 105, 0, 26),
-        Position = UDim2.new(0, x, 0, y),
-        Text = mb.text,
-        BackgroundColor3 = T.GRAY,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 10,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, moveTab)
-    Corner(btn, UDim.new(0, 5))
-    btn.Activated:Connect(function() mb.callback(btn) end)
-end
-
-my = my + 65
-
-moveTab.CanvasSize = UDim2.new(0, 0, 0, my + 20)
-
--- ==================== TAB 3: TỌA ĐỘ ====================
-local ly = 8
-
--- Name + Save
-local PosNameBox = New("TextBox", {
-    Size = UDim2.new(0.68, 0, 0, 26),
-    Position = UDim2.new(0, 8, 0, ly),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    PlaceholderText = "Nhập tên điểm...",
-    Text = "",
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, locTab)
-Corner(PosNameBox, UDim.new(0, 5))
-
-local SavePosBtn = New("TextButton", {
-    Size = UDim2.new(0.28, 0, 0, 26),
-    Position = UDim2.new(0.70, 0, 0, ly),
-    Text = "📌 LƯU",
-    BackgroundColor3 = T.SUCCESS,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, locTab)
-Corner(SavePosBtn, UDim.new(0, 5))
-
-SavePosBtn.Activated:Connect(function()
-    if not Util.debounce("saveLoc") then return end
-    local hrp = Util.getRoot()
-    if hrp then
-        local name = PosNameBox.Text
-        if name == "" or string.match(name, "^%s*$") then
-            name = "Điểm " .. (#State.savedLocations + 1)
-        end
-        table.insert(State.savedLocations, {name = name, pos = hrp.Position})
-        PosNameBox.Text = ""
-        log("📍 Đã lưu:", name)
-    end
-end)
-
-ly = ly + 32
-
--- ESP buttons
-local locEspBtns = {
-    {text = "📍 Loc ESP All: OFF", callback = function(btn)
-        State.espLocations.all = not State.espLocations.all
-        btn.Text = State.espLocations.all and "📍 Loc ESP All: ON" or "📍 Loc ESP All: OFF"
-        btn.BackgroundColor3 = State.espLocations.all and T.SUCCESS or T.GRAY
-    end},
-    {text = "🎯 Loc ESP Lẻ: OFF", callback = function(btn)
-        State.espLocations.single = not State.espLocations.single
-        btn.Text = State.espLocations.single and "🎯 Loc ESP Lẻ: ON" or "🎯 Loc ESP Lẻ: OFF"
-        btn.BackgroundColor3 = State.espLocations.single and T.SUCCESS or T.GRAY
-    end},
-}
-
-for i, le in ipairs(locEspBtns) do
-    local btn = New("TextButton", {
-        Size = UDim2.new(0.48, 0, 0, 26),
-        Position = UDim2.new(0, i == 1 and 8 or 152, 0, ly),
-        Text = le.text,
-        BackgroundColor3 = T.GRAY,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 10,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, locTab)
-    Corner(btn, UDim.new(0, 5))
-    btn.Activated:Connect(function() le.callback(btn) end)
-end
-
-ly = ly + 32
-
--- Saved locations list
-local SavedList = New("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 1, -ly - 8),
-    Position = UDim2.new(0, 8, 0, ly),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.7,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 5,
-    ZIndex = 5,
-}, locTab)
-Corner(SavedList, UDim.new(0, 6))
-New("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SavedList)
-
-locTab.CanvasSize = UDim2.new(0, 0, 0, ly + 200)
-
--- ==================== TAB 4: TƯỜNG KÍNH ====================
-local wy = 8
-
-local wallLabels = {
-    "🏷️ Tên Tường:", "📏 Chiều dài (X):", "📐 Chiều cao (Y):",
-    "📦 Độ dày (Z):", "👁️ Trong suốt:"
-}
-local wallDefaults = {"", "15", "10", "1", "0.5"}
-local wallRefs = {}
-
-for i, label in ipairs(wallLabels) do
-    New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 14),
-        Position = UDim2.new(0, 8, 0, wy),
-        Text = label,
-        BackgroundTransparency = 1,
-        TextColor3 = T.TEXT,
-        Font = Enum.Font.GothamMedium,
-        TextSize = 10,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 5,
-    }, wallTab)
-    
-    local box = New("TextBox", {
-        Size = UDim2.new(1, -16, 0, 22),
-        Position = UDim2.new(0, 8, 0, wy + 16),
-        Text = wallDefaults[i],
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.3,
-        TextColor3 = T.TEXT,
-        Font = Enum.Font.SourceSans,
-        TextSize = 11,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, wallTab)
-    Corner(box, UDim.new(0, 5))
-    wallRefs[i] = box
-    
-    wy = wy + 44
-end
-
--- Assign wall references
-WallNameBox = wallRefs[1]
-WallLenBox = wallRefs[2]
-WallHeightBox = wallRefs[3]
-WallThickBox = wallRefs[4]
-WallTransBox = wallRefs[5]
-
--- Collide toggle
-local wallCollideBtn = New("TextButton", {
-    Size = UDim2.new(1, -16, 0, 24),
-    Position = UDim2.new(0, 8, 0, wy),
-    Text = "🧱 Va Chạm: ON",
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.3,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 10,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, wallTab)
-Corner(wallCollideBtn, UDim.new(0, 5))
-wallCollideBtn.Activated:Connect(function()
-    wallCanCollide = not wallCanCollide
-    wallCollideBtn.Text = wallCanCollide and "🧱 Va Chạm: ON" or "🧱 Va Chạm: OFF"
-    wallCollideBtn.BackgroundColor3 = wallCanCollide and Color3.fromRGB(255, 255, 255) or T.GRAY
-end)
-
-wy = wy + 30
-
--- Spawn + Clear
-local spawnWallBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 26),
-    Position = UDim2.new(0, 8, 0, wy),
-    Text = "➕ ĐẶT TƯỜNG",
-    BackgroundColor3 = T.SUCCESS,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, wallTab)
-Corner(spawnWallBtn, UDim.new(0, 5))
-spawnWallBtn.Activated:Connect(function() 
-    local wall = spawnWall()
-    if wall then
-        -- Thêm vào danh sách
-        local itemFrame = New("Frame", {
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-            BackgroundTransparency = 0.5,
-            BorderSizePixel = 0,
-            ZIndex = 5,
-        }, WallList)
-        Corner(itemFrame, UDim.new(0, 4))
-        
-        New("TextLabel", {
-            Size = UDim2.new(0.6, 0, 1, 0),
-            Position = UDim2.new(0, 4, 0, 0),
-            Text = "🧱 " .. wall.name,
-            BackgroundTransparency = 1,
-            TextColor3 = T.TEXT,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 10,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            ZIndex = 6,
-        }, itemFrame)
-        
-        local delBtn = New("TextButton", {
-            Size = UDim2.new(0.15, 0, 0.8, 0),
-            Position = UDim2.new(0.83, 0, 0.1, 0),
-            Text = "Xóa",
-            BackgroundColor3 = T.DANGER,
-            BackgroundTransparency = 0.2,
-            TextColor3 = T.TEXT_LIGHT,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 9,
-            BorderSizePixel = 0,
-            ZIndex = 6,
-        }, itemFrame)
-        Corner(delBtn, UDim.new(0, 4))
-        
-        local idx = #State.spawnedWalls
-        delBtn.Activated:Connect(function()
-            removeWall(State.spawnedWalls[idx], idx)
-            itemFrame:Destroy()
-        end)
-        
-        WallList.CanvasSize = UDim2.new(0, 0, 0, #State.spawnedWalls * 32)
-    end
-end)
-
-local clearWallsBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 26),
-    Position = UDim2.new(0.52, 0, 0, wy),
-    Text = "🗑️ XÓA HẾT",
-    BackgroundColor3 = T.DANGER,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 11,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, wallTab)
-Corner(clearWallsBtn, UDim.new(0, 5))
-clearWallsBtn.Activated:Connect(function()
-    clearAllWalls()
-    for _, c in ipairs(WallList:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
-    end
-    WallList.CanvasSize = UDim2.new(0, 0, 0, 0)
-end)
-
-wy = wy + 32
-
--- Wall list
-local WallList = New("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 0, 120),
-    Position = UDim2.new(0, 8, 0, wy),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.7,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 5,
-    ZIndex = 5,
-}, wallTab)
-Corner(WallList, UDim.new(0, 6))
-New("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, WallList)
-
-wallTab.CanvasSize = UDim2.new(0, 0, 0, wy + 140)
-
--- ==================== TAB 5: CODE ====================
-local cy = 8
-
-New("TextLabel", {
-    Size = UDim2.new(1, -16, 0, 14),
-    Position = UDim2.new(0, 8, 0, cy),
-    Text = "💻 Nhập Code Lua",
-    BackgroundTransparency = 1,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.GothamBold,
-    TextSize = 11,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 5,
-}, codeTab)
-
-local codeBox = New("TextBox", {
-    Size = UDim2.new(1, -16, 0, 120),
-    Position = UDim2.new(0, 8, 0, cy + 18),
-    Text = "",
-    PlaceholderText = "-- Nhập code Lua tại đây...",
-    BackgroundColor3 = Color3.fromRGB(245, 245, 255),
-    BackgroundTransparency = 0,
-    TextColor3 = T.TEXT,
-    Font = Enum.Font.Code,
-    TextSize = 11,
-    MultiLine = true,
-    TextWrapped = true,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Top,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, codeTab)
-Corner(codeBox, UDim.new(0, 5))
-Stroke(codeBox, T.ACCENT, 1.5)
-
-cy = cy + 144
-
-local runCodeBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 28),
-    Position = UDim2.new(0, 8, 0, cy),
-    Text = "▶️ Chạy Code",
-    BackgroundColor3 = T.SUCCESS,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, codeTab)
-Corner(runCodeBtn, UDim.new(0, 5))
-runCodeBtn.Activated:Connect(function()
-    executeCode(codeBox.Text, "Custom Script")
-end)
-
-local saveCodeBtn = New("TextButton", {
-    Size = UDim2.new(0.48, 0, 0, 28),
-    Position = UDim2.new(0.52, 0, 0, cy),
-    Text = "💾 Lưu Code",
-    BackgroundColor3 = T.ACCENT,
-    BackgroundTransparency = 0.2,
-    TextColor3 = T.TEXT_LIGHT,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 12,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-}, codeTab)
-Corner(saveCodeBtn, UDim.new(0, 5))
-saveCodeBtn.Activated:Connect(function()
-    if codeBox.Text == "" then return end
-    table.insert(State.savedScripts, {name = "Script " .. #State.savedScripts + 1, code = codeBox.Text})
-    log("💾 Đã lưu script")
-end)
-
-codeTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50)
-
--- ==================== TAB 6: MÔI TRƯỜNG ====================
-local ey = 8
-
-local envButtons = {
-    {text = "🌙 Trời tối", callback = function()
-        Lighting.ClockTime = 0
-        Lighting.Brightness = 0.3
-    end, color = Color3.fromRGB(60, 60, 100)},
-    {text = "☀️ Trời sáng", callback = function()
-        Lighting.ClockTime = 14
-        Lighting.Brightness = 2.5
-    end, color = T.WARNING},
-    {text = "🌫️ Sương mù: OFF", callback = function(btn)
-        State.fog = not State.fog
-        btn.Text = State.fog and "🌫️ Sương mù: ON" or "🌫️ Sương mù: OFF"
-        Lighting.FogEnd = State.fog and 80 or 100000
-    end, color = T.GRAY, toggle = true},
-    {text = "💡 Sáng Đêm: OFF", callback = function(btn)
-        State.fullBright = not State.fullBright
-        btn.Text = State.fullBright and "💡 Sáng Đêm: ON" or "💡 Sáng Đêm: OFF"
-        if State.fullBright then
-            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-            Lighting.Brightness = 2
-        else
-            Lighting.Ambient = Color3.fromRGB(128, 128, 128)
-            Lighting.Brightness = 1.2
-        end
-    end, color = T.GRAY, toggle = true},
-}
-
-for i, eb in ipairs(envButtons) do
-    local x = i % 2 == 1 and 8 or 152
-    local y = ((i - 1) // 2) * 32 + ey
-    
-    local btn = New("TextButton", {
-        Size = UDim2.new(0, 138, 0, 28),
-        Position = UDim2.new(0, x, 0, y),
-        Text = eb.text,
-        BackgroundColor3 = eb.color,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 10,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, envTab)
-    Corner(btn, UDim.new(0, 5))
-    
-    if eb.toggle then
-        btn.Activated:Connect(function() eb.callback(btn) end)
-    else
-        btn.Activated:Connect(eb.callback)
-    end
-end
-
-envTab.CanvasSize = UDim2.new(0, 0, 0, ey + 100)
-
--- ==================== TAB 7: ĐỒ HỌA ====================
-local gy = 8
-
-local gfxPresets = {
-    {text = "✨ Siêu cao", level = 21, color = Color3.fromRGB(180, 50, 50)},
-    {text = "🔵 Cao", level = 17, color = Color3.fromRGB(50, 100, 180)},
-    {text = "🟡 Trung", level = 10, color = Color3.fromRGB(180, 140, 30)},
-    {text = "🟢 Thấp", level = 5, color = Color3.fromRGB(60, 160, 80)},
-    {text = "⚡ Siêu thấp", level = 1, color = Color3.fromRGB(100, 60, 60)},
-}
-
-for i, gp in ipairs(gfxPresets) do
-    local btn = New("TextButton", {
-        Size = UDim2.new(0, 90, 0, 24),
-        Position = UDim2.new(0, 8 + (i - 1) * 98, 0, gy),
-        Text = gp.text,
-        BackgroundColor3 = gp.color,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 9,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, gfxTab)
-    Corner(btn, UDim.new(0, 5))
-    btn.Activated:Connect(function()
-        pcall(function()
-            settings().Rendering.QualityLevel = gp.level
-        end)
-    end)
-end
-
-gy = gy + 32
-
-local gfxToggleBtns = {
-    {text = "🌑 Bóng đổ: ON", callback = function(btn)
-        State.shadows = not State.shadows
-        Lighting.GlobalShadows = State.shadows
-        btn.Text = State.shadows and "🌑 Bóng đổ: ON" or "🌑 Bóng đổ: OFF"
-    end},
-}
-
-for i, gt in ipairs(gfxToggleBtns) do
-    local btn = New("TextButton", {
-        Size = UDim2.new(0.48, 0, 0, 26),
-        Position = UDim2.new(0, i == 1 and 8 or 152, 0, gy),
-        Text = gt.text,
-        BackgroundColor3 = T.SUCCESS,
-        BackgroundTransparency = 0.2,
-        TextColor3 = T.TEXT_LIGHT,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 10,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, gfxTab)
-    Corner(btn, UDim.new(0, 5))
-    btn.Activated:Connect(function() gt.callback(btn) end)
-end
-
-gfxTab.CanvasSize = UDim2.new(0, 0, 0, gy + 80)
-
--- ==================== UI UPDATE FUNCTIONS ====================
-local UIUpdate = {}
-
-function UIUpdate.updatePlayerList()
-    for _, c in ipairs(PlayerList:GetChildren()) do
-        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
-    end
-    
-    local filter = string.lower(SearchBox.Text)
-    local count = 0
-    
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr == LocalPlayer then continue end
-        
-        local match = filter == "" or string.find(string.lower(plr.Name), filter, 1, true)
-        if not match then continue end
-        
-        count = count + 1
-        local isEven = (count % 2 == 0)
-        local isDown = Util.isPlayerDown(plr)
-        local isSelected = (State.selectedPlayer == plr)
-        
-        local item = New("Frame", {
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = isSelected and T.ACCENT or (isEven and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(215, 220, 230)),
-            BackgroundTransparency = isSelected and 0.25 or 0.45,
-            BorderSizePixel = 0,
-        }, PlayerList)
-        Corner(item, UDim.new(0, 4))
-        
-        local nameBtn = New("TextButton", {
-            Size = UDim2.new(isSelected and 0.62 or 1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = (isDown and "🔴 " or "👤 ") .. plr.Name,
-            TextColor3 = isSelected and T.TEXT_LIGHT or (isDown and T.DANGER or T.TEXT),
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 12,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, item)
-        
-        nameBtn.Activated:Connect(function()
-            State.selectedPlayer = plr
-            UIUpdate.updatePlayerList()
-        end)
-        
-        if isSelected then
-            local flyBtn = New("TextButton", {
-                Size = UDim2.new(0.33, 0, 0.8, 0),
-                Position = UDim2.new(0.64, 0, 0.1, 0),
-                Text = State.isFlying and "🛑 Dừng" or "🚀 Bay",
-                BackgroundColor3 = State.isFlying and T.DANGER or T.SUCCESS,
-                BackgroundTransparency = 0.2,
-                TextColor3 = T.TEXT_LIGHT,
-                Font = Enum.Font.SourceSansBold,
-                TextSize = 10,
-                BorderSizePixel = 0,
-            }, item)
-            Corner(flyBtn, UDim.new(0, 4))
-            
-            flyBtn.Activated:Connect(function()
-                if State.isFlying then
-                    Flight.stopFly()
-                else
-                    Flight.startFly("Player", plr)
-                end
-                UIUpdate.updatePlayerList()
-            end)
-        end
-    end
-    
-    PlayerList.CanvasSize = UDim2.new(0, 0, 0, count * 28)
-end
-
-function UIUpdate.updateSavedList()
-    for _, c in ipairs(SavedList:GetChildren()) do
-        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
-    end
-    
-    for idx, item in ipairs(State.savedLocations) do
-        local isEven = (idx % 2 == 0)
-        local isSelected = (State.selectedLocation == item)
-        
-        local container = New("Frame", {
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = isSelected and T.SUCCESS or (isEven and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(215, 220, 230)),
-            BackgroundTransparency = isSelected and 0.25 or 0.45,
-            BorderSizePixel = 0,
-        }, SavedList)
-        Corner(container, UDim.new(0, 4))
-        
-        New("TextButton", {
-            Size = UDim2.new(0.55, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = "📍 " .. item.name,
-            TextColor3 = isSelected and T.TEXT_LIGHT or T.TEXT,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 10,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, container).Activated:Connect(function()
-            State.selectedLocation = item
-            UIUpdate.updateSavedList()
-        end)
-        
-        local flyBtn = New("TextButton", {
-            Size = UDim2.new(0.22, 0, 0.8, 0),
-            Position = UDim2.new(0.57, 0, 0.1, 0),
-            Text = "🚀 Bay",
-            BackgroundColor3 = T.SUCCESS,
-            BackgroundTransparency = 0.2,
-            TextColor3 = T.TEXT_LIGHT,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 9,
-            BorderSizePixel = 0,
-        }, container)
-        Corner(flyBtn, UDim.new(0, 4))
-        flyBtn.Activated:Connect(function()
-            Flight.startFly("Location", item)
-        end)
-        
-        local delBtn = New("TextButton", {
-            Size = UDim2.new(0.16, 0, 0.8, 0),
-            Position = UDim2.new(0.82, 0, 0.1, 0),
-            Text = "Xóa",
-            BackgroundColor3 = T.DANGER,
-            BackgroundTransparency = 0.2,
-            TextColor3 = T.TEXT_LIGHT,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 9,
-            BorderSizePixel = 0,
-        }, container)
-        Corner(delBtn, UDim.new(0, 4))
-        delBtn.Activated:Connect(function()
-            if State.selectedLocation == item then State.selectedLocation = nil end
-            ESP.removeLocationESP(item)
-            table.remove(State.savedLocations, idx)
-            UIUpdate.updateSavedList()
-        end)
-    end
-    
-    SavedList.CanvasSize = UDim2.new(0, 0, 0, #State.savedLocations * 32)
-end
-
-function UIUpdate.refreshAll()
-    UIUpdate.updatePlayerList()
-    UIUpdate.updateSavedList()
-end
-
--- ==================== REAL-TIME ESP UPDATE ====================
-RunService.RenderStepped:Connect(function()
-    ESP.updatePlayerESP()
-    ESP.updateLocationESP()
-    ESP.updateWallESP()
-end)
-
--- ==================== EVENT HANDLERS ====================
-RefreshBtn.Activated:Connect(UIUpdate.updatePlayerList)
-SearchBox:GetPropertyChangedSignal("Text"):Connect(UIUpdate.updatePlayerList)
-
+-- Player events
 Players.PlayerAdded:Connect(function(plr)
-    UIUpdate.updatePlayerList()
+    if UIManager and UIManager.updatePlayerList then
+        UIManager.updatePlayerList()
+    end
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
@@ -2182,23 +2170,47 @@ Players.PlayerRemoving:Connect(function(plr)
         Flight.stopFollow()
     end
     ESP.removePlayerESP(plr)
-    UIUpdate.updatePlayerList()
+    if UIManager and UIManager.updatePlayerList then
+        UIManager.updatePlayerList()
+    end
 end)
 
+-- Character respawn
 LocalPlayer.CharacterAdded:Connect(function()
-    State.isFlying = false
-    State.isFollowing = false
     task.wait(0.3)
-    Util.updateMovement()
-    Noclip.update()
-    updateGlow()
+    Util.updateChar()
+    if State.noclipActive or State.isFlying or State.isFollowing then
+        Noclip.update()
+    end
+    if State.glowActive then updateGlow() end
+    if State.showHeightPillar then updateHeightPillar() end
+end)
+
+-- ESP Update loop (optimized: only every 0.1s)
+task.spawn(function()
+    while true do
+        if State.esp.players.all or State.esp.players.single or
+           State.esp.locations.all or State.esp.locations.single or
+           State.esp.walls.all or State.esp.walls.single then
+            ESP.updateAll()
+        end
+        task.wait(CONSTANTS.ESP_UPDATE_INTERVAL)
+    end
+end)
+
+-- Keyboard shortcut
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+        if MainFrame then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end
 end)
 
 -- ==================== INITIALIZATION ====================
-Util.updateMovement()
-MainFrame.Visible = true
-ToggleBtn.Text = "✕"
+Util.updateChar()
 
-log("✅ Ultimate Fly Script đã tải hoàn tất!")
-log("📌 RightControl để ẩn/hiện menu")
-log("👤 Người chơi:", LocalPlayer.Name)
+print("✅ Banana Fly Hub Ultimate - Đã tải hoàn tất!")
+print("📌 Nhấn RightControl để ẩn/hiện menu")
+print("👤 Người chơi:", LocalPlayer.Name)
+print("🎯 Tính năng: Bay | ESP | Tường Kính | Camera | Code | Anti-Kick")
