@@ -2071,4 +2071,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã cập nhật Tab 'Code Đã Lưu' thành công: Thêm nút '📋 Sao Chép Code' + Đổi nút '🗑 Xóa' bên Trái và '▶ Chạy' bên Phải!")
+print("✅ Đã cập nhật Tab 'Code Đã Lưu' thành công: Thêm nút '📋 Sao Chép Code' + Đổi nút '🗑 Xóa' bên Trái và '▶ Chạy' bên Phải!") 
