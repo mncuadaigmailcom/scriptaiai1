@@ -1,8 +1,9 @@
 -- ============================================
--- EXECUTOR MENU - Banana Cat Hub Style (Đã lọc bỏ Camera & Đồ Hoạ)
--- (Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + Tab "Code Đã Lưu": Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
+-- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
+-- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
+-- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
 -- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
+-- (Đã xóa Tab Đồ Họa và Camera theo yêu cầu)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -359,7 +360,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (ĐÃ BỎ CAMERA VÀ ĐỒ HỌA)
+-- 5 TABS (Đã xóa Camera và Đồ Họa)
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -1643,4 +1644,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã xóa hoàn toàn 2 tính năng Camera & Đồ Họa thành công! Menu gọn nhẹ và tối ưu hơn.")
+print("✅ Đã xóa thành công tính năng Đồ Họa và Camera!")
