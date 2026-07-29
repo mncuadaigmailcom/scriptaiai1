@@ -1,9 +1,7 @@
 -- ============================================
 -- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
 -- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
--- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
--- (Đã xóa Tab Đồ Họa và Camera theo yêu cầu)
+-- (Đã xóa Tab Đồ Họa và Camera + Sửa lỗi không hiện menu)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -19,13 +17,16 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Xác định Parent an toàn cho UI
+-- Xác định Parent an toàn cho UI (Đã thêm pcall chống crash)
 local targetGui = playerGui
-if gethui then
-    targetGui = gethui()
-elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
-    targetGui = game:GetService("CoreGui")
-end
+pcall(function()
+    if gethui then
+        local hui = gethui()
+        if hui then targetGui = hui end
+    elseif game:GetService("CoreGui") then
+        targetGui = game:GetService("CoreGui")
+    end
+end)
 
 -- ==================== CONSTANTS ====================
 local C = {
@@ -90,7 +91,7 @@ local gui = New("ScreenGui", {
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
--- Toggle Button (Nút Chuối Mở Menu)
+-- Toggle Button
 local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
     Position=UDim2.new(1,-60,1,-60),
@@ -360,7 +361,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (Đã xóa Camera và Đồ Họa)
+-- 5 TABS
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -749,10 +750,13 @@ movDBtn.Activated:Connect(function()
     end
 end)
 
--- ==================== ESP SYSTEM ====================
-local espFolder = Instance.new("Folder")
-espFolder.Name = "ExMenu_ESP"
-espFolder.Parent = gui
+-- ==================== ESP SYSTEM (SỬA LỖI FOLDER CRASH) ====================
+-- Đổi từ Folder sang ScreenGui vì ScreenGui không chấp nhận Folder làm con
+local espGui = New("ScreenGui", {
+    Name = "ExMenu_ESP",
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, targetGui)
 
 local activeESPs = {}
 
@@ -769,7 +773,7 @@ local function ClearAllESP()
     for p, _ in pairs(activeESPs) do
         RemovePlayerESP(p)
     end
-    espFolder:ClearAllChildren()
+    espGui:ClearAllChildren()
 end
 
 local function CreatePlayerESP(p)
@@ -792,7 +796,7 @@ local function CreatePlayerESP(p)
     hl.FillTransparency = 0.5
     hl.OutlineColor = Color3.fromRGB(255, 255, 255)
     hl.OutlineTransparency = 0
-    hl.Parent = espFolder
+    hl.Parent = espGui
 
     local bb = Instance.new("BillboardGui")
     bb.Name = p.Name .. "_BB"
@@ -800,7 +804,7 @@ local function CreatePlayerESP(p)
     bb.Size = UDim2.new(0, 150, 0, 40)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
-    bb.Parent = espFolder
+    bb.Parent = espGui
 
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 1, 0)
@@ -1116,7 +1120,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU (SỬA LỖI XÓA NHẦM) ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1161,7 +1165,7 @@ RebuildScripts = function()
 
     local totalHeight = 0
 
-    for i, d in ipairs(disp) do
+    for _, d in ipairs(disp) do
         local isExpanded = d.expanded or false
         local rowH = isExpanded and 160 or 42
 
@@ -1252,15 +1256,21 @@ RebuildScripts = function()
             RebuildScripts()
         end)
 
-        local idx = i
         runScriptBtn.Activated:Connect(function()
             RunCode(d.code, d.name, runScriptBtn, 1, 0)
             statusLbl.Text="⏳ Đang chạy: "..d.name
         end)
 
+        -- Sửa lỗi xóa nhầm: Tìm đúng idx trong mảng scripts gốc
         delScriptBtn.Activated:Connect(function()
-            table.remove(scripts, idx)
-            RebuildScripts()
+            local origIdx = nil
+            for idx, s in ipairs(scripts) do
+                if s == d then origIdx = idx; break end
+            end
+            if origIdx then
+                table.remove(scripts, origIdx)
+                RebuildScripts()
+            end
         end)
 
         totalHeight = totalHeight + rowH + 6
@@ -1644,4 +1654,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã xóa thành công tính năng Đồ Họa và Camera!")
+print("✅ Script đã sửa lỗi thành công và hiển thị Menu!")
