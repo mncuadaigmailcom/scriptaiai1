@@ -1,90 +1,179 @@
--- Khoá và tải thư viện Orion UI
-local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
-
-local Window = OrionLib:MakeWindow({
-    Name = "✈️ Menu Bay Tới Người Chơi", 
-    HidePremium = false, 
-    SaveConfig = false, 
-    ConfigFolder = "FlyToPlayerConfig",
-    IntroText = "Đang tải Menu..."
-})
-
--- Các biến dịch vụ Roblox
+-- Dịch vụ Roblox
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Các biến điều khiển
+-- Kiểm tra nếu GUI đã tồn tại thì xóa cái cũ
+if CoreGui:FindFirstChild("FlyMenuGui") then
+    CoreGui.FlyMenuGui:Destroy()
+end
+
+-- Tạo ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlyMenuGui"
+ScreenGui.ResetOnSpawn = false
+
+-- Thử đưa GUI vào CoreGui, nếu lỗi thì đưa vào PlayerGui
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Khung Menu Chính
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 300, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -150, 0.4, -190)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- Cho phép kéo thả Menu
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+-- Tiêu đề
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "✈️ MENU BAY TỚI PLAYER"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner", Title)
+TitleCorner.CornerRadius = UDim.new(0, 10)
+
+-- Biến điều khiển
 local SelectedPlayer = nil
 local FlySpeed = 100
 local IsFlying = false
 
--- Hàm lấy danh sách tên người chơi (Trừ bản thân)
-local function GetPlayerList()
-    local playerNames = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(playerNames, player.Name)
+-- Nút Bật / Tắt Bay
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.13, 0)
+ToggleBtn.Text = "Trạng Thái: TẮT"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.TextSize = 16
+ToggleBtn.Parent = MainFrame
+
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+
+-- Nhập tốc độ bay
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0.9, 0, 0, 20)
+SpeedLabel.Position = UDim2.new(0.05, 0, 0.26, 0)
+SpeedLabel.Text = "Tốc độ bay (Hiện tại: 100):"
+SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Parent = MainFrame
+
+local SpeedInput = Instance.new("TextBox")
+SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
+SpeedInput.Position = UDim2.new(0.05, 0, 0.32, 0)
+SpeedInput.PlaceholderText = "Nhập tốc độ (VD: 50 - 500)..."
+SpeedInput.Text = "100"
+SpeedInput.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+SpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedInput.Parent = MainFrame
+
+Instance.new("UICorner", SpeedInput).CornerRadius = UDim.new(0, 6)
+
+-- Danh sách chọn người chơi
+local ListLabel = Instance.new("TextLabel")
+ListLabel.Size = UDim2.new(0.9, 0, 0, 20)
+ListLabel.Position = UDim2.new(0.05, 0, 0.42, 0)
+ListLabel.Text = "Chọn người chơi để bay tới:"
+ListLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+ListLabel.BackgroundTransparency = 1
+ListLabel.TextXAlignment = Enum.TextXAlignment.Left
+ListLabel.Parent = MainFrame
+
+local ScrollList = Instance.new("ScrollingFrame")
+ScrollList.Size = UDim2.new(0.9, 0, 0, 180)
+ScrollList.Position = UDim2.new(0.05, 0, 0.48, 0)
+ScrollList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+ScrollList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollList.ScrollBarThickness = 6
+ScrollList.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ScrollList
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+
+-- Hàm cập nhật danh sách người chơi
+local function RefreshPlayerList()
+    for _, child in pairs(ScrollList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
         end
     end
-    return playerNames
+
+    local count = 0
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            count = count + 1
+            local Btn = Instance.new("TextButton")
+            Btn.Size = UDim2.new(0.95, 0, 0, 30)
+            Btn.BackgroundColor3 = (SelectedPlayer == plr) and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 40, 45)
+            Btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Btn.TextSize = 13
+            Btn.Parent = ScrollList
+            
+            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
+
+            Btn.MouseButton1Click:Connect(function()
+                SelectedPlayer = plr
+                RefreshPlayerList() -- Reset màu nút được chọn
+            end)
+        end
+    end
+    ScrollList.CanvasSize = UDim2.new(0, 0, 0, count * 35)
 end
 
--- Tab chính
-local MainTab = Window:MakeTab({
-    Name = "Bay Tới Người Chơi",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+-- Tự động làm mới danh sách khi có người vào/ra
+Players.PlayerAdded:Connect(RefreshPlayerList)
+Players.PlayerRemoving:Connect(RefreshPlayerList)
+RefreshPlayerList()
 
--- 1. Chức năng Chọn Người Chơi
-local PlayerDropdown = MainTab:AddDropdown({
-    Name = "Chọn Người Chơi Target",
-    Default = "",
-    Options = GetPlayerList(),
-    Callback = function(Value)
-        SelectedPlayer = Players:FindFirstChild(Value)
+-- Sự kiện thay đổi tốc độ
+SpeedInput.FocusLost:Connect(function()
+    local num = tonumber(SpeedInput.Text)
+    if num then
+        FlySpeed = num
+        SpeedLabel.Text = "Tốc độ bay (Hiện tại: " .. tostring(FlySpeed) .. "):"
+    else
+        SpeedInput.Text = tostring(FlySpeed)
     end
-})
+end)
 
--- Nút Làm Mới Danh Sách Người Chơi
-MainTab:AddButton({
-    Name = "🔄 Làm mới danh sách người chơi",
-    Callback = function()
-        PlayerDropdown:Refresh(GetPlayerList(), true)
+-- Sự kiện Bật/Tắt Bay
+ToggleBtn.MouseButton1Click:Connect(function()
+    IsFlying = not IsFlying
+    if IsFlying then
+        ToggleBtn.Text = "Trạng Thái: ĐANG BAY 🚀"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        ToggleBtn.Text = "Trạng Thái: TẮT"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     end
-})
+end)
 
--- 2. Chức năng Điều Chỉnh Tốc Độ Bay
-MainTab:AddSlider({
-    Name = "Tốc độ bay",
-    Min = 10,
-    Max = 500,
-    Default = 100,
-    Color = Color3.fromRGB(0, 255, 127),
-    Increment = 5,
-    ValueName = "Speed",
-    Callback = function(Value)
-        FlySpeed = Value
-    end
-})
-
--- 3. Bật / Tắt Bay Tới Người Chơi
-MainTab:AddToggle({
-    Name = "🚀 Bật / Tắt Bay Tới",
-    Default = false,
-    Callback = function(Value)
-        IsFlying = Value
-    end
-})
-
--- Vòng lặp chính xử lý Bay và Noclip (Xuyên tường)
+-- Logic Bay & Noclip
 RunService.Stepped:Connect(function(time, deltaTime)
     if IsFlying and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local myChar = LocalPlayer.Character
         if myChar and myChar:FindFirstChild("HumanoidRootPart") then
             
-            -- Tắt va chạm (Noclip) để tránh kẹt tường khi bay
+            -- Xuyên tường (Noclip)
             for _, part in pairs(myChar:GetChildren()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
@@ -94,25 +183,13 @@ RunService.Stepped:Connect(function(time, deltaTime)
             local myHRP = myChar.HumanoidRootPart
             local targetHRP = SelectedPlayer.Character.HumanoidRootPart
             
-            -- Tính toán khoảng cách
             local distance = (targetHRP.Position - myHRP.Position).Magnitude
 
-            -- Nếu khoảng cách > 3 studs thì tiếp tục bay tới
             if distance > 3 then
                 local direction = (targetHRP.Position - myHRP.Position).Unit
                 myHRP.CFrame = CFrame.new(myHRP.Position + direction * (FlySpeed * deltaTime), targetHRP.Position)
-                myHRP.AssemblyLinearVelocity = Vector3.zero -- Triệt tiêu trọng lực để không bị rơi
+                myHRP.AssemblyLinearVelocity = Vector3.zero
             end
         end
     end
 end)
-
--- Thông báo khởi chạy thành công
-OrionLib:MakeNotification({
-    Name = "Thành công!",
-    Content = "Menu bay đã sẵn sàng sử dụng.",
-    Image = "rbxassetid://4483345998",
-    Time = 5
-})
-
-OrionLib:Init()
