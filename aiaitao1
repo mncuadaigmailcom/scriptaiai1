@@ -3,7 +3,7 @@
 -- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
 -- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
 -- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
--- + MỚI: BAY TỚI / THEO DÕI NGƯỜI CHƠI (AUTO FLY TO PLAYER)
+-- + BAY TỚI / THEO DÕI NGƯỜI CHƠI (FIXED SCOPE BUG)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -19,7 +19,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Xác định Parent an toàn cho UI
 local targetGui = playerGui
 if gethui then
     targetGui = gethui()
@@ -98,7 +97,6 @@ local gui = New("ScreenGui", {
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
--- Toggle Button (Nút Chuối Mở Menu)
 local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
     Position=UDim2.new(1,-60,1,-60),
@@ -114,7 +112,6 @@ local togBtn = New("TextButton", {
 Corner(togBtn, UDim.new(1,0))
 Stroke(togBtn, C.BLUE, 2)
 
--- Main Frame
 local main = New("Frame", {
     Size=UDim2.new(0,540,0,340),
     Position=UDim2.new(0.5,-270,0.5,-170),
@@ -128,7 +125,6 @@ local main = New("Frame", {
 Corner(main, UDim.new(0,10))
 Stroke(main, Color3.fromRGB(180,185,200), 2)
 
--- HOA VĂN CARO
 local bgPattern = New("ImageLabel", {
     Name = "CheckeredBG",
     Size = UDim2.new(1, 0, 1, 0),
@@ -143,7 +139,6 @@ local bgPattern = New("ImageLabel", {
 }, main)
 Corner(bgPattern, UDim.new(0, 10))
 
--- Title Bar
 local titleBar = New("Frame", {
     Size=UDim2.new(1,0,0,30),
     BackgroundColor3=Color3.fromRGB(225,230,240),
@@ -177,7 +172,6 @@ local closeBtn = New("TextButton", {
     ZIndex=4,
 }, titleBar)
 
--- ===== DRAG MENU =====
 local dragging, dragStart, startPos
 titleBar.InputBegan:Connect(function(i)
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
@@ -200,7 +194,6 @@ UserInputService.InputEnded:Connect(function(i)
     end
 end)
 
--- ===== RESIZE TẠI 4 GÓC =====
 local minW, minH = 440, 260
 
 local function SetupResizeHandle(btn, cornerType)
@@ -368,7 +361,6 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 7 TABS
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -390,7 +382,7 @@ local S = {
     shadows=true, bloom=true, blur=false, sunRays=true, colorCorr=false,
     fpsCounter=false, particles=true, decals=true,
     infJump=false, clickTp=false, esp=false, antiAfk=true, fullBright=false,
-    blockServer=false, freezeOthers=false,
+    blockServer=false, freezeOthers=false, autoFlyActive=false,
 }
 
 local scripts = {}
@@ -419,15 +411,17 @@ end
 -- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
 local oldNamecall
 if hookmetamethod then
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if S.blockServer then
-            if method == "Kick" or method == "kick" then
-                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
-                return nil
+    local ok = pcall(function()
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if S.blockServer then
+                if method == "Kick" or method == "kick" then
+                    warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
+                    return nil
+                end
             end
-        end
-        return oldNamecall(self, ...)
+            return oldNamecall(self, ...)
+        end)
     end)
 end
 
@@ -684,7 +678,6 @@ local function TogCarpet()
     end
 end
 
--- Overlay Fly Run
 local oLay = New("Frame", {
     Size=UDim2.new(0,180,0,160), Position=UDim2.new(1,-190,0.5,-80),
     BackgroundTransparency=1, Visible=false, ZIndex=10,
@@ -1140,7 +1133,6 @@ New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, codeIn)
 
 y = y + 86
 
--- Loop settings
 Label(codeTab, "🔁 Cài đặt lặp", y)
 y = y + 14
 Label(codeTab, "Số lần lặp:", y)
@@ -1264,7 +1256,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU (CẬP NHẬT GIAO DIỆN MỚI) ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1320,7 +1312,6 @@ RebuildScripts = function()
         }, scriptList)
         Corner(row,UDim.new(0,6)); Stroke(row)
 
-        -- 1. NÚT MŨI TÊN BÊN TRÁI (SỔ CODE)
         local arrowBtn = New("TextButton", {
             Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
             Text=isExpanded and "▲" or "▼",
@@ -1329,7 +1320,6 @@ RebuildScripts = function()
         }, row)
         Corner(arrowBtn, UDim.new(0,4))
 
-        -- 2. TÊN SCRIPT (CẠNH MŨI TÊN)
         local nameLbl = New("TextLabel", {
             Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
@@ -1337,7 +1327,6 @@ RebuildScripts = function()
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
         }, row)
 
-        -- 3. NÚT "🗑 XÓA" (ĐƯỢC CHUYỂN SANG BÊN TRÁI NÚT CHẠY)
         local delScriptBtn = New("TextButton", {
             Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
             Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
@@ -1345,7 +1334,6 @@ RebuildScripts = function()
         }, row)
         Corner(delScriptBtn, UDim.new(0,5))
 
-        -- 4. NÚT "▶ CHẠY" (ĐƯỢC CHUYỂN SANG BÊN PHẢI NGOÀI CÙNG)
         local runScriptBtn = New("TextButton", {
             Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
@@ -1353,7 +1341,6 @@ RebuildScripts = function()
         }, row)
         Corner(runScriptBtn, UDim.new(0,5))
 
-        -- 5. KHUNG HIỂN THỊ CODE VÀ NÚT SAO CHÉP (SỔ RA KHI BẤM MŨI TÊN)
         if isExpanded then
             local codeBoxFrame = New("ScrollingFrame", {
                 Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
@@ -1372,7 +1359,6 @@ RebuildScripts = function()
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
             }, codeBoxFrame)
 
-            -- [MỚI] NÚT SAO CHÉP CODE NẰM TRONG KHUNG SỔ NÀY
             local copyBtn = New("TextButton", {
                 Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
@@ -1588,6 +1574,9 @@ end)
 moveTab.CanvasSize=UDim2.new(0,0,0,my+40)
 
 -- ==================== TAB 4: NGƯỜI CHƠI ====================
+-- FORWARD DECLARE để tránh lỗi biến scope (FIX LỖI MENU KHÔNG HIỆN)
+local followFlyBtn, plyStatusLbl, targetSelectBtn, targetDropdown
+
 local py = 8
 
 Label(playerTab, "👁️ Quan sát & Nhìn xuyên tường", py)
@@ -1602,10 +1591,9 @@ espBtn.Activated:Connect(function()
 end)
 py = py + 30
 
--- ==================== [MỚI] TÍNH NĂNG BAY TỚI / THEO DÕI NGƯỜI CHƠI ====================
+-- ==================== BAY TỚI / THEO DÕI NGƯỜI CHƠI (ĐÃ FIX SCOPE) ====================
 local selectedTargetPlayer = nil
 local autoFlyBV, autoFlyBG
-local autoFlyActive = false
 
 local function StopAutoFly()
     if autoFlyBV then autoFlyBV:Destroy(); autoFlyBV = nil end
@@ -1613,7 +1601,11 @@ local function StopAutoFly()
     RunService:UnbindFromRenderStep("AutoFly")
     local h = Hum()
     if h then h.PlatformStand = false; h.AutoRotate = true end
-    autoFlyActive = false
+    S.autoFlyActive = false
+    if followFlyBtn then
+        followFlyBtn.Text = "✈️ Bay Theo: TẮT"
+        followFlyBtn.BackgroundColor3 = C.GRAY
+    end
 end
 
 local function StartAutoFly(targetPlayer)
@@ -1625,11 +1617,9 @@ local function StartAutoFly(targetPlayer)
     if S.flying then S.flying = false; StopFly() end
     if S.carpet then S.carpet = false; StopCarpet() end
 
-    autoFlyActive = true
+    S.autoFlyActive = true
 
-    -- Tự động bật NoClip để bay xuyên tường bám theo mục tiêu
-    local wasNoClip = S.noClip
-    if not wasNoClip then
+    if not S.noClip then
         S.noClip = true
         EnNC()
         pcall(function()
@@ -1643,16 +1633,12 @@ local function StartAutoFly(targetPlayer)
     if h then h.PlatformStand = true; h.AutoRotate = false end
 
     RunService:BindToRenderStep("AutoFly", Enum.RenderPriority.Camera.Value - 1, function()
-        if not autoFlyActive then return end
+        if not S.autoFlyActive then return end
         local curR = Root()
         if not curR or not autoFlyBV then StopAutoFly(); return end
         if not targetPlayer or not targetPlayer.Parent or not targetPlayer.Character then
             if plyStatusLbl then plyStatusLbl.Text = "⚠️ Người chơi đã rời đi, dừng bay theo!" end
             StopAutoFly()
-            if followFlyBtn then
-                followFlyBtn.Text = "✈️ Bay Theo: TẮT"
-                followFlyBtn.BackgroundColor3 = C.GRAY
-            end
             return
         end
         local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -1677,7 +1663,7 @@ end
 Label(playerTab, "🎯 Bay Tới / Theo Dõi Người Chơi", py)
 py = py + 14
 
-local targetSelectBtn = New("TextButton", {
+targetSelectBtn = New("TextButton", {
     Size=UDim2.new(0,220,0,26), Position=UDim2.new(0,8,0,py),
     Text="👤 Chọn người chơi ▾", BackgroundColor3=Color3.fromRGB(255,255,255),
     BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold,
@@ -1688,7 +1674,7 @@ Stroke(targetSelectBtn, Color3.fromRGB(180,180,200), 1.2)
 New("UIPadding", {PaddingLeft=UDim.new(0,8)}, targetSelectBtn)
 py = py + 30
 
-local targetDropdown = New("ScrollingFrame", {
+targetDropdown = New("ScrollingFrame", {
     Size=UDim2.new(0,220,0,0), Position=UDim2.new(0,8,0,py),
     BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
     BorderSizePixel=0, Visible=false, ZIndex=25, ScrollBarThickness=4,
@@ -1747,13 +1733,7 @@ Players.PlayerRemoving:Connect(function(p)
     if selectedTargetPlayer == p then
         selectedTargetPlayer = nil
         targetSelectBtn.Text = "👤 Chọn người chơi ▾"
-        if autoFlyActive then
-            StopAutoFly()
-            if followFlyBtn then
-                followFlyBtn.Text = "✈️ Bay Theo: TẮT"
-                followFlyBtn.BackgroundColor3 = C.GRAY
-            end
-        end
+        if S.autoFlyActive then StopAutoFly() end
     end
     RebuildTargetDropdown()
 end)
@@ -1771,10 +1751,10 @@ UserInputService.InputBegan:Connect(function(i, gp)
 end)
 
 local tpToBtn = Button(playerTab, "📍 Dịch Chuyển Tức Thì", 8, py, 150, 24, C.BLUE)
-local followFlyBtn = Button(playerTab, "✈️ Bay Theo: TẮT", 162, py, 110, 24, C.GRAY)
+followFlyBtn = Button(playerTab, "✈️ Bay Theo: TẮT", 162, py, 110, 24, C.GRAY)
 py = py + 30
 
-local plyStatusLbl = Label(playerTab, "", py)
+plyStatusLbl = Label(playerTab, "", py)
 plyStatusLbl.TextColor3 = Color3.fromRGB(220,170,0); plyStatusLbl.TextSize = 9
 py = py + 18
 
@@ -1798,16 +1778,14 @@ followFlyBtn.Activated:Connect(function()
         plyStatusLbl.Text = "⚠️ Vui lòng chọn người chơi trước!"
         return
     end
-    autoFlyActive = not autoFlyActive
-    if autoFlyActive then
+    S.autoFlyActive = not S.autoFlyActive
+    if S.autoFlyActive then
         StartAutoFly(selectedTargetPlayer)
         followFlyBtn.Text = "✈️ Bay Theo: BẬT"
         followFlyBtn.BackgroundColor3 = C.GREEN
         plyStatusLbl.Text = "🚀 Đang bay theo "..selectedTargetPlayer.Name.."..."
     else
         StopAutoFly()
-        followFlyBtn.Text = "✈️ Bay Theo: TẮT"
-        followFlyBtn.BackgroundColor3 = C.GRAY
         plyStatusLbl.Text = "⏹️ Đã dừng bay theo"
     end
 end)
@@ -1815,7 +1793,6 @@ end)
 py = py + 8
 Label(playerTab, "━━━━━━━━━━━━━━━━━━━━━━", py)
 py = py + 16
--- ==================== [HẾT PHẦN MỚI] ====================
 
 Label(playerTab, "🧊 Đóng Băng & Tác Động Người Khác", py)
 py = py + 14
@@ -1867,12 +1844,16 @@ serverHopBtn.Activated:Connect(function()
     local servers = {}
     local req = request or http_request or (syn and syn.request)
     if req then
-        local res = req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
-        local body = HttpService:JSONDecode(res.Body)
-        if body and body.data then
-            for _, s in ipairs(body.data) do
-                if type(s) == "table" and s.playing < s.maxPlayers and s.id ~= game.JobId then
-                    table.insert(servers, s.id)
+        local ok, res = pcall(function()
+            return req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
+        end)
+        if ok and res then
+            local ok2, body = pcall(function() return HttpService:JSONDecode(res.Body) end)
+            if ok2 and body and body.data then
+                for _, s in ipairs(body.data) do
+                    if type(s) == "table" and s.playing < s.maxPlayers and s.id ~= game.JobId then
+                        table.insert(servers, s.id)
+                    end
                 end
             end
         end
@@ -2267,7 +2248,6 @@ UserInputService.InputBegan:Connect(function(i, gp)
     end
 end)
 
--- MẶC ĐỊNH MỞ MENU KHI CHẠY
 main.Visible = true
 togBtn.Text = "✕"
 
@@ -2282,12 +2262,8 @@ player.CharacterAdded:Connect(function(c)
     if S.customCam then EnCC() end
     if S.freeCam then EnFC() end
     if S.esp then UpdateESP() end
-    if autoFlyActive then
+    if S.autoFlyActive then
         StopAutoFly()
-        if followFlyBtn then
-            followFlyBtn.Text = "✈️ Bay Theo: TẮT"
-            followFlyBtn.BackgroundColor3 = C.GRAY
-        end
         if plyStatusLbl then
             plyStatusLbl.Text = "⚠️ Nhân vật hồi sinh, đã dừng bay theo!"
         end
@@ -2297,4 +2273,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã cập nhật thành công: Thêm tính năng 'Bay Tới / Theo Dõi Người Chơi' vào Tab Người Chơi!")
+print("✅ Script đã tải thành công! Nếu vẫn không thấy menu, hãy kiểm tra Console (F9) để xem lỗi.")
