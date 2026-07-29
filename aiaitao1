@@ -1,15 +1,11 @@
---[[
-    BANANA CAT EXECUTOR HUB - OPTIMIZED v3.0 (FIXED)
-    - ĐÃ XÓA: Tab Đồ Họa & Tab Camera
-    - Giữ nguyên: Code, Code Đã Lưu, Di Chuyển, Người Chơi, Môi Trường
-    - Tất cả tính năng hoạt động bình thường
-    - Tối ưu code, giảm dung lượng
-    - ĐÃ SỬA: Lỗi syntax, memory leak, và các lỗi tiềm ẩn
---]]
+-- ============================================
+-- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
+-- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
+-- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
+-- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
+-- ĐÃ XÓA: Tab Đồ Họa & Tab Camera
+-- ============================================
 
--- ============================================
--- KHỞI TẠO DỊCH VỤ
--- ============================================
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
@@ -17,12 +13,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-
--- VirtualUser có thể không tồn tại
-local VirtualUser = nil
-pcall(function()
-    VirtualUser = game:GetService("VirtualUser")
-end)
+local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -50,17 +41,12 @@ local C = {
 }
 
 local DEFAULT_LIGHTING = {
-    ClockTime = 14,
-    Brightness = 1.2,
+    ClockTime = 14, Brightness = 1.2,
     OutdoorAmbient = Color3.fromRGB(180, 180, 180),
     Ambient = Color3.fromRGB(128, 128, 128),
-    FogEnd = 100000,
-    FogStart = 0,
-    FogColor = Color3.new(1, 1, 1),
-    GlobalShadows = true,
-    EnvironmentDiffuseScale = 1,
-    EnvironmentSpecularScale = 1,
-    ShadowSoftness = 0.5
+    FogEnd = 100000, FogStart = 0, FogColor = Color3.new(1, 1, 1),
+    GlobalShadows = true, EnvironmentDiffuseScale = 1,
+    EnvironmentSpecularScale = 1, ShadowSoftness = 0.5,
 }
 
 -- ==================== UI HELPER ====================
@@ -103,7 +89,7 @@ local gui = New("ScreenGui", {
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
--- Toggle Button
+-- Toggle Button (Nút Chuối Mở Menu)
 local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
     Position=UDim2.new(1,-60,1,-60),
@@ -161,7 +147,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-40,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub",
+    Text="🍌 Banana Cat Executor Hub (Caro Style)",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -223,6 +209,7 @@ local function SetupResizeHandle(btn, cornerType)
             local d = i.Position - inputStart
             local w, h = sizeStart.X.Offset, sizeStart.Y.Offset
             local posX, posY = posStart.X.Offset, posStart.Y.Offset
+
             local newW, newH = w, h
             local newX, newY = posX, posY
 
@@ -283,7 +270,7 @@ SetupResizeHandle(handleTR, "TR")
 SetupResizeHandle(handleBL, "BL")
 SetupResizeHandle(handleBR, "BR")
 
--- ==================== TAB SYSTEM ====================
+-- ==================== TAB SYSTEM (BÊN PHẢI) ====================
 local tabs = {}
 local tabContent = {}
 
@@ -314,6 +301,8 @@ local contentArea = New("Frame", {
     ZIndex=3,
 }, main)
 
+local activeTab = nil
+
 local function SwitchTab(index)
     for _, t in ipairs(tabContent) do t.Visible = false end
     for _, b in ipairs(tabs) do
@@ -324,6 +313,7 @@ local function SwitchTab(index)
         tabContent[index].Visible = true
         tabs[index].BackgroundColor3 = C.BLUE
         tabs[index].BackgroundTransparency = 0.2
+        activeTab = tabContent[index]
     end
 end
 
@@ -411,27 +401,23 @@ local function UpdChar()
     end
 end
 
--- ==================== ANTI-KICK ====================
+-- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
 local oldNamecall
 if hookmetamethod then
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
         if S.blockServer then
             if method == "Kick" or method == "kick" then
-                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick!")
+                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
                 return nil
             end
         end
-        if oldNamecall then
-            return oldNamecall(self, ...)
-        end
-        return nil
+        return oldNamecall(self, ...)
     end)
 end
 
--- ==================== FREEZE OTHERS & ANTI-SERVER ====================
-local freezeConn = nil
-freezeConn = RunService.Stepped:Connect(function()
+-- ==================== VÒNG LẶP STEPPED: FREEZE OTHERS & ANTI-SERVER ====================
+RunService.Stepped:Connect(function()
     if S.blockServer then
         local h = Hum()
         local r = Root()
@@ -465,14 +451,12 @@ local function UnfreezeAllPlayers()
 end
 
 -- ==================== ANTI AFK ====================
-if VirtualUser then
-    player.Idled:Connect(function()
-        if S.antiAfk then
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end
-    end)
-end
+player.Idled:Connect(function()
+    if S.antiAfk then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
 
 -- ==================== INFINITE JUMP ====================
 UserInputService.JumpRequest:Connect(function()
@@ -493,7 +477,7 @@ UserInputService.InputBegan:Connect(function(i, gp)
     end
 end)
 
--- ==================== NOCLIP ====================
+-- ==================== NOCLIP (STEPPED MƯỢT 100%) ====================
 local ncConn = nil
 
 local function EnNC()
@@ -577,13 +561,13 @@ local function StopFly()
     if fp then fp:Destroy(); fp=nil end
     local h = Hum()
     if h then h.AutoRotate=true; h.PlatformStand=false end
-    pcall(function() RunService:UnbindFromRenderStep("Fly") end)
+    RunService:UnbindFromRenderStep("Fly")
     mobile.Visible=false
 end
 
 local function StopCarpet()
     if cp then cp:Destroy(); cp=nil end
-    pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
+    RunService:UnbindFromRenderStep("Carpet")
     S.carpetY=nil
 end
 
@@ -671,7 +655,7 @@ local function TogFly()
     else
         StopFly()
     end
-    mobile.Visible=S.flying and (UserInputService.TouchEnabled or false)
+    mobile.Visible=S.flying and UserInputService.TouchEnabled
 end
 
 local function TogCarpet()
@@ -774,9 +758,7 @@ local function RemovePlayerESP(p)
     if activeESPs[p] then
         if activeESPs[p].HL then activeESPs[p].HL:Destroy() end
         if activeESPs[p].BB then activeESPs[p].BB:Destroy() end
-        if activeESPs[p].Thread then 
-            pcall(function() activeESPs[p].Thread:Disconnect() end)
-        end
+        if activeESPs[p].Thread then task.cancel(activeESPs[p].Thread) end
         activeESPs[p] = nil
     end
 end
@@ -790,11 +772,15 @@ end
 
 local function CreatePlayerESP(p)
     RemovePlayerESP(p)
+
     if not S.esp or p == player then return end
+
     local pChar = p.Character
     if not pChar then return end
+
     local rPart = pChar:WaitForChild("HumanoidRootPart", 3)
     local hum = pChar:WaitForChild("Humanoid", 3)
+
     if not rPart or not hum or hum.Health <= 0 then return end
 
     local hl = Instance.new("Highlight")
@@ -823,35 +809,37 @@ local function CreatePlayerESP(p)
     lbl.TextStrokeTransparency = 0.2
     lbl.Parent = bb
 
-    local updateThread = nil
-    updateThread = RunService.RenderStepped:Connect(function()
-        if not S.esp or not pChar or not pChar.Parent or not hum or hum.Health <= 0 then
-            RemovePlayerESP(p)
-            return
+    local thread = task.spawn(function()
+        while S.esp and pChar and pChar.Parent and hum and hum.Health > 0 do
+            local r = Root()
+            if r then
+                local dist = math.round((r.Position - rPart.Position).Magnitude)
+                lbl.Text = string.format("%s\n❤️ %d/%d | 📏 %dm", p.Name, math.round(hum.Health), math.round(hum.MaxHealth), dist)
+            else
+                lbl.Text = string.format("%s\n❤️ %d/%d | 📏 --m", p.Name, math.round(hum.Health), math.round(hum.MaxHealth))
+            end
+            task.wait(0.2)
         end
-        local r = Root()
-        if r then
-            local dist = math.round((r.Position - rPart.Position).Magnitude)
-            lbl.Text = string.format("%s\n❤️ %d/%d | 📏 %dm", p.Name, math.round(hum.Health), math.round(hum.MaxHealth), dist)
-        else
-            lbl.Text = string.format("%s\n❤️ %d/%d | 📏 --m", p.Name, math.round(hum.Health), math.round(hum.MaxHealth))
-        end
+        RemovePlayerESP(p)
     end)
 
-    activeESPs[p] = {HL = hl, BB = bb, Thread = updateThread}
+    activeESPs[p] = {HL = hl, BB = bb, Thread = thread}
 end
 
 local function HookPlayer(p)
     if p == player then return end
+
     p.CharacterAdded:Connect(function()
         if S.esp then
             task.wait(0.5)
             CreatePlayerESP(p)
         end
     end)
+
     p.CharacterRemoving:Connect(function()
         RemovePlayerESP(p)
     end)
+
     if p.Character and S.esp then
         CreatePlayerESP(p)
     end
@@ -871,11 +859,6 @@ for _, p in ipairs(Players:GetPlayers()) do HookPlayer(p) end
 Players.PlayerAdded:Connect(function(p) HookPlayer(p) end)
 Players.PlayerRemoving:Connect(function(p) RemovePlayerESP(p) end)
 
--- Cleanup ESP khi GUI bị hủy
-gui.Destroying:Connect(function()
-    ClearAllESP()
-end)
-
 -- ==================== CODE EXECUTION ====================
 local function ExecOnce(code, name)
     if #name>0 then print("👤 Chạy bởi:", name) end
@@ -888,10 +871,7 @@ end
 
 local function Cancel()
     cancelled=true
-    if curThread then 
-        pcall(function() curThread:Disconnect() end)
-        curThread=nil 
-    end
+    if curThread then task.cancel(curThread); curThread=nil end
     if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
 end
 
@@ -901,40 +881,24 @@ local function RunCode(code, name, ind, times, delay)
     cancelled=false
     if ind then curIndicator=ind; ind.BackgroundColor3=C.RED end
     local okC, failC = 0, 0
-    
-    local execThread = nil
-    execThread = RunService.RenderStepped:Connect(function()
-        if cancelled then
-            if execThread then execThread:Disconnect() end
-            return
-        end
-        -- Chỉ chạy 1 lần duy nhất trong render step này
-        if execThread then
-            execThread:Disconnect()
-            execThread = nil
-        end
-        
-        spawn(function()
-            for i=1,times do
-                if cancelled then break end
-                if i>1 and delay>0 then
-                    local e=0
-                    while e<delay do
-                        if cancelled then break end
-                        task.wait(0.1); e+=0.1
-                    end
+    curThread=task.spawn(function()
+        for i=1,times do
+            if cancelled then break end
+            if i>1 and delay>0 then
+                local e=0
+                while e<delay do
                     if cancelled then break end
+                    task.wait(0.1); e+=0.1
                 end
-                local ok, err = ExecOnce(code, name)
-                if ok then okC+=1 else failC+=1; warn("❌ Lần",i,err) end
+                if cancelled then break end
             end
-            totalRuns+=okC+failC
-            if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
-            curThread=nil
-        end)
+            local ok, err = ExecOnce(code, name)
+            if ok then okC+=1 else failC+=1; warn("❌ Lần",i,err) end
+        end
+        totalRuns+=okC+failC
+        if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
+        curThread=nil
     end)
-    
-    curThread = execThread
     return true, nil
 end
 
@@ -1026,6 +990,7 @@ New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, codeIn)
 
 y = y + 86
 
+-- Loop settings
 Label(codeTab, "🔁 Cài đặt lặp", y)
 y = y + 14
 Label(codeTab, "Số lần lặp:", y)
@@ -1118,7 +1083,7 @@ runBtn.Activated:Connect(function()
         statusLbl.Text=err or "❌ Lỗi không xác định"
     else
         statusLbl.Text="⏳ Đang thực thi..."
-        spawn(function()
+        task.spawn(function()
             while curThread do
                 if cancelled then statusLbl.Text="⏹️ Đã dừng"; return end
                 task.wait(0.1)
@@ -1149,7 +1114,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU (CẬP NHẬT GIAO DIỆN MỚI) ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1205,6 +1170,7 @@ RebuildScripts = function()
         }, scriptList)
         Corner(row,UDim.new(0,6)); Stroke(row)
 
+        -- 1. NÚT MŨI TÊN BÊN TRÁI (SỔ CODE)
         local arrowBtn = New("TextButton", {
             Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
             Text=isExpanded and "▲" or "▼",
@@ -1213,6 +1179,7 @@ RebuildScripts = function()
         }, row)
         Corner(arrowBtn, UDim.new(0,4))
 
+        -- 2. TÊN SCRIPT (CẠNH MŨI TÊN)
         local nameLbl = New("TextLabel", {
             Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
@@ -1220,6 +1187,7 @@ RebuildScripts = function()
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
         }, row)
 
+        -- 3. NÚT "🗑 XÓA" (BÊN TRÁI NÚT CHẠY)
         local delScriptBtn = New("TextButton", {
             Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
             Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
@@ -1227,6 +1195,7 @@ RebuildScripts = function()
         }, row)
         Corner(delScriptBtn, UDim.new(0,5))
 
+        -- 4. NÚT "▶ CHẠY" (BÊN PHẢI NGOÀI CÙNG)
         local runScriptBtn = New("TextButton", {
             Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
@@ -1234,6 +1203,7 @@ RebuildScripts = function()
         }, row)
         Corner(runScriptBtn, UDim.new(0,5))
 
+        -- 5. KHUNG HIỂN THỊ CODE VÀ NÚT SAO CHÉP (SỔ RA KHI BẤM MŨI TÊN)
         if isExpanded then
             local codeBoxFrame = New("ScrollingFrame", {
                 Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
@@ -1252,6 +1222,7 @@ RebuildScripts = function()
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
             }, codeBoxFrame)
 
+            -- [MỚI] NÚT SAO CHÉP CODE
             local copyBtn = New("TextButton", {
                 Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
@@ -1260,14 +1231,11 @@ RebuildScripts = function()
             Corner(copyBtn, UDim.new(0,5))
 
             copyBtn.Activated:Connect(function()
-                local success = pcall(function()
-                    if setclipboard then
-                        setclipboard(d.code)
-                    elseif toclipboard then
-                        toclipboard(d.code)
-                    end
-                end)
-                if success then
+                if setclipboard then
+                    setclipboard(d.code)
+                    copyBtn.Text = "✅ Đã Sao Chép!"
+                elseif toclipboard then
+                    toclipboard(d.code)
                     copyBtn.Text = "✅ Đã Sao Chép!"
                 else
                     codeLbl:CaptureFocus()
@@ -1424,38 +1392,13 @@ local jpLbl = Label(moveTab, "Hiện tại: 50", my)
 jpLbl.Position=UDim2.new(0,72,0,my); jpLbl.Size=UDim2.new(0,120,0,14)
 jpLbl.TextColor3=C.GREEN; jpLbl.TextSize=9
 
--- Sửa FocusLost handlers
-flySpdIn.FocusLost:Connect(function()
-    local n=tonumber(flySpdIn.Text)
-    if n and n>=0 then S.flySpeed=n else flySpdIn.Text=tostring(S.flySpeed) end
-end)
+flySpdIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(flySpdIn.Text); if n and n>=0 then S.flySpeed=n else flySpdIn.Text=tostring(S.flySpeed) end end)
+carpWIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpWIn.Text); if n and n>=0.1 then S.carpetWidth=n else carpWIn.Text=tostring(S.carpetWidth) end end)
+carpTIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpTIn.Text); if n and n>=0.05 then S.carpetThickness=n else carpTIn.Text=tostring(S.carpetThickness) end end)
+carpLIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpLIn.Text); if n and n>=0.1 then S.carpetLength=n else carpLIn.Text=tostring(S.carpetLength) end end)
 
-carpWIn.FocusLost:Connect(function()
-    local n=tonumber(carpWIn.Text)
-    if n and n>=0.1 then S.carpetWidth=n else carpWIn.Text=tostring(S.carpetWidth) end
-end)
-
-carpTIn.FocusLost:Connect(function()
-    local n=tonumber(carpTIn.Text)
-    if n and n>=0.05 then S.carpetThickness=n else carpTIn.Text=tostring(S.carpetThickness) end
-end)
-
-carpLIn.FocusLost:Connect(function()
-    local n=tonumber(carpLIn.Text)
-    if n and n>=0.1 then S.carpetLength=n else carpLIn.Text=tostring(S.carpetLength) end
-end)
-
-wsIn.FocusLost:Connect(function()
-    local n=tonumber(wsIn.Text)
-    if n and n>0 then S.walkSpeed=n; UpdChar() else wsIn.Text=tostring(S.walkSpeed) end
-    wsLbl.Text="Hiện tại: "..S.walkSpeed
-end)
-
-jpIn.FocusLost:Connect(function()
-    local n=tonumber(jpIn.Text)
-    if n and n>0 then S.jumpPower=n; UpdChar() else jpIn.Text=tostring(S.jumpPower) end
-    jpLbl.Text="Hiện tại: "..S.jumpPower
-end)
+wsIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(wsIn.Text); if n and n>0 then S.walkSpeed=n; UpdChar() else wsIn.Text=tostring(S.walkSpeed) end; wsLbl.Text="Hiện tại: "..S.walkSpeed end)
+jpIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(jpIn.Text); if n and n>0 then S.jumpPower=n; UpdChar() else jpIn.Text=tostring(S.jumpPower) end; jpLbl.Text="Hiện tại: "..S.jumpPower end)
 
 flyBtn.Activated:Connect(function()
     S.flying = not S.flying
