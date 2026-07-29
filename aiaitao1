@@ -1,311 +1,603 @@
--- Script Teleport & Fly GUI
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+--[[
+    BANANA FLY & ESP SCRIPT - OPTIMIZED VERSION
+    - Clean code structure
+    - Better performance
+    - Memory management
+    - Error handling
+--]]
+
+-- Services
 local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+-- Local Player
+local LocalPlayer = Players.LocalPlayer
 
--- Tạo ScreenGui
-local gui = Instance.new("ScreenGui")
-gui.Name = "TeleportGUI"
-gui.Parent = player:PlayerGui
-gui.ResetOnSpawn = false
+-- Constants
+local CONSTANTS = {
+    FLY_HEIGHT_DEFAULT = 150,
+    FLY_SPEED_DEFAULT = 100,
+    GLOW_RANGE_DEFAULT = 50,
+    GRAVITY_DEFAULT = 196.2,
+    WALL_SIZE = {MIN = 0.5, MAX = 500},
+    GLOW_RANGE = {MIN = 5, MAX = 300}
+}
 
--- Frame chính
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 400)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BorderSizePixel = 0
-mainFrame.ClipsDescendants = true
-mainFrame.Parent = gui
+-- Theme
+local THEME = {
+    BG = Color3.fromRGB(245, 247, 252),
+    TITLE_BG = Color3.fromRGB(215, 220, 230),
+    TAB_ACTIVE = Color3.fromRGB(255, 255, 255),
+    TAB_INACTIVE = Color3.fromRGB(200, 205, 215),
+    STRIPE_EVEN = Color3.fromRGB(255, 255, 255),
+    STRIPE_ODD = Color3.fromRGB(215, 220, 230),
+    ACCENT = Color3.fromRGB(0, 140, 240),
+    SUCCESS = Color3.fromRGB(40, 170, 90),
+    DANGER = Color3.fromRGB(230, 30, 30),
+    WARNING = Color3.fromRGB(255, 180, 0),
+    TEXT_DARK = Color3.fromRGB(15, 15, 25),
+    TEXT_LIGHT = Color3.fromRGB(255, 255, 255)
+}
 
--- Bo góc cho frame chính
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = mainFrame
-
--- Thanh tiêu đề
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 50)
-titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
-
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 12)
-titleCorner.Parent = titleBar
-
--- Tiêu đề
-local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(0.8, 0, 1, 0)
-titleText.Position = UDim2.new(0.1, 0, 0, 0)
-titleText.BackgroundTransparency = 1
-titleText.Text = "🌟 PLAYER TELEPORT 🌟"
-titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 16
-titleText.TextStrokeTransparency = 0.5
-titleText.Parent = titleBar
-
--- Scrollable Frame
-local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
-scrollFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
-scrollFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-scrollFrame.BorderSizePixel = 0
-scrollFrame.ScrollBarThickness = 6
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-scrollFrame.Parent = mainFrame
-
-local scrollCorner = Instance.new("UICorner")
-scrollCorner.CornerRadius = UDim.new(0, 8)
-scrollCorner.Parent = scrollFrame
-
--- UIListLayout cho danh sách
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 8)
-listLayout.SortOrder = Enum.SortOrder.Name
-listLayout.Parent = scrollFrame
-
--- Frame cho nút điều khiển
-local controlFrame = Instance.new("Frame")
-controlFrame.Size = UDim2.new(0.9, 0, 0.08, 0)
-controlFrame.Position = UDim2.new(0.05, 0, 0.9, 0)
-controlFrame.BackgroundTransparency = 1
-controlFrame.Parent = mainFrame
-
--- Nút Refresh
-local refreshButton = Instance.new("TextButton")
-refreshButton.Size = UDim2.new(0.45, 0, 1, 0)
-refreshButton.Position = UDim2.new(0, 0, 0, 0)
-refreshButton.Text = "🔄 Refresh"
-refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-refreshButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
-refreshButton.Font = Enum.Font.GothamBold
-refreshButton.TextSize = 14
-refreshButton.BorderSizePixel = 0
-refreshButton.Parent = controlFrame
-
-local refreshCorner = Instance.new("UICorner")
-refreshCorner.CornerRadius = UDim.new(0, 6)
-refreshCorner.Parent = refreshButton
-
--- Nút Close
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0.45, 0, 1, 0)
-closeButton.Position = UDim2.new(0.55, 0, 0, 0)
-closeButton.Text = "✖ Close"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 14
-closeButton.BorderSizePixel = 0
-closeButton.Parent = controlFrame
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = closeButton
-
--- Hàm tạo player button
-local function createPlayerButton(targetPlayer)
-    local playerFrame = Instance.new("Frame")
-    playerFrame.Size = UDim2.new(0.95, 0, 0, 40)
-    playerFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    playerFrame.BorderSizePixel = 0
-    playerFrame.Parent = scrollFrame
+-- State Management
+local State = {
+    isFlying = false,
+    isFollowing = false,
+    stopRequested = false,
+    currentTween = nil,
+    noclipConnection = nil,
+    antiNoclipConn = nil,
+    antiNoclipActive = false,
+    glowActive = false,
+    glowLight = nil,
+    showHeightPillar = false,
+    heightPillar = nil,
+    heightConn = nil,
     
-    local playerCorner = Instance.new("UICorner")
-    playerCorner.CornerRadius = UDim.new(0, 6)
-    playerCorner.Parent = playerFrame
+    -- Selected items
+    selectedPlayer = nil,
+    selectedLocation = nil,
+    selectedWall = nil,
     
-    -- Avatar
-    local avatarImage = Instance.new("ImageLabel")
-    avatarImage.Size = UDim2.new(0, 30, 0, 30)
-    avatarImage.Position = UDim2.new(0.03, 0, 0.13, 0)
-    avatarImage.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    avatarImage.BorderSizePixel = 0
-    avatarImage.Parent = playerFrame
+    -- Data storage
+    savedLocations = {},
+    spawnedWalls = {},
+    wallCounter = 0,
     
-    local avatarCorner = Instance.new("UICorner")
-    avatarCorner.CornerRadius = UDim.new(1, 0)
-    avatarCorner.Parent = avatarImage
+    -- ESP states
+    esp = {
+        players = {all = false, single = false, data = {}},
+        locations = {all = false, single = false, data = {}},
+        walls = {all = false, single = false, data = {}}
+    },
     
-    -- Load avatar
-    local userId = targetPlayer.UserId
-    local thumbType = Enum.ThumbnailType.HeadShot
-    local thumbSize = Enum.ThumbnailSize.Size48x48
-    local content = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
-    avatarImage.Image = content
+    -- UI states
+    activeTab = "Players",
+    splitRatio = 0.60,
+    wallSplitRatio = 0.52
+}
+
+-- Utility Functions
+local Util = {}
+
+function Util.safeCall(func, ...)
+    local success, result = pcall(func, ...)
+    if not success then
+        warn("Error:", result)
+    end
+    return success, result
+end
+
+function Util.getPlayerTarget(plr)
+    if not plr or not plr.Character then return nil end
+    local char = plr.Character
+    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char.PrimaryPart
+end
+
+function Util.isPlayerDown(plr)
+    if not plr or not plr.Character then return true end
+    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health <= 0 then return true end
+    return plr.Character:FindFirstChild("Knocked") ~= nil or
+           plr.Character:FindFirstChild("Downed") ~= nil or
+           plr.Character:FindFirstChild("Dead") ~= nil
+end
+
+function Util.cleanupObject(obj)
+    if typeof(obj) == "Instance" and obj.Parent then
+        obj:Destroy()
+    end
+end
+
+function Util.tweenTo(part, targetCFrame, speed)
+    if State.stopRequested then return false end
+    local distance = (targetCFrame.Position - part.Position).Magnitude
+    local duration = math.max(0.1, distance / speed)
     
-    -- Tên người chơi
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0.55, 0, 1, 0)
-    nameLabel.Position = UDim2.new(0.15, 0, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = targetPlayer.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.Font = Enum.Font.GothamSemibold
-    nameLabel.TextSize = 14
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    nameLabel.Parent = playerFrame
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(part, tweenInfo, {CFrame = targetCFrame})
+    State.currentTween = tween
+    tween:Play()
     
-    -- Nút Teleport
-    local teleportButton = Instance.new("TextButton")
-    teleportButton.Size = UDim2.new(0.25, 0, 0.7, 0)
-    teleportButton.Position = UDim2.new(0.72, 0, 0.15, 0)
-    teleportButton.Text = "🎯 TP"
-    teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    teleportButton.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-    teleportButton.Font = Enum.Font.GothamBold
-    teleportButton.TextSize = 12
-    teleportButton.BorderSizePixel = 0
-    teleportButton.Parent = playerFrame
-    
-    local teleportCorner = Instance.new("UICorner")
-    teleportCorner.CornerRadius = UDim.new(0, 4)
-    teleportCorner.Parent = teleportButton
-    
-    -- Hover effect cho nút
-    teleportButton.MouseEnter:Connect(function()
-        local tween = TweenService:Create(teleportButton, TweenInfo.new(0.2), 
-            {BackgroundColor3 = Color3.fromRGB(39, 174, 96)})
-        tween:Play()
+    local finished = false
+    local conn
+    conn = tween.Completed:Connect(function()
+        finished = true
+        conn:Disconnect()
     end)
     
-    teleportButton.MouseLeave:Connect(function()
-        local tween = TweenService:Create(teleportButton, TweenInfo.new(0.2), 
-            {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
-        tween:Play()
-    end)
+    while not finished and not State.stopRequested do
+        task.wait()
+    end
     
-    -- Click event
-    teleportButton.MouseButton1Click:Connect(function()
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local targetPos = targetPlayer.Character.HumanoidRootPart.Position
-                local myRoot = player.Character.HumanoidRootPart
-                
-                -- Dịch chuyển mượt mà
-                local speed = 50
-                local distance = (targetPos - myRoot.Position).Magnitude
-                local time = math.max(0.5, distance / speed)
-                
-                local tween = TweenService:Create(myRoot, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-                    {CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))})
-                tween:Play()
-                
-                -- Hiệu ứng khi đến nơi
-                tween.Completed:Connect(function()
-                    local p = Instance.new("Part")
-                    p.Size = Vector3.new(1, 1, 1)
-                    p.Position = targetPos
-                    p.Anchored = true
-                    p.CanCollide = false
-                    p.Material = Enum.Material.Neon
-                    p.BrickColor = BrickColor.new("Bright green")
-                    p.Parent = workspace
-                    
-                    game:GetService("Debris"):AddItem(p, 1)
-                end)
+    if State.stopRequested then
+        tween:Cancel()
+        return false
+    end
+    return true
+end
+
+-- Noclip Management
+local NoclipManager = {}
+
+function NoclipManager.enable()
+    if State.noclipConnection then return end
+    State.noclipConnection = RunService.Stepped:Connect(function()
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
             end
         end
     end)
-    
-    -- Hover effect cho frame
-    playerFrame.MouseEnter:Connect(function()
-        local tween = TweenService:Create(playerFrame, TweenInfo.new(0.2), 
-            {BackgroundColor3 = Color3.fromRGB(60, 60, 60)})
-        tween:Play()
-    end)
-    
-    playerFrame.MouseLeave:Connect(function()
-        local tween = TweenService:Create(playerFrame, TweenInfo.new(0.2), 
-            {BackgroundColor3 = Color3.fromRGB(50, 50, 50)})
-        tween:Play()
-    end)
-    
-    return playerFrame
 end
 
--- Hàm cập nhật danh sách
-local function updatePlayerList()
-    -- Xóa danh sách cũ
-    for _, v in pairs(scrollFrame:GetChildren()) do
-        if v:IsA("Frame") then
-            v:Destroy()
+function NoclipManager.disable()
+    if State.noclipConnection then
+        State.noclipConnection:Disconnect()
+        State.noclipConnection = nil
+    end
+    
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = (part.Name ~= "HumanoidRootPart")
+            end
+        end
+    end
+end
+
+function NoclipManager.update()
+    if State.antiNoclipActive then
+        NoclipManager.disable()
+        if not State.antiNoclipConn then
+            State.antiNoclipConn = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end)
+        end
+        return
+    end
+    
+    if State.antiNoclipConn then
+        State.antiNoclipConn:Disconnect()
+        State.antiNoclipConn = nil
+    end
+    
+    if State.isFlying or State.isFollowing then
+        NoclipManager.enable()
+    else
+        NoclipManager.disable()
+    end
+end
+
+-- Flight System
+local FlightSystem = {}
+
+function FlightSystem.startFly(targetType, target)
+    if State.isFlying or State.isFollowing then return end
+    
+    local getTargetCFrame
+    if targetType == "Player" then
+        State.selectedPlayer = target
+        getTargetCFrame = function()
+            local part = Util.getPlayerTarget(target)
+            return part and part.CFrame
+        end
+    elseif targetType == "Location" then
+        State.selectedLocation = target
+        getTargetCFrame = function() return CFrame.new(target.pos) end
+    elseif targetType == "Wall" then
+        if not target or not target.part then return end
+        State.selectedWall = target
+        getTargetCFrame = function()
+            if target.part and target.part.Parent then
+                local pos = target.part.Position + Vector3.new(0, target.part.Size.Y/2 + 2.5, 0)
+                return CFrame.new(pos)
+            end
         end
     end
     
-    -- Thêm player mới
-    for _, targetPlayer in pairs(Players:GetPlayers()) do
-        if targetPlayer ~= player then
-            createPlayerButton(targetPlayer)
-        end
-    end
+    local initialCFrame = getTargetCFrame()
+    if not initialCFrame then return end
     
-    -- Cập nhật canvas size
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #scrollFrame:GetChildren() * 50)
-end
-
--- Sự kiện
-refreshButton.MouseButton1Click:Connect(updatePlayerList)
-closeButton.MouseButton1Click:Connect(function()
-    gui:Destroy()
-end)
-
--- Làm frame có thể kéo
-local dragging = false
-local dragInput, dragStart, startPos
-
-local function updateDrag(input)
-    local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, 
-                                    startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local flyHeight = tonumber(P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
+    local flySpeed = tonumber(P_SpeedBox.Text) or CONSTANTS.FLY_SPEED_DEFAULT
+    
+    State.isFlying = true
+    State.stopRequested = false
+    workspace.Gravity = 0
+    NoclipManager.update()
+    
+    task.spawn(function()
+        -- Step 1: Fly up
+        local startPos = hrp.Position
+        local skyPos = startPos + Vector3.new(0, flyHeight, 0)
+        local ok = Util.tweenTo(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed)
         
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+        -- Step 2: Fly horizontally
+        if ok then
+            local targetCFrame = getTargetCFrame()
+            if targetCFrame then
+                local dest = targetCFrame.Position
+                local overhead = Vector3.new(dest.X, skyPos.Y, dest.Z)
+                local dir = (overhead - skyPos).Magnitude > 0.1 and (overhead - skyPos).Unit or hrp.CFrame.LookVector
+                ok = Util.tweenTo(hrp, CFrame.new(overhead, overhead + dir), flySpeed)
+                
+                -- Step 3: Land
+                if ok then
+                    targetCFrame = getTargetCFrame()
+                    if targetCFrame then
+                        local finalCFrame = targetType == "Player" and targetCFrame * CFrame.new(0, 0, 2) or targetCFrame
+                        Util.tweenTo(hrp, finalCFrame, flySpeed)
+                    end
+                end
             end
-        end)
+        end
+        
+        -- Reset
+        workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
+        State.isFlying = false
+        NoclipManager.update()
+        UIUpdater.updateAll()
+    end)
+end
+
+function FlightSystem.stopFly()
+    State.stopRequested = true
+    if State.currentTween then
+        State.currentTween:Cancel()
+        State.currentTween = nil
     end
+    State.isFlying = false
+    workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
+    NoclipManager.update()
+end
+
+function FlightSystem.startFollow()
+    if State.isFlying then FlightSystem.stopFly() end
+    if not State.selectedPlayer or not State.selectedPlayer.Character then return end
+    
+    State.isFollowing = true
+    State.stopRequested = false
+    workspace.Gravity = 0
+    NoclipManager.update()
+    
+    task.spawn(function()
+        local hasArrived = false
+        
+        while State.isFollowing and not State.stopRequested do
+            local target = Util.getPlayerTarget(State.selectedPlayer)
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if not target or not hrp then break end
+            
+            local flyHeight = tonumber(P_HeightBox.Text) or CONSTANTS.FLY_HEIGHT_DEFAULT
+            local flySpeed = tonumber(P_SpeedBox.Text) or CONSTANTS.FLY_SPEED_DEFAULT
+            
+            if not hasArrived then
+                -- Initial approach
+                local skyPos = hrp.Position + Vector3.new(0, flyHeight, 0)
+                if not Util.tweenTo(hrp, CFrame.new(skyPos, skyPos + hrp.CFrame.LookVector), flySpeed) then break end
+                
+                target = Util.getPlayerTarget(State.selectedPlayer)
+                if not target then break end
+                
+                local overhead = Vector3.new(target.Position.X, skyPos.Y, target.Position.Z)
+                if not Util.tweenTo(hrp, CFrame.new(overhead, overhead + (target.Position - hrp.Position).Unit), flySpeed) then break end
+                
+                target = Util.getPlayerTarget(State.selectedPlayer)
+                if not target then break end
+                
+                if not Util.tweenTo(hrp, target.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
+                hasArrived = true
+            else
+                -- Maintain follow
+                local dist = (hrp.Position - target.Position).Magnitude
+                if dist > 1.5 then
+                    if not Util.tweenTo(hrp, target.CFrame * CFrame.new(0, 0, 2), flySpeed) then break end
+                end
+            end
+            
+            task.wait(0.05)
+        end
+        
+        -- Reset
+        workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
+        State.isFollowing = false
+        NoclipManager.update()
+        UIUpdater.updateAll()
+    end)
+end
+
+function FlightSystem.stopFollow()
+    State.isFollowing = false
+    State.stopRequested = true
+    if State.currentTween then
+        State.currentTween:Cancel()
+        State.currentTween = nil
+    end
+    workspace.Gravity = CONSTANTS.GRAVITY_DEFAULT
+    NoclipManager.update()
+end
+
+-- ESP System
+local ESP = {}
+
+function ESP.createPlayerESP(plr)
+    if State.esp.players.data[plr] then return end
+    
+    local bbg = Instance.new("BillboardGui")
+    bbg.Name = "ESP_Player"
+    bbg.Size = UDim2.new(0, 220, 0, 50)
+    bbg.AlwaysOnTop = true
+    bbg.ExtentsOffset = Vector3.new(0, 3, 0)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 13
+    label.TextStrokeTransparency = 0.5
+    label.TextColor3 = THEME.SUCCESS
+    label.Parent = bbg
+    
+    State.esp.players.data[plr] = {gui = bbg, label = label}
+end
+
+function ESP.removePlayerESP(plr)
+    local data = State.esp.players.data[plr]
+    if data then
+        if data.gui then data.gui:Destroy() end
+        State.esp.players.data[plr] = nil
+    end
+end
+
+function ESP.updatePlayerESP()
+    if not (State.esp.players.all or State.esp.players.single) then
+        for plr in pairs(State.esp.players.data) do
+            ESP.removePlayerESP(plr)
+        end
+        return
+    end
+    
+    local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        local shouldShow = State.esp.players.all or 
+                          (State.esp.players.single and State.selectedPlayer == plr)
+        
+        if shouldShow and plr.Character then
+            ESP.createPlayerESP(plr)
+            local data = State.esp.players.data[plr]
+            if data then
+                local target = Util.getPlayerTarget(plr)
+                if target then
+                    data.gui.Adornee = target
+                    data.gui.Parent = game:GetService("CoreGui")
+                    
+                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                    local dist = myHrp and math.floor((target.Position - myHrp.Position).Magnitude) or 0
+                    local hp = hum and math.floor(hum.Health) or 0
+                    
+                    if Util.isPlayerDown(plr) then
+                        data.label.TextColor3 = THEME.DANGER
+                        data.label.Text = string.format("🔴 %s [DOWN]\n⚡ HP: %d | 📏 %dm", plr.Name, hp, dist)
+                    else
+                        data.label.TextColor3 = THEME.SUCCESS
+                        data.label.Text = string.format("👤 %s\n💚 HP: %d | 📏 %dm", plr.Name, hp, dist)
+                    end
+                end
+            end
+        else
+            ESP.removePlayerESP(plr)
+        end
+    end
+end
+
+-- UI Builder
+local UI = {}
+
+function UI.createCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+function UI.createButton(parent, text, color, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 24)
+    btn.BackgroundColor3 = color or THEME.TAB_INACTIVE
+    btn.BackgroundTransparency = 0.3
+    btn.Text = text
+    btn.TextColor3 = THEME.TEXT_DARK
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 11
+    btn.Parent = parent
+    
+    UI.createCorner(btn, 4)
+    
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundTransparency = 0.1
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundTransparency = 0.3
+    end)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(callback)
+    end
+    
+    return btn
+end
+
+function UI.createLabel(parent, text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 14)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = THEME.TEXT_DARK
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 10
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    return label
+end
+
+function UI.createTextBox(parent, placeholder, default)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 22)
+    box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    box.BackgroundTransparency = 0.3
+    box.PlaceholderText = placeholder or ""
+    box.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    box.Text = default or ""
+    box.TextColor3 = THEME.TEXT_DARK
+    box.Font = Enum.Font.SourceSans
+    box.TextSize = 11
+    box.Parent = parent
+    
+    UI.createCorner(box, 4)
+    return box
+end
+
+-- Main GUI Construction
+local function buildMainGUI()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "BananaFlyGUI"
+    gui.ResetOnSpawn = false
+    gui.Parent = pcall(function() return CoreGui end) and CoreGui or LocalPlayer.PlayerGui
+    
+    -- Main Frame
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 580, 0, 420)
+    main.Position = UDim2.new(0.5, -290, 0.5, -210)
+    main.BackgroundColor3 = THEME.BG
+    main.BackgroundTransparency = 0.08
+    main.BorderSizePixel = 0
+    main.Parent = gui
+    UI.createCorner(main, 10)
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -120, 0, 34)
+    title.BackgroundColor3 = THEME.TITLE_BG
+    title.BackgroundTransparency = 0.4
+    title.Text = "🍌 BANANA FLY"
+    title.TextColor3 = THEME.TEXT_DARK
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 14
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = main
+    UI.createCorner(title, 10)
+    
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 24)
+    closeBtn.Position = UDim2.new(1, -32, 0, 5)
+    closeBtn.BackgroundColor3 = THEME.DANGER
+    closeBtn.BackgroundTransparency = 0.2
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = THEME.TEXT_LIGHT
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.TextSize = 14
+    closeBtn.Parent = main
+    UI.createCorner(closeBtn, 4)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        -- Cleanup
+        FlightSystem.stopFly()
+        FlightSystem.stopFollow()
+        State.antiNoclipActive = false
+        NoclipManager.update()
+        
+        -- Remove all ESP
+        for plr in pairs(State.esp.players.data) do
+            ESP.removePlayerESP(plr)
+        end
+        
+        -- Remove all walls
+        for _, wall in ipairs(State.spawnedWalls) do
+            if wall.part then wall.part:Destroy() end
+        end
+        
+        Util.cleanupObject(State.glowLight)
+        Util.cleanupObject(State.heightPillar)
+        Util.cleanupObject(gui)
+    end)
+    
+    return gui, main
+end
+
+-- Initialize
+local gui, mainFrame = buildMainGUI()
+local rightPanel -- Will be populated with controls
+
+-- Start update loop for ESP
+RunService.RenderStepped:Connect(function()
+    ESP.updatePlayerESP()
 end)
 
-titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
+-- Player events
+Players.PlayerAdded:Connect(function(plr)
+    if UIUpdater then UIUpdater.updatePlayerList() end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        updateDrag(input)
+Players.PlayerRemoving:Connect(function(plr)
+    if State.selectedPlayer == plr then
+        State.selectedPlayer = nil
+        FlightSystem.stopFollow()
     end
+    ESP.removePlayerESP(plr)
+    if UIUpdater then UIUpdater.updatePlayerList() end
 end)
 
--- Khởi tạo danh sách
-updatePlayerList()
+-- Character reset
+LocalPlayer.CharacterAdded:Connect(function()
+    State.isFlying = false
+    State.isFollowing = false
+    NoclipManager.update()
+end)
 
--- Cập nhật khi có player join/leave
-Players.PlayerAdded:Connect(updatePlayerList)
-Players.PlayerRemoving:Connect(updatePlayerList)
-
--- Hiệu ứng fade in
-mainFrame.BackgroundTransparency = 1
-local fadeIn = TweenService:Create(mainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0})
-fadeIn:Play()
-
-print("✅ Teleport GUI loaded!")
+print("✅ Banana Fly Script Optimized - Ready!")
