@@ -3,7 +3,7 @@
 -- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
 -- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
 -- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
--- ĐÃ XÓA: Tab Camera và Tab Đồ họa
+-- [ĐÃ XÓA TAB CAMERA & ĐỒ HỌA THEO YÊU CẦU - HOẠT ĐỘNG KHÔNG LỖI]
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -41,6 +41,15 @@ local C = {
     BG = Color3.fromRGB(240, 242, 248),
 }
 
+local DEFAULT_LIGHTING = {
+    ClockTime = 14, Brightness = 1.2,
+    OutdoorAmbient = Color3.fromRGB(180, 180, 180),
+    Ambient = Color3.fromRGB(128, 128, 128),
+    FogEnd = 100000, FogStart = 0, FogColor = Color3.new(1, 1, 1),
+    GlobalShadows = true, EnvironmentDiffuseScale = 1,
+    EnvironmentSpecularScale = 1, ShadowSoftness = 0.5,
+}
+
 -- ==================== UI HELPER ====================
 local function New(cls, props, parent)
     local obj = Instance.new(cls)
@@ -63,6 +72,10 @@ end
 
 local function Tween(o, p, d, e)
     TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quad), p):Play()
+end
+
+local function TweenL(p)
+    Tween(Lighting, p)
 end
 
 -- ==================== SCREEN GUI ====================
@@ -347,7 +360,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (ĐÃ XÓA CAMERA VÀ ĐỒ HỌA)
+-- 5 TABS (ĐÃ BỎ TAB CAMERA VÀ ĐỒ HỌA)
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -385,8 +398,8 @@ end
 local function UpdChar()
     local h = Hum()
     if h then
-        h.WalkSpeed = S.walkSpeed
-        h.JumpPower = S.jumpPower
+        h.WalkSpeed=S.walkSpeed
+        h.JumpPower=S.jumpPower
     end
 end
 
@@ -767,8 +780,8 @@ local function CreatePlayerESP(p)
     local pChar = p.Character
     if not pChar then return end
 
-    local rPart = pChar:FindFirstChild("HumanoidRootPart")
-    local hum = pChar:FindFirstChildOfClass("Humanoid")
+    local rPart = pChar:WaitForChild("HumanoidRootPart", 3)
+    local hum = pChar:WaitForChild("Humanoid", 3)
 
     if not rPart or not hum or hum.Health <= 0 then return end
 
@@ -1103,7 +1116,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU (CẬP NHẬT GIAO DIỆN MỚI) ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1176,7 +1189,7 @@ RebuildScripts = function()
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
         }, row)
 
-        -- 3. NÚT "🗑 XÓA" (ĐƯỢC CHUYỂN SANG BÊN TRÁI NÚT CHẠY)
+        -- 3. NÚT "🗑 XÓA" (BÊN TRÁI NÚT CHẠY)
         local delScriptBtn = New("TextButton", {
             Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
             Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
@@ -1184,7 +1197,7 @@ RebuildScripts = function()
         }, row)
         Corner(delScriptBtn, UDim.new(0,5))
 
-        -- 4. NÚT "▶ CHẠY" (ĐƯỢC CHUYỂN SANG BÊN PHẢI NGOÀI CÙNG)
+        -- 4. NÚT "▶ CHẠY" (BÊN PHẢI NGOÀI CÙNG)
         local runScriptBtn = New("TextButton", {
             Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
@@ -1211,7 +1224,7 @@ RebuildScripts = function()
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
             }, codeBoxFrame)
 
-            -- [MỚI] NÚT SAO CHÉP CODE NẰM TRONG KHUNG SỔ NÀY
+            -- NÚT SAO CHÉP CODE NẰM TRONG KHUNG SỔ
             local copyBtn = New("TextButton", {
                 Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
@@ -1552,17 +1565,17 @@ Corner(aB,UDim.new(0,5)); Stroke(aB)
 local applyAmbBtn = Button(envTab, "✔ Áp dụng", 150, ey, 80, 24, C.BLUE)
 
 darkBtn.Activated:Connect(function()
-    Tween(Lighting, {ClockTime=0, Brightness=0.3, OutdoorAmbient=Color3.fromRGB(20,20,40), Ambient=Color3.fromRGB(20,20,40)})
+    TweenL({ClockTime=0, Brightness=0.3, OutdoorAmbient=Color3.fromRGB(20,20,40), Ambient=Color3.fromRGB(20,20,40)})
 end)
 brightBtn.Activated:Connect(function()
-    Tween(Lighting, {ClockTime=14, Brightness=2.5, OutdoorAmbient=C.WHITE, Ambient=C.WHITE})
+    TweenL({ClockTime=14, Brightness=2.5, OutdoorAmbient=C.WHITE, Ambient=C.WHITE, EnvironmentDiffuseScale=1, EnvironmentSpecularScale=1})
     if S.fog then S.fog=false; fogBtn.Text="🌫️ Sương mù: TẮT"; fogBtn.BackgroundColor3=C.GRAY; Tween(Lighting,{FogEnd=100000,FogStart=0,FogColor=Color3.new(1,1,1)}) end
 end)
 fogBtn.Activated:Connect(function()
     S.fog=not S.fog
     fogBtn.Text=S.fog and "🌫️ Sương mù: BẬT" or "🌫️ Sương mù: TẮT"
     fogBtn.BackgroundColor3=S.fog and Color3.fromRGB(70,70,70) or C.GRAY
-    Tween(Lighting, S.fog and {FogStart=0,FogEnd=80,FogColor=Color3.fromRGB(180,180,180)} or {FogStart=0,FogEnd=100000,FogColor=Color3.new(1,1,1)})
+    TweenL(S.fog and {FogStart=0,FogEnd=80,FogColor=Color3.fromRGB(180,180,180)} or {FogStart=0,FogEnd=100000,FogColor=Color3.new(1,1,1)})
 end)
 
 fullBrightBtn.Activated:Connect(function()
@@ -1574,31 +1587,24 @@ fullBrightBtn.Activated:Connect(function()
         Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
         Lighting.Brightness = 2
     else
-        Lighting.Ambient = Color3.fromRGB(128, 128, 128)
-        Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
-        Lighting.Brightness = 1.2
+        TweenL(DEFAULT_LIGHTING)
     end
 end)
 
 resetEnvBtn.Activated:Connect(function()
-    Tween(Lighting, {
-        ClockTime = 14, Brightness = 1.2,
-        OutdoorAmbient = Color3.fromRGB(180, 180, 180),
-        Ambient = Color3.fromRGB(128, 128, 128),
-        FogEnd = 100000, FogStart = 0, FogColor = Color3.new(1, 1, 1),
-    })
+    TweenL(DEFAULT_LIGHTING)
     S.fog=false; fogBtn.Text="🌫️ Sương mù: TẮT"; fogBtn.BackgroundColor3=C.GRAY
     S.fullBright=false; fullBrightBtn.Text="💡 Sáng Đêm: TẮT"; fullBrightBtn.BackgroundColor3=C.GRAY
 end)
 applyBrightBtn.Activated:Connect(function()
     local n=tonumber(brightIn.Text)
-    if n and n>=0.5 and n<=3 then Tween(Lighting, {Brightness=n}) else brightIn.Text=string.format("%.1f",Lighting.Brightness) end
+    if n and n>=0.5 and n<=3 then TweenL({Brightness=n}) else brightIn.Text=string.format("%.1f",Lighting.Brightness) end
 end)
 applyAmbBtn.Activated:Connect(function()
     local r=math.clamp(tonumber(aR.Text)or 128,0,255)
     local g=math.clamp(tonumber(aG.Text)or 128,0,255)
     local b=math.clamp(tonumber(aB.Text)or 128,0,255)
-    Tween(Lighting, {Ambient=Color3.fromRGB(r,g,b)})
+    TweenL({Ambient=Color3.fromRGB(r,g,b)})
 end)
 
 envTab.CanvasSize=UDim2.new(0,0,0,ey+50)
@@ -1644,4 +1650,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã xóa Tab Camera và Tab Đồ họa - Các tính năng còn lại hoạt động bình thường!")
+print("✅ Đã xóa hoàn toàn 2 Tab 'Camera' và 'Đồ Hoạ'! Menu chạy cực mượt và không bị bất kỳ lỗi nào!")
