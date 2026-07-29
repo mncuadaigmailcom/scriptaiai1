@@ -1,8 +1,7 @@
 -- ============================================
 -- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
 -- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
--- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
+-- + Tab "Code Đã Lưu" Có Mũi Tên Sổ Code & 2 Nút Chạy/Xóa Kéo Dài
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -18,15 +17,12 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Xác định Parent an toàn tuyệt đối cho UI (Sửa lỗi crash do chặn bảo mật CoreGui)
+-- Xác định Parent an toàn cho UI
 local targetGui = playerGui
 if gethui then
     targetGui = gethui()
-else
-    local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    if success and coreGui then
-        targetGui = coreGui
-    end
+elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
+    targetGui = game:GetService("CoreGui")
 end
 
 -- ==================== CONSTANTS ====================
@@ -50,6 +46,14 @@ local DEFAULT_LIGHTING = {
     FogEnd = 100000, FogStart = 0, FogColor = Color3.new(1, 1, 1),
     GlobalShadows = true, EnvironmentDiffuseScale = 1,
     EnvironmentSpecularScale = 1, ShadowSoftness = 0.5,
+}
+
+local PRESETS = {
+    Ultra = {level=21, shadow=0.2, diffuse=1, specular=1, shadows=true, name="✨ Siêu cao"},
+    High = {level=17, shadow=0.5, diffuse=1, specular=1, shadows=true, name="🔵 Cao"},
+    Medium = {level=10, shadow=1, diffuse=0.8, specular=0.6, shadows=true, name="🟡 Trung"},
+    Low = {level=5, shadow=1, diffuse=0.5, specular=0.3, shadows=false, name="🟢 Thấp"},
+    UltraLow = {level=1, shadow=1, diffuse=0, specular=0, shadows=false, name="⚡ Siêu thấp"},
 }
 
 -- ==================== UI HELPER ====================
@@ -86,38 +90,38 @@ if targetGui:FindFirstChild("ExMenu") then
 end
 
 local gui = New("ScreenGui", {
-    Name = "ExMenu",
-    IgnoreGuiInset = true,
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    Name="ExMenu",
+    IgnoreGuiInset=true,
+    ResetOnSpawn=false,
+    ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
 -- Toggle Button (Nút Chuối Mở Menu)
 local togBtn = New("TextButton", {
-    Size = UDim2.new(0,48,0,48),
-    Position = UDim2.new(1,-60,1,-60),
-    Text = "🍌",
-    BackgroundColor3 = C.WHITE,
-    BackgroundTransparency = 0.1,
-    TextColor3 = C.DARK,
-    Font = Enum.Font.GothamBold,
-    TextSize = 24,
-    BorderSizePixel = 0,
-    ZIndex = 1000,
+    Size=UDim2.new(0,48,0,48),
+    Position=UDim2.new(1,-60,1,-60),
+    Text="🍌",
+    BackgroundColor3=C.WHITE,
+    BackgroundTransparency=0.1,
+    TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold,
+    TextSize=24,
+    BorderSizePixel=0,
+    ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
 Stroke(togBtn, C.BLUE, 2)
 
 -- Main Frame
 local main = New("Frame", {
-    Size = UDim2.new(0,540,0,340),
-    Position = UDim2.new(0.5,-270,0.5,-170),
-    BackgroundColor3 = Color3.fromRGB(235, 238, 245),
-    BackgroundTransparency = 0.25,
-    BorderSizePixel = 0,
-    Visible = true, -- Mặc định mở Menu khi chạy
-    ClipsDescendants = false,
-    ZIndex = 2,
+    Size=UDim2.new(0,540,0,340),
+    Position=UDim2.new(0.5,-270,0.5,-170),
+    BackgroundColor3=Color3.fromRGB(235, 238, 245),
+    BackgroundTransparency=0.25,
+    BorderSizePixel=0,
+    Visible=false,
+    ClipsDescendants=false,
+    ZIndex=2,
 }, gui)
 Corner(main, UDim.new(0,10))
 Stroke(main, Color3.fromRGB(180,185,200), 2)
@@ -139,36 +143,36 @@ Corner(bgPattern, UDim.new(0, 10))
 
 -- Title Bar
 local titleBar = New("Frame", {
-    Size = UDim2.new(1,0,0,30),
-    BackgroundColor3 = Color3.fromRGB(225,230,240),
-    BackgroundTransparency = 0.2,
-    BorderSizePixel = 0,
-    ZIndex = 3,
+    Size=UDim2.new(1,0,0,30),
+    BackgroundColor3=Color3.fromRGB(225,230,240),
+    BackgroundTransparency=0.2,
+    BorderSizePixel=0,
+    ZIndex=3,
 }, main)
 Corner(titleBar, UDim.new(0,10))
 
 New("TextLabel", {
-    Size = UDim2.new(1,-40,1,0),
-    Position = UDim2.new(0,12,0,0),
-    Text = "🍌 Banana Cat Executor Hub (Caro Style)",
-    BackgroundTransparency = 1,
-    TextColor3 = C.DARK,
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 4,
+    Size=UDim2.new(1,-40,1,0),
+    Position=UDim2.new(0,12,0,0),
+    Text="🍌 Banana Cat Executor Hub (Caro Style)",
+    BackgroundTransparency=1,
+    TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold,
+    TextSize=13,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=4,
 }, titleBar)
 
 local closeBtn = New("TextButton", {
-    Size = UDim2.new(0,30,0,30),
-    Position = UDim2.new(1,-32,0,0),
-    Text = "✕",
-    BackgroundTransparency = 1,
-    TextColor3 = Color3.fromRGB(120,120,130),
-    Font = Enum.Font.GothamBold,
-    TextSize = 15,
-    BorderSizePixel = 0,
-    ZIndex = 4,
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-32,0,0),
+    Text="✕",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(120,120,130),
+    Font=Enum.Font.GothamBold,
+    TextSize=15,
+    BorderSizePixel=0,
+    ZIndex=4,
 }, titleBar)
 
 -- ===== DRAG MENU =====
@@ -277,7 +281,6 @@ SetupResizeHandle(handleBR, "BR")
 local tabs = {}
 local tabContent = {}
 
--- Sửa lỗi: Gán đúng Parent của tabBar vào Frame 'main'
 local tabBar = New("ScrollingFrame", {
     Size=UDim2.new(0,105,1,-30),
     Position=UDim2.new(1,-105,0,30),
@@ -363,12 +366,14 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (Hoàn toàn không có Đồ họa và Camera)
+-- 7 TABS (TÍNH NĂNG "CODE ĐÃ LƯU" NẰM GIỮA CODE VÀ DI CHUYỂN)
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
 local playerTab    = AddTab("Người Chơi", "👤", 4)
 local envTab       = AddTab("Môi Trường", "⚙️", 5)
+local camTab       = AddTab("Camera", "📷", 6)
+local gfxTab       = AddTab("Đồ Họa", "🎨", 7)
 
 SwitchTab(1)
 
@@ -378,9 +383,11 @@ local S = {
     carpetWidth=1.5, carpetThickness=0.2, carpetLength=1.5,
     walkSpeed=16, jumpPower=50,
     noClip=false, fog=false, flying=false, carpet=false, flyRun=false,
-    carpetY=nil,
+    customCam=false, fov=70, camOffX=0, camOffY=0,
+    freeCam=false, freeCamSpeed=30, carpetY=nil,
+    shadows=true, bloom=true, blur=false, sunRays=true, colorCorr=false,
+    fpsCounter=false, particles=true, decals=true,
     infJump=false, clickTp=false, esp=false, antiAfk=true, fullBright=false,
-    blockServer=false, freezeOthers=false,
 }
 
 local scripts = {}
@@ -403,55 +410,6 @@ local function UpdChar()
     if h then
         h.WalkSpeed=S.walkSpeed
         h.JumpPower=S.jumpPower
-    end
-end
-
--- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
-local oldNamecall
-if hookmetamethod then
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if S.blockServer then
-            if method == "Kick" or method == "kick" then
-                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
-                return nil
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-end
-
--- ==================== VÒNG LẶP STEPPED: FREEZE OTHERS & ANTI-SERVER ====================
-RunService.Stepped:Connect(function()
-    if S.blockServer then
-        local h = Hum()
-        local r = Root()
-        if h and h.Sit then h.Sit = false end
-        if r and r.Anchored then r.Anchored = false end
-    end
-
-    if S.freezeOthers then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                for _, part in ipairs(p.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = true
-                    end
-                end
-            end
-        end
-    end
-end)
-
-local function UnfreezeAllPlayers()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character then
-            for _, part in ipairs(p.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = false
-                end
-            end
-        end
     end
 end
 
@@ -482,7 +440,7 @@ UserInputService.InputBegan:Connect(function(i, gp)
     end
 end)
 
--- ==================== NOCLIP (STEPPED MƯỢT 100%) ====================
+-- ==================== NOCLIP (FIXED: CHẠY TRÊN STEPPED MƯỢT 100%) ====================
 local ncConn = nil
 
 local function EnNC()
@@ -749,6 +707,141 @@ movDBtn.Activated:Connect(function()
         local r = Root()
         local curY = S.carpetY or (r and (r.Position.Y - 3.0) or 0)
         S.carpetY = curY - 2.5
+    end
+end)
+
+-- ==================== CUSTOM CAMERA ====================
+local ccX, ccY = 0, 10
+local rMouse = false
+
+local function DisCC()
+    RunService:UnbindFromRenderStep("CC")
+    local cam = workspace.CurrentCamera
+    if cam then cam.CameraType=Enum.CameraType.Custom; cam.FieldOfView=70 end
+end
+
+local function EnCC()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    ccX=0; ccY=10
+    cam.CameraType=Enum.CameraType.Scriptable
+    cam.FieldOfView=S.fov
+    RunService:BindToRenderStep("CC", Enum.RenderPriority.Camera.Value, function()
+        if not S.customCam then return end
+        local r=Root()
+        local c=GetChar()
+        if not r then return end
+        local h=c and c:FindFirstChild("Head")
+        local bp2=h and h.Position or r.Position
+        local cf=CFrame.new(bp2) * CFrame.Angles(0,math.rad(ccX),0) * CFrame.Angles(math.rad(ccY),0,0)
+        local off=cf.RightVector * S.camOffX + cf.UpVector * S.camOffY
+        local cp2=bp2 + cf.LookVector*(-8) + off + Vector3.new(0,1.5,0)
+        cam.CFrame=CFrame.new(cp2, bp2 + Vector3.new(0,1.5,0))
+        cam.FieldOfView=S.fov
+    end)
+end
+
+local function TogCC()
+    if S.freeCam then return end
+    if S.customCam then EnCC() else DisCC() end
+end
+
+UserInputService.InputChanged:Connect(function(i)
+    if S.customCam and rMouse and i.UserInputType==Enum.UserInputType.MouseMovement then
+        ccX=(ccX - i.Delta.X * 0.35)%360
+        ccY=math.clamp(ccY - i.Delta.Y * 0.35,-75,75)
+    end
+end)
+
+-- ==================== FREE CAMERA ====================
+local fcPos = Vector3.new(0,10,0)
+local fcYaw, fcPitch = 0, 0
+
+local fcHUD = New("Frame", {
+    Size=UDim2.new(0,220,0,36), Position=UDim2.new(0.5,-110,0,10),
+    BackgroundColor3=Color3.new(0,0,0), BackgroundTransparency=0.5,
+    Visible=false, BorderSizePixel=0, ZIndex=20,
+}, gui)
+Corner(fcHUD,UDim.new(0,8))
+Stroke(fcHUD,Color3.fromRGB(0,200,255),1.5)
+
+New("TextLabel", {
+    Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,8,0,0),
+    Text="🎥 Camera Tự Do | [F] Thoát | Shift tăng tốc",
+    BackgroundTransparency=1, TextColor3=Color3.fromRGB(0,220,255),
+    Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=21,
+}, fcHUD)
+
+local cross = New("Frame", {
+    Size=UDim2.new(0,6,0,6), Position=UDim2.new(0.5,-3,0.5,-3),
+    BackgroundColor3=C.WHITE, BackgroundTransparency=0.3, BorderSizePixel=0, Visible=false, ZIndex=20,
+}, gui)
+Corner(cross,UDim.new(1,0))
+
+local function DisFC()
+    RunService:UnbindFromRenderStep("FC")
+    local cam=workspace.CurrentCamera
+    if cam then cam.CameraType=Enum.CameraType.Custom; cam.FieldOfView=70 end
+    UserInputService.MouseBehavior=Enum.MouseBehavior.Default
+    UserInputService.MouseIconEnabled=true
+    local r=Root()
+    if r then r.Anchored=false end
+    local h=Hum()
+    if h then h.AutoRotate=true; h.WalkSpeed=S.walkSpeed; h.JumpPower=S.jumpPower end
+    fcHUD.Visible=false; cross.Visible=false
+end
+
+local function EnFC()
+    local cam=workspace.CurrentCamera
+    if not cam then return end
+    local r=Root()
+    local h=Hum()
+    if r then fcPos=r.Position+Vector3.new(0,5,0); r.Anchored=true end
+    if h then h.AutoRotate=false; h.WalkSpeed=0; h.JumpPower=0 end
+    cam.CameraType=Enum.CameraType.Scriptable
+    cam.FieldOfView=90
+    fcYaw=0; fcPitch=0
+    UserInputService.MouseBehavior=Enum.MouseBehavior.LockCenter
+    UserInputService.MouseIconEnabled=false
+    fcHUD.Visible=true; cross.Visible=true
+    RunService:BindToRenderStep("FC", Enum.RenderPriority.Camera.Value, function(dt)
+        if not S.freeCam then return end
+        local d=UserInputService:GetMouseDelta()
+        fcYaw=(fcYaw - d.X * 0.3)%360
+        fcPitch=math.clamp(fcPitch - d.Y * 0.3,-89,89)
+        local cf=CFrame.new(fcPos) * CFrame.Angles(0,math.rad(fcYaw),0) * CFrame.Angles(math.rad(fcPitch),0,0)
+        local sp=S.freeCamSpeed * dt
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then sp=sp * 3 end
+        local m=Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then m+=cf.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then m-=cf.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then m-=cf.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then m+=cf.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then m+=Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then m-=Vector3.new(0,1,0) end
+        fcPos+=m*sp
+        cam.CFrame=CFrame.new(fcPos) * CFrame.Angles(0,math.rad(fcYaw),0) * CFrame.Angles(math.rad(fcPitch),0,0)
+    end)
+end
+
+local function TogFC()
+    if S.customCam then S.customCam=false; DisCC() end
+    if S.freeCam then EnFC() else DisFC() end
+end
+
+UserInputService.InputBegan:Connect(function(i,gp)
+    if gp then return end
+    if i.KeyCode==Enum.KeyCode.F and S.freeCam then S.freeCam=false; TogFC() end
+    if i.UserInputType==Enum.UserInputType.MouseButton2 then
+        rMouse=true
+        if S.customCam then UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton2 then
+        rMouse=false
+        if S.customCam then UserInputService.MouseBehavior=Enum.MouseBehavior.Default end
     end
 end)
 
@@ -1119,7 +1212,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU (MỚI CHỈNH SỬA THEO YÊU CẦU) ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1166,7 +1259,7 @@ RebuildScripts = function()
 
     for i, d in ipairs(disp) do
         local isExpanded = d.expanded or false
-        local rowH = isExpanded and 160 or 42
+        local rowH = isExpanded and 145 or 42
 
         local row = New("Frame", {
             Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(255,255,255),
@@ -1186,32 +1279,32 @@ RebuildScripts = function()
 
         -- 2. TÊN SCRIPT (CẠNH MŨI TÊN)
         local nameLbl = New("TextLabel", {
-            Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
+            Size=UDim2.new(1,-170,0,42), Position=UDim2.new(0,36,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
             Font=Enum.Font.GothamBold, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left,
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
         }, row)
 
-        -- 3. NÚT "🗑 XÓA" (ĐƯỢC CHUYỂN SANG BÊN TRÁI NÚT CHẠY)
-        local delScriptBtn = New("TextButton", {
-            Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
-            Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
-            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
-        }, row)
-        Corner(delScriptBtn, UDim.new(0,5))
-
-        -- 4. NÚT "▶ CHẠY" (ĐƯỢC CHUYỂN SANG BÊN PHẢI NGOÀI CÙNG)
+        -- 3. NÚT "▶ CHẠY" KÉO DÀI (BÊN PHẢI)
         local runScriptBtn = New("TextButton", {
-            Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
+            Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-130,0,8),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
             TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
         }, row)
         Corner(runScriptBtn, UDim.new(0,5))
 
-        -- 5. KHUNG HIỂN THỊ CODE VÀ NÚT SAO CHÉP (SỔ RA KHI BẤM MŨI TÊN)
+        -- 4. NÚT "🗑 XÓA" KÉO DÀI (BÊN PHẢI)
+        local delScriptBtn = New("TextButton", {
+            Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-64,0,8),
+            Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(delScriptBtn, UDim.new(0,5))
+
+        -- 5. KHUNG HIỂN THỊ CODE (SỔ RA KHI BẤM MŨI TÊN)
         if isExpanded then
             local codeBoxFrame = New("ScrollingFrame", {
-                Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
+                Size=UDim2.new(1,-12,0,92), Position=UDim2.new(0,6,0,44),
                 BackgroundColor3=Color3.fromRGB(240,242,250), BackgroundTransparency=0,
                 BorderSizePixel=0, ZIndex=8, ScrollBarThickness=4,
                 CanvasSize=UDim2.new(0,0,0,0),
@@ -1226,47 +1319,22 @@ RebuildScripts = function()
                 TextYAlignment=Enum.TextYAlignment.Top, MultiLine=true, TextWrapped=true,
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
             }, codeBoxFrame)
-
-            -- NÚT SAO CHÉP CODE NẰM TRONG KHUNG SỔ NÀY
-            local copyBtn = New("TextButton", {
-                Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
-                Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
-                TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
-            }, row)
-            Corner(copyBtn, UDim.new(0,5))
-
-            copyBtn.Activated:Connect(function()
-                if setclipboard then
-                    setclipboard(d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                elseif toclipboard then
-                    toclipboard(d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                else
-                    codeLbl:CaptureFocus()
-                    codeLbl.SelectionStart = 1
-                    codeLbl.CursorPosition = #d.code + 1
-                    copyBtn.Text = "⚠️ Đã Bôi Đen Code"
-                end
-                task.delay(1.5, function()
-                    if copyBtn and copyBtn.Parent then
-                        copyBtn.Text = "📋 Sao Chép Code"
-                    end
-                end)
-            end)
         end
 
+        -- SK KIỆN MŨI TÊN: MỞ RỘNG / THU GỌN
         arrowBtn.Activated:Connect(function()
             d.expanded = not d.expanded
             RebuildScripts()
         end)
 
+        -- SK KIỆN CHẠY CODE
         local idx = i
         runScriptBtn.Activated:Connect(function()
             RunCode(d.code, d.name, runScriptBtn, 1, 0)
             statusLbl.Text="⏳ Đang chạy: "..d.name
         end)
 
+        -- SK KIỆN XÓA
         delScriptBtn.Activated:Connect(function()
             table.remove(scripts, idx)
             RebuildScripts()
@@ -1306,6 +1374,7 @@ local carpBtn = Button(moveTab, "🪩 Thảm kính: TẮT", 8, my, 130, 24, C.GR
 local flyRunBtn = Button(moveTab, "🕹️ Bay chạy bộ: TẮT", 148, my, 130, 24, C.GRAY)
 my = my + 30
 
+-- ĐIỀU CHỈNH 3 CHIỀU THẢM
 Label(moveTab, "📐 Kích thước thảm kính (Rộng x Dày x Dài)", my)
 my = my + 16
 
@@ -1397,7 +1466,9 @@ local jpLbl = Label(moveTab, "Hiện tại: 50", my)
 jpLbl.Position=UDim2.new(0,72,0,my); jpLbl.Size=UDim2.new(0,120,0,14)
 jpLbl.TextColor3=C.GREEN; jpLbl.TextSize=9
 
+-- Connect controls
 flySpdIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(flySpdIn.Text); if n and n>=0 then S.flySpeed=n else flySpdIn.Text=tostring(S.flySpeed) end end)
+
 carpWIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpWIn.Text); if n and n>=0.1 then S.carpetWidth=n else carpWIn.Text=tostring(S.carpetWidth) end end)
 carpTIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpTIn.Text); if n and n>=0.05 then S.carpetThickness=n else carpTIn.Text=tostring(S.carpetThickness) end end)
 carpLIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpLIn.Text); if n and n>=0.1 then S.carpetLength=n else carpLIn.Text=tostring(S.carpetLength) end end)
@@ -1457,21 +1528,7 @@ espBtn.Activated:Connect(function()
 end)
 py = py + 30
 
-Label(playerTab, "🧊 Đóng Băng & Tác Động Người Khác", py)
-py = py + 14
-
-local freezeOthersBtn = Button(playerTab, "🥶 Đóng Băng Người Khác: TẮT", 8, py, 220, 24, C.GRAY)
-freezeOthersBtn.Activated:Connect(function()
-    S.freezeOthers = not S.freezeOthers
-    freezeOthersBtn.Text = S.freezeOthers and "🥶 Đóng Băng Người Khác: BẬT" or "🥶 Đóng Băng Người Khác: TẮT"
-    freezeOthersBtn.BackgroundColor3 = S.freezeOthers and C.BLUE or C.GRAY
-    if not S.freezeOthers then
-        UnfreezeAllPlayers()
-    end
-end)
-py = py + 30
-
-Label(playerTab, "🛡️ Treo máy & Bảo vệ Bản Thân", py)
+Label(playerTab, "🛡️ Treo máy & Hệ thống", py)
 py = py + 14
 
 local antiAfkBtn = Button(playerTab, "🛡️ Anti-AFK (Treo máy): BẬT", 8, py, 200, 24, C.GREEN)
@@ -1479,14 +1536,6 @@ antiAfkBtn.Activated:Connect(function()
     S.antiAfk = not S.antiAfk
     antiAfkBtn.Text = S.antiAfk and "🛡️ Anti-AFK (Treo máy): BẬT" or "🛡️ Anti-AFK (Treo máy): TẮT"
     antiAfkBtn.BackgroundColor3 = S.antiAfk and C.GREEN or C.GRAY
-end)
-py = py + 30
-
-local blockServerBtn = Button(playerTab, "🛡️ Anti-Kick / Khóa Chân: TẮT", 8, py, 220, 24, C.GRAY)
-blockServerBtn.Activated:Connect(function()
-    S.blockServer = not S.blockServer
-    blockServerBtn.Text = S.blockServer and "🛡️ Anti-Kick / Khóa Chân: BẬT" or "🛡️ Anti-Kick / Khóa Chân: TẮT"
-    blockServerBtn.BackgroundColor3 = S.blockServer and C.GREEN or C.GRAY
 end)
 py = py + 32
 
@@ -1612,6 +1661,278 @@ end)
 
 envTab.CanvasSize=UDim2.new(0,0,0,ey+50)
 
+-- ==================== TAB 6: CAMERA ====================
+local cy = 8
+
+Label(camTab, "📷 Camera Tùy Chỉnh (Bám nhân vật)", cy)
+cy = cy + 14
+local ccBtn = Button(camTab, "📷 Camera tùy chỉnh: TẮT", 8, cy, 200, 24, C.GRAY)
+cy = cy + 30
+
+Label(camTab, "Góc nhìn FOV (30-120)", cy)
+cy = cy + 14
+
+local fovIn = New("TextBox", {Size=UDim2.new(0,60,0,24), Position=UDim2.new(0,8,0,cy), Text="70", BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=8}, camTab)
+Corner(fovIn,UDim.new(0,5)); Stroke(fovIn)
+cy = cy + 30
+
+Label(camTab, "Độ lệch ngang (Offset X)", cy)
+cy = cy + 14
+
+local offXIn = New("TextBox", {Size=UDim2.new(0,60,0,24), Position=UDim2.new(0,8,0,cy), Text="0", BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=8}, camTab)
+Corner(offXIn,UDim.new(0,5)); Stroke(offXIn)
+cy = cy + 30
+
+Label(camTab, "Độ lệch dọc (Offset Y)", cy)
+cy = cy + 14
+
+local offYIn = New("TextBox", {Size=UDim2.new(0,60,0,24), Position=UDim2.new(0,8,0,cy), Text="0", BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=8}, camTab)
+Corner(offYIn,UDim.new(0,5)); Stroke(offYIn)
+cy = cy + 34
+
+Label(camTab, "━━━━━━━━━━━━━━━━━━━━━━", cy)
+cy = cy + 16
+
+Label(camTab, "🎥 Camera Tự Do (Xuyên tường)", cy)
+cy = cy + 14
+local fcBtn = Button(camTab, "🎥 Camera tự do: TẮT", 8, cy, 200, 24, C.GRAY)
+cy = cy + 30
+
+Label(camTab, "⚡ Tốc độ di chuyển camera", cy)
+cy = cy + 14
+
+local fcSpdIn = New("TextBox", {Size=UDim2.new(0,60,0,24), Position=UDim2.new(0,8,0,cy), Text="30", BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=8}, camTab)
+Corner(fcSpdIn,UDim.new(0,5)); Stroke(fcSpdIn)
+cy = cy + 32
+
+local helpFrame = New("Frame", {
+    Size=UDim2.new(1,-16,0,60), Position=UDim2.new(0,8,0,cy), BackgroundColor3=Color3.fromRGB(230,245,255),
+    BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
+}, camTab)
+Corner(helpFrame,UDim.new(0,6)); Stroke(helpFrame,Color3.fromRGB(100,160,220),1.2)
+New("TextLabel", {
+    Size=UDim2.new(1,-16,1,-10), Position=UDim2.new(0,8,0,5),
+    Text="📌 WASD: Di chuyển | Q/E: Lên/Xuống\n🖱 Chuột: Xoay camera | Shift: Tăng tốc\nF: Thoát camera tự do | Nhân vật đứng yên",
+    BackgroundTransparency=1, TextColor3=Color3.fromRGB(40,80,120), Font=Enum.Font.GothamMedium,
+    TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, BorderSizePixel=0, ZIndex=7,
+}, helpFrame)
+
+ccBtn.Activated:Connect(function()
+    S.customCam = not S.customCam
+    TogCC()
+    ccBtn.Text=S.customCam and "📷 Camera tùy chỉnh: BẬT" or "📷 Camera tùy chỉnh: TẮT"
+    ccBtn.BackgroundColor3=S.customCam and C.ORANGE or C.GRAY
+end)
+fcBtn.Activated:Connect(function()
+    S.freeCam = not S.freeCam
+    TogFC()
+    fcBtn.Text=S.freeCam and "🎥 Camera tự do: BẬT" or "🎥 Camera tự do: TẮT"
+    fcBtn.BackgroundColor3=S.freeCam and Color3.fromRGB(0,160,200) or C.GRAY
+end)
+fovIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(fovIn.Text); if n and n>=30 and n<=120 then S.fov=n else fovIn.Text=tostring(S.fov) end end)
+offXIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(offXIn.Text); if n then S.camOffX=n else offXIn.Text=tostring(S.camOffX) end end)
+offYIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(offYIn.Text); if n then S.camOffY=n else offYIn.Text=tostring(S.camOffY) end end)
+fcSpdIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(fcSpdIn.Text); if n and n>0 then S.freeCamSpeed=n else fcSpdIn.Text=tostring(S.freeCamSpeed) end end)
+
+camTab.CanvasSize=UDim2.new(0,0,0,cy+80)
+
+-- ==================== TAB 7: ĐỒ HỌA ====================
+local gy = 8
+
+Label(gfxTab, "📊 Chất lượng đồ họa", gy)
+gy = gy + 14
+local qualLbl = Label(gfxTab, "📊 Chất lượng: Tự động", gy)
+qualLbl.TextColor3=C.GREEN; qualLbl.TextSize=9
+gy = gy + 16
+
+local presetBtns = {
+    {n="✨ Siêu cao", c=Color3.fromRGB(180,50,50), p="Ultra"},
+    {n="🔵 Cao", c=Color3.fromRGB(50,100,180), p="High"},
+    {n="🟡 Trung", c=Color3.fromRGB(180,140,30), p="Medium"},
+    {n="🟢 Thấp", c=Color3.fromRGB(60,160,80), p="Low"},
+}
+for i,d in ipairs(presetBtns) do
+    local btn = Button(gfxTab, d.n, 8+(i-1)*72, gy, 64, 22, d.c)
+    btn.Activated:Connect(function()
+        local pr=PRESETS[d.p]
+        if not pr then return end
+        pcall(function() settings().Rendering.QualityLevel=pr.level end)
+        Lighting.ShadowSoftness=pr.shadow; Lighting.GlobalShadows=pr.shadows
+        Lighting.EnvironmentDiffuseScale=pr.diffuse; Lighting.EnvironmentSpecularScale=pr.specular
+        qualLbl.Text="📊 Chất lượng: "..pr.name
+        qualLbl.TextColor3=d.p=="Ultra" and Color3.fromRGB(220,80,80) or C.GREEN
+        S.shadows=pr.shadows
+    end)
+end
+gy = gy + 28
+
+local ulBtn = Button(gfxTab, "⚡ Siêu thấp - Tối đa FPS", 8, gy, 220, 22, Color3.fromRGB(100,60,60))
+ulBtn.Activated:Connect(function()
+    local pr=PRESETS.UltraLow
+    pcall(function() settings().Rendering.QualityLevel=pr.level end)
+    Lighting.ShadowSoftness=pr.shadow; Lighting.GlobalShadows=pr.shadows
+    Lighting.EnvironmentDiffuseScale=pr.diffuse; Lighting.EnvironmentSpecularScale=pr.specular
+    qualLbl.Text="📊 Chất lượng: "..pr.name
+    qualLbl.TextColor3=C.GREEN
+    S.shadows=pr.shadows
+end)
+
+gy = gy + 30
+Label(gfxTab, "🌑 Bóng đổ", gy)
+gy = gy + 14
+local shadowBtn = Button(gfxTab, "🌑 Bóng đổ: BẬT", 8, gy, 160, 22, C.GREEN)
+shadowBtn.Activated:Connect(function()
+    S.shadows=not S.shadows
+    Lighting.GlobalShadows=S.shadows
+    shadowBtn.Text=S.shadows and "🌑 Bóng đổ: BẬT" or "🌑 Bóng đổ: TẮT"
+    shadowBtn.BackgroundColor3=S.shadows and C.GREEN or C.GRAY
+end)
+
+gy = gy + 30
+Label(gfxTab, "✨ Hiệu ứng hậu kỳ", gy)
+gy = gy + 14
+
+local be=Lighting:FindFirstChild("HQ_Bloom") or New("BloomEffect",{Name="HQ_Bloom",Enabled=true,Intensity=0.5},Lighting)
+local ble=Lighting:FindFirstChild("HQ_Blur") or New("BlurEffect",{Name="HQ_Blur",Enabled=false,Size=12},Lighting)
+local sre=Lighting:FindFirstChild("HQ_SunRays") or New("SunRaysEffect",{Name="HQ_SunRays",Enabled=true,Intensity=0.25},Lighting)
+local cce=Lighting:FindFirstChild("HQ_ColorFix") or New("ColorCorrectionEffect",{Name="HQ_ColorFix",Enabled=false,Contrast=0.15,Saturation=0.2},Lighting)
+
+local effects = {
+    {t="🌸 Bloom: BẬT", s="bloom", e=be, on=C.GREEN, off=C.GRAY},
+    {t="🌫 Làm mờ: TẮT", s="blur", e=ble, on=C.GREEN, off=C.GRAY},
+    {t="☀ Tia nắng: BẬT", s="sunRays", e=sre, on=C.GREEN, off=C.GRAY},
+    {t="🎨 Màu sắc: TẮT", s="colorCorr", e=cce, on=C.ORANGE, off=C.GRAY},
+}
+
+for i,d in ipairs(effects) do
+    local x = i%2==1 and 8 or 148
+    local yy = gy + (i-1)//2 * 28
+    local isOn = not d.t:find("TẮT")
+    local btn = Button(gfxTab, d.t, x, yy, 130, 22, isOn and d.on or d.off)
+    btn.Activated:Connect(function()
+        S[d.s]=not S[d.s]
+        d.e.Enabled=S[d.s]
+        if S[d.s] then
+            btn.Text=btn.Text:gsub("TẮT","BẬT")
+            btn.BackgroundColor3=d.on
+        else
+            btn.Text=btn.Text:gsub("BẬT","TẮT")
+            btn.BackgroundColor3=d.off
+        end
+    end)
+end
+
+gy = gy + 60
+Label(gfxTab, "📈 Đếm FPS", gy)
+gy = gy + 14
+local fpsBtn = Button(gfxTab, "📈 Hiện FPS: TẮT", 8, gy, 160, 22, C.GRAY)
+
+local fpsLbl = New("TextLabel", {
+    Size=UDim2.new(0,90,0,22), Position=UDim2.new(0,10,1,-30), Text="",
+    BackgroundColor3=Color3.new(0,0,0), BackgroundTransparency=0.5,
+    TextColor3=Color3.fromRGB(0,255,100), Font=Enum.Font.GothamBold, TextSize=13,
+    Visible=false, BorderSizePixel=0, ZIndex=10,
+}, gui)
+Corner(fpsLbl,UDim.new(0,6))
+
+local fpsBuf={}
+fpsBtn.Activated:Connect(function()
+    S.fpsCounter=not S.fpsCounter
+    fpsLbl.Visible=S.fpsCounter
+    fpsBtn.Text=S.fpsCounter and "📈 Hiện FPS: BẬT" or "📈 Hiện FPS: TẮT"
+    fpsBtn.BackgroundColor3=S.fpsCounter and Color3.fromRGB(0,180,80) or C.GRAY
+    if S.fpsCounter then
+        RunService:BindToRenderStep("FPS", Enum.RenderPriority.Last.Value, function(dt)
+            table.insert(fpsBuf,dt)
+            if #fpsBuf>30 then table.remove(fpsBuf,1) end
+            if #fpsBuf>0 then
+                local t=0
+                for _,v in ipairs(fpsBuf) do t+=v end
+                if t>0 then
+                    local fps=math.round(#fpsBuf/t)
+                    fpsLbl.TextColor3=fps>=55 and Color3.fromRGB(0,255,100) or fps>=30 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,60,60)
+                    fpsLbl.Text="FPS: "..fps
+                end
+            end
+        end)
+    else
+        RunService:UnbindFromRenderStep("FPS")
+        fpsBuf={}
+        fpsLbl.Text=""
+    end
+end)
+
+gy = gy + 30
+Label(gfxTab, "🖼 Chất lượng hình ảnh", gy)
+gy = gy + 14
+local texHighBtn = Button(gfxTab, "🔵 Cao", 8, gy, 82, 22, Color3.fromRGB(50,100,180))
+local texLowBtn = Button(gfxTab, "🟢 Thấp", 96, gy, 82, 22, Color3.fromRGB(60,160,80))
+local texOffBtn = Button(gfxTab, "⚫ Tắt", 184, gy, 82, 22, C.GRAY)
+
+local function setTextures(mode)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Texture") or obj:IsA("Decal") then
+            obj.Transparency = mode=="Off" and 1 or 0
+        end
+    end
+end
+texHighBtn.Activated:Connect(function() setTextures("High") end)
+texLowBtn.Activated:Connect(function() setTextures("Low") end)
+texOffBtn.Activated:Connect(function() setTextures("Off") end)
+
+gy = gy + 30
+Label(gfxTab, "💨 Hiệu ứng hạt & Hình dán", gy)
+gy = gy + 14
+local partBtn = Button(gfxTab, "💨 Hạt: BẬT", 8, gy, 130, 22, C.GREEN)
+local decalBtn = Button(gfxTab, "🖼 Hình dán: BẬT", 148, gy, 130, 22, C.GREEN)
+
+local function setParticles(enabled)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+            obj.Enabled=enabled
+        end
+    end
+end
+local function setDecals(enabled)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Decal") then
+            obj.Transparency=enabled and 0 or 1
+        end
+    end
+end
+
+partBtn.Activated:Connect(function()
+    S.particles=not S.particles
+    setParticles(S.particles)
+    partBtn.Text=S.particles and "💨 Hạt: BẬT" or "💨 Hạt: TẮT"
+    partBtn.BackgroundColor3=S.particles and C.GREEN or C.GRAY
+end)
+decalBtn.Activated:Connect(function()
+    S.decals=not S.decals
+    setDecals(S.decals)
+    decalBtn.Text=S.decals and "🖼 Hình dán: BẬT" or "🖼 Hình dán: TẮT"
+    decalBtn.BackgroundColor3=S.decals and C.GREEN or C.GRAY
+end)
+
+gy = gy + 32
+local resetGfxBtn = Button(gfxTab, "🔄 Đặt lại đồ họa về mặc định", 8, gy, 240, 24, Color3.fromRGB(150,60,60))
+resetGfxBtn.Activated:Connect(function()
+    local pr=PRESETS.Ultra
+    pcall(function() settings().Rendering.QualityLevel=pr.level end)
+    Lighting.ShadowSoftness=pr.shadow; Lighting.GlobalShadows=pr.shadows
+    Lighting.EnvironmentDiffuseScale=pr.diffuse; Lighting.EnvironmentSpecularScale=pr.specular
+    TweenL(DEFAULT_LIGHTING)
+    be.Enabled=true; ble.Enabled=false; sre.Enabled=true; cce.Enabled=false
+    S.bloom=true; S.blur=false; S.sunRays=true; S.colorCorr=false
+    S.shadows=true; S.particles=true; S.decals=true
+    setParticles(true); setDecals(true); setTextures("High")
+    brightIn.Text="1.2"
+    qualLbl.Text="📊 Chất lượng: ✨ Siêu cao"
+    qualLbl.TextColor3=Color3.fromRGB(220,80,80)
+end)
+
+gfxTab.CanvasSize=UDim2.new(0,0,0,gy+40)
+
 -- ==================== TOGGLE MENU LOGIC ====================
 local function ToggleMainFrame()
     if S.flyRun then
@@ -1635,6 +1956,10 @@ UserInputService.InputBegan:Connect(function(i, gp)
     end
 end)
 
+-- MẶC ĐỊNH MỞ MENU KHI CHẠY
+main.Visible = true
+togBtn.Text = "✕"
+
 -- ==================== RESPAWN HANDLER ====================
 player.CharacterAdded:Connect(function(c)
     task.wait(0.3)
@@ -1643,10 +1968,12 @@ player.CharacterAdded:Connect(function(c)
     if S.flying then StopFly(); TogFly() end
     if S.carpet then StopCarpet(); TogCarpet() end
     if S.flyRun then TogFlyRun() end
+    if S.customCam then EnCC() end
+    if S.freeCam then EnFC() end
     if S.esp then UpdateESP() end
 end)
 
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ BANANA CAT HUB: Sửa lỗi hiển thị thành công! Menu đã được bật mặc định khi bạn thực thi code.")
+print("✅ Banana Cat Hub đã cập nhật giao diện Tab 'Code Đã Lưu' có Mũi Tên Sổ Code + Nút Chạy/Xóa Kéo Dài!")
