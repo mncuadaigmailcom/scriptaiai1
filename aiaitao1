@@ -18,12 +18,15 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Xác định Parent an toàn cho UI
+-- Xác định Parent an toàn tuyệt đối cho UI (Sửa lỗi crash do chặn bảo mật CoreGui)
 local targetGui = playerGui
 if gethui then
     targetGui = gethui()
-elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
-    targetGui = game:GetService("CoreGui")
+else
+    local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    if success and coreGui then
+        targetGui = coreGui
+    end
 end
 
 -- ==================== CONSTANTS ====================
@@ -83,38 +86,38 @@ if targetGui:FindFirstChild("ExMenu") then
 end
 
 local gui = New("ScreenGui", {
-    Name="ExMenu",
-    IgnoreGuiInset=true,
-    ResetOnSpawn=false,
-    ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+    Name = "ExMenu",
+    IgnoreGuiInset = true,
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 }, targetGui)
 
 -- Toggle Button (Nút Chuối Mở Menu)
 local togBtn = New("TextButton", {
-    Size=UDim2.new(0,48,0,48),
-    Position=UDim2.new(1,-60,1,-60),
-    Text="🍌",
-    BackgroundColor3=C.WHITE,
-    BackgroundTransparency=0.1,
-    TextColor3=C.DARK,
-    Font=Enum.Font.GothamBold,
-    TextSize=24,
-    BorderSizePixel=0,
-    ZIndex=1000,
+    Size = UDim2.new(0,48,0,48),
+    Position = UDim2.new(1,-60,1,-60),
+    Text = "🍌",
+    BackgroundColor3 = C.WHITE,
+    BackgroundTransparency = 0.1,
+    TextColor3 = C.DARK,
+    Font = Enum.Font.GothamBold,
+    TextSize = 24,
+    BorderSizePixel = 0,
+    ZIndex = 1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
 Stroke(togBtn, C.BLUE, 2)
 
 -- Main Frame
 local main = New("Frame", {
-    Size=UDim2.new(0,540,0,340),
-    Position=UDim2.new(0.5,-270,0.5,-170),
-    BackgroundColor3=Color3.fromRGB(235, 238, 245),
-    BackgroundTransparency=0.25,
-    BorderSizePixel=0,
-    Visible=false,
-    ClipsDescendants=false,
-    ZIndex=2,
+    Size = UDim2.new(0,540,0,340),
+    Position = UDim2.new(0.5,-270,0.5,-170),
+    BackgroundColor3 = Color3.fromRGB(235, 238, 245),
+    BackgroundTransparency = 0.25,
+    BorderSizePixel = 0,
+    Visible = true, -- Mặc định mở Menu khi chạy
+    ClipsDescendants = false,
+    ZIndex = 2,
 }, gui)
 Corner(main, UDim.new(0,10))
 Stroke(main, Color3.fromRGB(180,185,200), 2)
@@ -136,36 +139,36 @@ Corner(bgPattern, UDim.new(0, 10))
 
 -- Title Bar
 local titleBar = New("Frame", {
-    Size=UDim2.new(1,0,0,30),
-    BackgroundColor3=Color3.fromRGB(225,230,240),
-    BackgroundTransparency=0.2,
-    BorderSizePixel=0,
-    ZIndex=3,
+    Size = UDim2.new(1,0,0,30),
+    BackgroundColor3 = Color3.fromRGB(225,230,240),
+    BackgroundTransparency = 0.2,
+    BorderSizePixel = 0,
+    ZIndex = 3,
 }, main)
 Corner(titleBar, UDim.new(0,10))
 
 New("TextLabel", {
-    Size=UDim2.new(1,-40,1,0),
-    Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub (Caro Style)",
-    BackgroundTransparency=1,
-    TextColor3=C.DARK,
-    Font=Enum.Font.GothamBold,
-    TextSize=13,
-    TextXAlignment=Enum.TextXAlignment.Left,
-    ZIndex=4,
+    Size = UDim2.new(1,-40,1,0),
+    Position = UDim2.new(0,12,0,0),
+    Text = "🍌 Banana Cat Executor Hub (Caro Style)",
+    BackgroundTransparency = 1,
+    TextColor3 = C.DARK,
+    Font = Enum.Font.GothamBold,
+    TextSize = 13,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 4,
 }, titleBar)
 
 local closeBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-32,0,0),
-    Text="✕",
-    BackgroundTransparency=1,
-    TextColor3=Color3.fromRGB(120,120,130),
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
+    Size = UDim2.new(0,30,0,30),
+    Position = UDim2.new(1,-32,0,0),
+    Text = "✕",
+    BackgroundTransparency = 1,
+    TextColor3 = Color3.fromRGB(120,120,130),
+    Font = Enum.Font.GothamBold,
+    TextSize = 15,
+    BorderSizePixel = 0,
+    ZIndex = 4,
 }, titleBar)
 
 -- ===== DRAG MENU =====
@@ -274,6 +277,7 @@ SetupResizeHandle(handleBR, "BR")
 local tabs = {}
 local tabContent = {}
 
+-- Sửa lỗi: Gán đúng Parent của tabBar vào Frame 'main'
 local tabBar = New("ScrollingFrame", {
     Size=UDim2.new(0,105,1,-30),
     Position=UDim2.new(1,-105,0,30),
@@ -283,7 +287,7 @@ local tabBar = New("ScrollingFrame", {
     ZIndex=3,
     ScrollBarThickness=3,
     CanvasSize=UDim2.new(0,0,0,0),
-}, tabBar)
+}, main)
 
 New("UIListLayout", {
     FillDirection=Enum.FillDirection.Vertical,
@@ -359,7 +363,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (Đã loại bỏ Camera và Đồ Họa)
+-- 5 TABS (Hoàn toàn không có Đồ họa và Camera)
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -1631,10 +1635,6 @@ UserInputService.InputBegan:Connect(function(i, gp)
     end
 end)
 
--- MẶC ĐỊNH MỞ MENU KHI CHẠY
-main.Visible = true
-togBtn.Text = "✕"
-
 -- ==================== RESPAWN HANDLER ====================
 player.CharacterAdded:Connect(function(c)
     task.wait(0.3)
@@ -1649,4 +1649,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã cập nhật thành công: Đã xóa các tính năng Đồ Họa và Camera!")
+print("✅ BANANA CAT HUB: Sửa lỗi hiển thị thành công! Menu đã được bật mặc định khi bạn thực thi code.")
