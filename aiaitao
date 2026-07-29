@@ -1,9 +1,8 @@
 --[[
-    BANANA CAT EXECUTOR HUB - OPTIMIZED v3.0
-    - ĐÃ XÓA: Tab Đồ Họa & Tab Camera
-    - Giữ nguyên: Code, Code Đã Lưu, Di Chuyển, Người Chơi, Môi Trường
-    - Tất cả tính năng hoạt động bình thường
-    - Tối ưu code, giảm dung lượng
+    BANANA CAT EXECUTOR HUB - FLY WALK SYSTEM
+    - SỬA: Bay đi bộ = Thảm kính dưới chân đẩy lên khi nhấn Space
+    - Khi bật "Bay chạy bộ", tấm thảm sẽ nâng lên/hạ xuống theo phím Space/Shift
+    - Giữ nguyên tất cả tính năng khác
 --]]
 
 -- ============================================
@@ -358,7 +357,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (ĐÃ XÓA ĐỒ HỌA & CAMERA)
+-- 5 TABS
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -370,11 +369,13 @@ SwitchTab(1)
 -- ==================== STATE ====================
 local S = {
     flySpeed=50, 
-    carpetWidth=1.5, carpetThickness=0.2, carpetLength=1.5,
+    carpetWidth=8, carpetThickness=0.3, carpetLength=8,
     walkSpeed=16, jumpPower=50,
-    noClip=false, fog=false, flying=false, carpet=false, flyRun=false,
+    noClip=false, fog=false, flying=false, carpet=false, flyWalk=false,
     infJump=false, clickTp=false, esp=false, antiAfk=true, fullBright=false,
     blockServer=false, freezeOthers=false,
+    flyWalkHeight = 3, -- Khoảng cách thảm dưới chân
+    carpetY = nil,
 }
 
 local scripts = {}
@@ -507,52 +508,8 @@ local function DisNC()
     end
 end
 
--- ==================== FLY SYSTEM ====================
-local mobile = New("Frame", {
-    Size=UDim2.new(0,180,0,70), Position=UDim2.new(0,10,1,-80),
-    BackgroundTransparency=1, Visible=false, ZIndex=10,
-}, gui)
-
-local function MobBtn(t, p)
-    local b = New("TextButton", {
-        Size=UDim2.new(0,38,0,38), Position=p, Text=t,
-        BackgroundColor3=C.WHITE, BackgroundTransparency=0.3,
-        TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=18, BorderSizePixel=0, ZIndex=11,
-    }, mobile)
-    Corner(b, UDim.new(1,0))
-    Stroke(b, nil, 1.5)
-    return b
-end
-
-local upBtn = MobBtn("⏫", UDim2.new(0,8,0,8))
-local dnBtn = MobBtn("⏬", UDim2.new(0,134,0,8))
-local mInput = {up=false, down=false}
-local tMap = {}
-
-UserInputService.TouchStarted:Connect(function(i, p)
-    if p then return end
-    local pos = i.Position
-    for _, d in ipairs({{upBtn,"up"},{dnBtn,"down"}}) do
-        local b, k = d[1], d[2]
-        local ap = b.AbsolutePosition
-        local as = b.AbsoluteSize
-        if pos.X>=ap.X and pos.X<=ap.X+as.X and pos.Y>=ap.Y and pos.Y<=ap.Y+as.Y then
-            mInput[k]=true; tMap[i]=k; break
-        end
-    end
-end)
-
-UserInputService.TouchEnded:Connect(function(i)
-    if tMap[i] then mInput[tMap[i]]=false; tMap[i]=nil end
-end)
-
-local function VInput()
-    return UserInputService:IsKeyDown(Enum.KeyCode.Space) or mInput.up,
-           UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or mInput.down
-end
-
-local bv, bg, fp, cp
-local StopFlyRun, TogFlyRun
+-- ==================== FLY SYSTEM (BODYVELOCITY) ====================
+local bv, bg, fp
 
 local function StopFly()
     if bv then bv:Destroy(); bv=nil end
@@ -561,63 +518,6 @@ local function StopFly()
     local h = Hum()
     if h then h.AutoRotate=true; h.PlatformStand=false end
     RunService:UnbindFromRenderStep("Fly")
-    mobile.Visible=false
-end
-
-local function StopCarpet()
-    if cp then cp:Destroy(); cp=nil end
-    RunService:UnbindFromRenderStep("Carpet")
-    S.carpetY=nil
-end
-
-local function CreateCarpet(y)
-    local r = Root()
-    if not r then return end
-    
-    if cp then cp:Destroy() end
-
-    local w = S.carpetWidth or 1.5
-    local t = S.carpetThickness or 0.2
-    local l = S.carpetLength or 1.5
-
-    S.carpetY = y or (r.Position.Y - 3.0 - (t / 2))
-
-    cp = New("Part", {
-        Name="Carpet", 
-        Size=Vector3.new(w, t, l),
-        Transparency=0.9,
-        Color=Color3.fromRGB(200,230,255), 
-        Material=Enum.Material.SmoothPlastic,
-        Anchored=true, 
-        CanCollide=true, 
-        Friction=1,
-        Position=Vector3.new(r.Position.X, S.carpetY, r.Position.Z),
-    }, workspace)
-
-    RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
-        local curR = Root()
-        if not S.carpet or not cp or not curR then return end
-        
-        local curW = S.carpetWidth or 1.5
-        local curT = S.carpetThickness or 0.2
-        local curL = S.carpetLength or 1.5
-
-        if cp.Size.X ~= curW or cp.Size.Y ~= curT or cp.Size.Z ~= curL then
-            cp.Size = Vector3.new(curW, curT, curL)
-        end
-        
-        cp.CFrame = CFrame.new(curR.Position.X, S.carpetY, curR.Position.Z)
-
-        if S.noClip then
-            local standingY = S.carpetY + (curT / 2) + 3.0
-            if curR.Position.Y < standingY then
-                curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
-                if curR.AssemblyLinearVelocity.Y < 0 then
-                    curR.AssemblyLinearVelocity = Vector3.new(curR.AssemblyLinearVelocity.X, 0, curR.AssemblyLinearVelocity.Z)
-                end
-            end
-        end
-    end)
 end
 
 local function TogFly()
@@ -626,10 +526,14 @@ local function TogFly()
     if not r then return end
 
     if S.flying then
-        if S.carpet then StopCarpet(); S.carpet=false end
-        if S.flyRun and StopFlyRun then StopFlyRun() end
-        bv=New("BodyVelocity",{MaxForce=Vector3.new(4000,4000,4000)},r)
-        bg=New("BodyGyro",{MaxTorque=Vector3.new(4000,4000,4000)},r)
+        -- Tắt Fly Walk nếu đang bật
+        if S.flyWalk then
+            S.flyWalk = false
+            StopFlyWalk()
+        end
+        
+        bv=New("BodyVelocity",{MaxForce=Vector3.new(40000,40000,40000)},r)
+        bg=New("BodyGyro",{MaxTorque=Vector3.new(40000,40000,40000)},r)
         if h then h.AutoRotate=false; h.PlatformStand=true end
         if not fp then
             fp=New("Part",{
@@ -645,8 +549,9 @@ local function TogFly()
             local d=curH and curH.MoveDirection or Vector3.zero
             local t=curR.CFrame:VectorToWorldSpace(d)
             if t.Magnitude>0 then t=t.Unit end
-            local u,dn=VInput()
-            local vv=(u and 1 or 0)-(dn and 1 or 0)
+            local u=UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or 0
+            local dn=UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and 1 or 0
+            local vv=(u - dn)
             bv.Velocity=(t+Vector3.new(0,vv,0))*S.flySpeed
             bg.CFrame=CFrame.new(curR.Position,curR.Position+workspace.CurrentCamera.CFrame.LookVector)
             fp.Position=curR.Position-Vector3.new(0,3.5,0)
@@ -654,97 +559,105 @@ local function TogFly()
     else
         StopFly()
     end
-    mobile.Visible=S.flying and UserInputService.TouchEnabled
 end
 
-local function TogCarpet()
-    local r=Root()
-    if not r then return end
-    if S.carpet then
-        if S.flying then S.flying=false; StopFly() end
-        CreateCarpet(r.Position.Y - 3.0 - ((S.carpetThickness or 0.2) / 2))
-    else
-        StopCarpet()
+-- ==================== FLY WALK SYSTEM (THẢM KÍNH ĐẨY LÊN KHI NHẤN SPACE) ====================
+local carpetPart = nil
+local flyWalkConnection = nil
+
+local function StopFlyWalk()
+    S.flyWalk = false
+    if flyWalkConnection then
+        flyWalkConnection:Disconnect()
+        flyWalkConnection = nil
     end
+    if carpetPart then
+        carpetPart:Destroy()
+        carpetPart = nil
+    end
+    S.carpetY = nil
 end
 
--- Overlay Fly Run
-local oLay = New("Frame", {
-    Size=UDim2.new(0,180,0,160), Position=UDim2.new(1,-190,0.5,-80),
-    BackgroundTransparency=1, Visible=false, ZIndex=10,
-}, gui)
-
-local function OBtn(t,y,s,c)
-    local b = New("TextButton", {
-        Size=UDim2.new(0,s,0,s), Position=UDim2.new(0.5,-s/2,0,y), Text=t,
-        BackgroundColor3=c or C.BLUE, BackgroundTransparency=0.3, TextColor3=C.WHITE,
-        Font=Enum.Font.GothamBold, TextSize=20, BorderSizePixel=0, ZIndex=11,
-    }, oLay)
-    Corner(b, UDim.new(1,0))
-    Stroke(b, C.WHITE, 2)
-    return b
-end
-
-local togCBtn = OBtn("🪩",0,50,C.GRAY)
-local movUBtn = OBtn("⬆",60,50,Color3.fromRGB(0,150,0))
-local movDBtn = OBtn("⬇",120,50,Color3.fromRGB(150,0,0))
-
-local clsOBtn = New("TextButton", {
-    Size=UDim2.new(0,34,0,34), Position=UDim2.new(1,-44,0,10), Text="✕",
-    BackgroundColor3=C.RED, BackgroundTransparency=0.3, TextColor3=C.WHITE,
-    Font=Enum.Font.GothamBold, TextSize=18, BorderSizePixel=0, ZIndex=11,
-}, oLay)
-Corner(clsOBtn,UDim.new(1,0))
-Stroke(clsOBtn,C.WHITE,2)
-
-local function StartFlyRun()
-    local r=Root()
+local function StartFlyWalk()
+    local r = Root()
     if not r then return end
-    if S.flying then S.flying=false; StopFly() end
-    if not S.carpet then
-        S.carpet=true
-        CreateCarpet(r.Position.Y - 3.0 - ((S.carpetThickness or 0.2) / 2))
-    else
-        if not cp or not cp.Parent then
-            CreateCarpet(S.carpetY or (r.Position.Y - 3.0 - ((S.carpetThickness or 0.2) / 2)))
+    
+    -- Tắt Fly thường nếu đang bật
+    if S.flying then
+        S.flying = false
+        StopFly()
+    end
+    
+    -- Tạo thảm kính
+    if carpetPart then carpetPart:Destroy() end
+    
+    local w = S.carpetWidth or 8
+    local t = S.carpetThickness or 0.3
+    local l = S.carpetLength or 8
+    
+    -- Vị trí thảm ban đầu: dưới chân người chơi 3 studs
+    S.carpetY = r.Position.Y - S.flyWalkHeight
+    
+    carpetPart = New("Part", {
+        Name = "FlyWalkCarpet",
+        Size = Vector3.new(w, t, l),
+        Transparency = 0.7,
+        Color = Color3.fromRGB(100, 200, 255),
+        Material = Enum.Material.SmoothPlastic,
+        Anchored = true,
+        CanCollide = true,
+        Friction = 1,
+        Position = Vector3.new(r.Position.X, S.carpetY, r.Position.Z),
+    }, workspace)
+    
+    S.flyWalk = true
+    
+    -- Vòng lặp chính: Thảm bám theo người chơi và di chuyển lên/xuống
+    flyWalkConnection = RunService.RenderStepped:Connect(function()
+        local curR = Root()
+        if not S.flyWalk or not carpetPart or not curR then return end
+        
+        local w = S.carpetWidth or 8
+        local t = S.carpetThickness or 0.3
+        local l = S.carpetLength or 8
+        
+        -- Cập nhật kích thước thảm nếu thay đổi
+        if carpetPart.Size.X ~= w or carpetPart.Size.Y ~= t or carpetPart.Size.Z ~= l then
+            carpetPart.Size = Vector3.new(w, t, l)
         end
-    end
-    main.Visible=false
-    togBtn.Text="⚙"
-    oLay.Visible=true
+        
+        -- Lấy input từ bàn phím
+        local spaceHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+        local shiftHeld = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+        
+        -- Tốc độ nâng/hạ thảm (studs/giây)
+        local liftSpeed = S.flySpeed
+        
+        -- Nếu nhấn Space: NÂNG thảm lên (bay lên)
+        if spaceHeld then
+            S.carpetY = S.carpetY + liftSpeed * 0.05 -- 0.05 là deltaTime xấp xỉ
+        end
+        
+        -- Nếu nhấn Shift: HẠ thảm xuống (bay xuống)
+        if shiftHeld then
+            S.carpetY = S.carpetY - liftSpeed * 0.05
+        end
+        
+        -- Cập nhật vị trí thảm: luôn ở dưới chân người chơi theo chiều ngang
+        carpetPart.CFrame = CFrame.new(curR.Position.X, S.carpetY, curR.Position.Z)
+        
+        -- Giữ người chơi đứng trên thảm (không bị rơi xuống)
+        local standingY = S.carpetY + (t / 2) + 3.0 -- 3.0 là chiều cao từ chân đến HumanoidRootPart
+        if curR.Position.Y < standingY then
+            -- Đặt lại vị trí đứng trên thảm
+            curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
+            -- Reset vận tốc rơi
+            if curR.AssemblyLinearVelocity.Y < 0 then
+                curR.AssemblyLinearVelocity = Vector3.new(curR.AssemblyLinearVelocity.X, 0, curR.AssemblyLinearVelocity.Z)
+            end
+        end
+    end)
 end
-
-StopFlyRun = function()
-    if S.carpet then StopCarpet(); S.carpet=false end
-    oLay.Visible=false
-    S.flyRun=false
-    togBtn.Text = main.Visible and "✕" or "🍌"
-end
-
-TogFlyRun = function()
-    if S.flyRun then StartFlyRun() else StopFlyRun() end
-end
-
-clsOBtn.Activated:Connect(function() S.flyRun=false; StopFlyRun() end)
-togCBtn.Activated:Connect(function() if S.flyRun then S.carpet=not S.carpet; TogCarpet() end end)
-
-movUBtn.Activated:Connect(function()
-    if S.flyRun then 
-        if not S.carpet then S.carpet=true; TogCarpet() end
-        local r = Root()
-        local curY = S.carpetY or (r and (r.Position.Y - 3.0) or 0)
-        S.carpetY = curY + 2.5
-    end
-end)
-
-movDBtn.Activated:Connect(function()
-    if S.flyRun then 
-        if not S.carpet then S.carpet=true; TogCarpet() end
-        local r = Root()
-        local curY = S.carpetY or (r and (r.Position.Y - 3.0) or 0)
-        S.carpetY = curY - 2.5
-    end
-end)
 
 -- ==================== ESP SYSTEM ====================
 local espFolder = Instance.new("Folder")
@@ -1277,16 +1190,17 @@ local flySpdIn = New("TextBox", {
 }, moveTab)
 Corner(flySpdIn,UDim.new(0,5)); Stroke(flySpdIn)
 
-local flyBtn = Button(moveTab, "🕊️ Bay: TẮT", 72, my, 130, 24, C.GRAY)
+local flyBtn = Button(moveTab, "🕊️ Bay (BodyVelocity): TẮT", 72, my, 180, 24, C.GRAY)
 my = my + 30
 
-Label(moveTab, "🪩 Thảm kính", my)
+-- ==================== FLY WALK CONTROLS ====================
+Label(moveTab, "🚶 Bay Đi Bộ (Thảm đẩy lên khi nhấn Space)", my)
 my = my + 14
-local carpBtn = Button(moveTab, "🪩 Thảm kính: TẮT", 8, my, 130, 24, C.GRAY)
-local flyRunBtn = Button(moveTab, "🕹️ Bay chạy bộ: TẮT", 148, my, 130, 24, C.GRAY)
+
+local flyWalkBtn = Button(moveTab, "🚶 Bay Đi Bộ: TẮT", 8, my, 180, 24, C.GRAY)
 my = my + 30
 
-Label(moveTab, "📐 Kích thước thảm kính (Rộng x Dày x Dài)", my)
+Label(moveTab, "📐 Kích thước thảm (Rộng x Dày x Dài)", my)
 my = my + 16
 
 New("TextLabel", {
@@ -1333,6 +1247,21 @@ Corner(carpLIn,UDim.new(0,5)); Stroke(carpLIn)
 
 my = my + 32
 
+-- Hướng dẫn Fly Walk
+Label(moveTab, "💡 Cách dùng Bay Đi Bộ:", my)
+my = my + 14
+Label(moveTab, "  • Space = Nâng thảm lên (bay lên)", my)
+my = my + 14
+Label(moveTab, "  • Shift = Hạ thảm xuống (bay xuống)", my)
+my = my + 14
+Label(moveTab, "  • WASD = Di chuyển ngang trên thảm", my)
+my = my + 14
+Label(moveTab, "  • Thảm tự động giữ bạn không rơi", my)
+my = my + 20
+
+Label(moveTab, "━━━━━━━━━━━━━━━━━━━━━━", my)
+my = my + 16
+
 Label(moveTab, "🚪 Bổ trợ di chuyển đặc biệt", my)
 my = my + 14
 local noclipBtn = Button(moveTab, "🚶 NoClip: TẮT", 8, my, 130, 24, C.GRAY)
@@ -1377,43 +1306,65 @@ local jpLbl = Label(moveTab, "Hiện tại: 50", my)
 jpLbl.Position=UDim2.new(0,72,0,my); jpLbl.Size=UDim2.new(0,120,0,14)
 jpLbl.TextColor3=C.GREEN; jpLbl.TextSize=9
 
+-- Event handlers
 flySpdIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(flySpdIn.Text); if n and n>=0 then S.flySpeed=n else flySpdIn.Text=tostring(S.flySpeed) end end)
-carpWIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpWIn.Text); if n and n>=0.1 then S.carpetWidth=n else carpWIn.Text=tostring(S.carpetWidth) end end)
-carpTIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpTIn.Text); if n and n>=0.05 then S.carpetThickness=n else carpTIn.Text=tostring(S.carpetThickness) end end)
-carpLIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpLIn.Text); if n and n>=0.1 then S.carpetLength=n else carpLIn.Text=tostring(S.carpetLength) end end)
+carpWIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpWIn.Text); if n and n>=0.5 then S.carpetWidth=n else carpWIn.Text=tostring(S.carpetWidth) end end)
+carpTIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpTIn.Text); if n and n>=0.1 then S.carpetThickness=n else carpTIn.Text=tostring(S.carpetThickness) end end)
+carpLIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(carpLIn.Text); if n and n>=0.5 then S.carpetLength=n else carpLIn.Text=tostring(S.carpetLength) end end)
 
 wsIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(wsIn.Text); if n and n>0 then S.walkSpeed=n; UpdChar() else wsIn.Text=tostring(S.walkSpeed) end; wsLbl.Text="Hiện tại: "..S.walkSpeed end)
 jpIn.FocusLost:Connect(function(e) if not e then return end; local n=tonumber(jpIn.Text); if n and n>0 then S.jumpPower=n; UpdChar() else jpIn.Text=tostring(S.jumpPower) end; jpLbl.Text="Hiện tại: "..S.jumpPower end)
 
+-- Fly Button
 flyBtn.Activated:Connect(function()
+    if S.flyWalk then
+        -- Tắt Fly Walk trước khi bật Fly thường
+        S.flyWalk = false
+        StopFlyWalk()
+        flyWalkBtn.Text = "🚶 Bay Đi Bộ: TẮT"
+        flyWalkBtn.BackgroundColor3 = C.GRAY
+    end
+    
     S.flying = not S.flying
     TogFly()
-    flyBtn.Text=S.flying and "🕊️ Bay: BẬT" or "🕊️ Bay: TẮT"
+    flyBtn.Text=S.flying and "🕊️ Bay (BodyVelocity): BẬT" or "🕊️ Bay (BodyVelocity): TẮT"
     flyBtn.BackgroundColor3=S.flying and Color3.fromRGB(70,130,180) or C.GRAY
 end)
-carpBtn.Activated:Connect(function()
-    S.carpet = not S.carpet
-    TogCarpet()
-    carpBtn.Text=S.carpet and "🪩 Thảm kính: BẬT" or "🪩 Thảm kính: TẮT"
-    carpBtn.BackgroundColor3=S.carpet and Color3.fromRGB(160,100,200) or C.GRAY
+
+-- Fly Walk Button
+flyWalkBtn.Activated:Connect(function()
+    if S.flying then
+        -- Tắt Fly thường trước khi bật Fly Walk
+        S.flying = false
+        StopFly()
+        flyBtn.Text = "🕊️ Bay (BodyVelocity): TẮT"
+        flyBtn.BackgroundColor3 = C.GRAY
+    end
+    
+    if S.flyWalk then
+        StopFlyWalk()
+        flyWalkBtn.Text = "🚶 Bay Đi Bộ: TẮT"
+        flyWalkBtn.BackgroundColor3 = C.GRAY
+    else
+        StartFlyWalk()
+        flyWalkBtn.Text = "🚶 Bay Đi Bộ: BẬT"
+        flyWalkBtn.BackgroundColor3 = Color3.fromRGB(0,180,100)
+    end
 end)
-flyRunBtn.Activated:Connect(function()
-    S.flyRun = not S.flyRun
-    TogFlyRun()
-    flyRunBtn.Text=S.flyRun and "🕹️ Bay chạy bộ: BẬT" or "🕹️ Bay chạy bộ: TẮT"
-    flyRunBtn.BackgroundColor3=S.flyRun and C.ORANGE or C.GRAY
-end)
+
 noclipBtn.Activated:Connect(function()
     S.noClip=not S.noClip
     noclipBtn.Text=S.noClip and "🚶 NoClip: BẬT" or "🚶 NoClip: TẮT"
     noclipBtn.BackgroundColor3=S.noClip and Color3.fromRGB(0,180,100) or C.GRAY
     if S.noClip then EnNC() else DisNC() end
 end)
+
 infJumpBtn.Activated:Connect(function()
     S.infJump=not S.infJump
     infJumpBtn.Text=S.infJump and "🦘 Nhảy Vô Hạn: BẬT" or "🦘 Nhảy Vô Hạn: TẮT"
     infJumpBtn.BackgroundColor3=S.infJump and C.GREEN or C.GRAY
 end)
+
 clickTpBtn.Activated:Connect(function()
     S.clickTp=not S.clickTp
     clickTpBtn.Text=S.clickTp and "🎯 Click TP (Ctrl+Click): BẬT" or "🎯 Click TP (Ctrl+Click): TẮT"
@@ -1594,10 +1545,6 @@ envTab.CanvasSize=UDim2.new(0,0,0,ey+50)
 
 -- ==================== TOGGLE MENU LOGIC ====================
 local function ToggleMainFrame()
-    if S.flyRun then
-        S.flyRun = false
-        if StopFlyRun then StopFlyRun() end
-    end
     main.Visible = not main.Visible
     togBtn.Text = main.Visible and "✕" or "🍌"
 end
@@ -1625,8 +1572,7 @@ player.CharacterAdded:Connect(function(c)
     UpdChar()
     if S.noClip then EnNC() end
     if S.flying then StopFly(); TogFly() end
-    if S.carpet then StopCarpet(); TogCarpet() end
-    if S.flyRun then TogFlyRun() end
+    if S.flyWalk then StopFlyWalk(); StartFlyWalk() end
     if S.esp then UpdateESP() end
 end)
 
@@ -1635,3 +1581,4 @@ if S.noClip then EnNC() end
 
 print("✅ Banana Cat Executor Hub đã tải thành công!")
 print("📋 Tabs: Code | Code Đã Lưu | Di Chuyển | Người Chơi | Môi Trường")
+print("🚶 Bay Đi Bộ: Space = Nâng thảm | Shift = Hạ thảm | WASD = Di chuyển")
