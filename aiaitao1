@@ -1,3205 +1,445 @@
--- ============================================================
--- 🍌 BANANA CAT ULTIMATE HUB v3.0
--- Tổng hợp & Nâng cấp toàn diện từ 2 bản script gốc
--- Tính năng: Fly, ESP, NoClip, Camera, Môi Trường, Đồ Họa,
---            Code Executor, Wall Creator, Teleport, Anti-Cheat,
---            Freeze Others, Server Hop, Glow, Height Visual,
---            Location Saver, Player Tracker, và nhiều hơn nữa
--- ============================================================
+local ScreenGui = Instance.new("ScreenGui")
+local ImageButton = Instance.new("ImageButton")
+local UICorner = Instance.new("UICorner")
 
--- ==================== SERVICES ====================
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local VirtualUser = game:GetService("VirtualUser")
-local CoreGui = game:GetService("CoreGui")
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Đảm bảo game load xong
-if not game:IsLoaded() then game.Loaded:Wait() end
+ImageButton.Parent = ScreenGui
+ImageButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ImageButton.BorderSizePixel = 0
+ImageButton.Position = UDim2.new(0.10615778, 0, 0.16217947, 0)
+ImageButton.Size = UDim2.new(0, 40, 0, 40)
+ImageButton.Draggable = true
+ImageButton.Image = "http://www.roblox.com/asset/?id=101299344665163"
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+UICorner.CornerRadius = UDim.new(1, 10)
+UICorner.Parent = ImageButton
 
-print("🍌 Banana Cat Ultimate Hub đang khởi động...")
-print("👤 Người chơi:", player.Name)
+-- Tải Fluent và tạo Window
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "banana hub USB tong hop quocdungskibidi",
+    SubTitle = "Blox Fruits",
+    TabWidth = 157,
+    Size = UDim2.fromOffset(450, 300),
+    Acrylic = true,
+    Theme = "Yellow",
+    MinimizeKey = Enum.KeyCode.End
+})
 
--- ==================== GUI PARENT ====================
-local targetGui = playerGui
-pcall(function()
-    if gethui then
-        targetGui = gethui()
-    else
-        targetGui = CoreGui
-    end
+-- Biến kiểm soát hiển thị menu
+local menuVisible = true
+
+-- Xử lý sự kiện click nút để ẩn/hiện menu
+ImageButton.MouseButton1Down:Connect(function()
+    menuVisible = not menuVisible
+    ScreenGui.Enabled = menuVisible
 end)
 
--- ==================== CONSTANTS ====================
-local C = {
-    WHITE   = Color3.fromRGB(255, 255, 255),
-    DARK    = Color3.fromRGB(30,  30,  35),
-    GRAY    = Color3.fromRGB(110, 115, 125),
-    GREEN   = Color3.fromRGB(0,   170, 90),
-    BLUE    = Color3.fromRGB(0,   130, 220),
-    RED     = Color3.fromRGB(220, 60,  60),
-    YELLOW  = Color3.fromRGB(255, 200, 0),
-    PURPLE  = Color3.fromRGB(130, 60,  200),
-    ORANGE  = Color3.fromRGB(220, 130, 50),
-    CYAN    = Color3.fromRGB(0,   200, 220),
-    PINK    = Color3.fromRGB(220, 80,  160),
-    BG      = Color3.fromRGB(240, 242, 248),
-    PANEL   = Color3.fromRGB(228, 232, 242),
-    STRIPE1 = Color3.fromRGB(255, 255, 255),
-    STRIPE2 = Color3.fromRGB(215, 220, 230),
-    TITLE   = Color3.fromRGB(215, 220, 230),
-    TEXT    = Color3.fromRGB(15,  15,  25),
+-- Tạo các Tab
+local Tabs = {
+    Main0 = Window:AddTab({ Title = "Thong Tin" }),
+    Main1 = Window:AddTab({ Title = "Script banana free" }),
+    Main2 = Window:AddTab({ Title = "script phu" }),
+    Main3 = Window:AddTab({ Title = "script hop" }),
+    Main4 = Window:AddTab({ Title = "skibidi" }),
 }
 
-local DEFAULT_LIGHTING = {
-    ClockTime = 14, Brightness = 1.2,
-    OutdoorAmbient = Color3.fromRGB(180, 180, 180),
-    Ambient = Color3.fromRGB(128, 128, 128),
-    FogEnd = 100000, FogStart = 0,
-    FogColor = Color3.new(1,1,1),
-    GlobalShadows = true,
-    EnvironmentDiffuseScale = 1,
-    EnvironmentSpecularScale = 1,
-    ShadowSoftness = 0.5,
-}
-
-local GFX_PRESETS = {
-    Ultra    = {level=21, shadow=0.2, diffuse=1,   specular=1,   shadows=true,  name="✨ Siêu cao"},
-    High     = {level=17, shadow=0.5, diffuse=1,   specular=1,   shadows=true,  name="🔵 Cao"},
-    Medium   = {level=10, shadow=1,   diffuse=0.8, specular=0.6, shadows=true,  name="🟡 Trung"},
-    Low      = {level=5,  shadow=1,   diffuse=0.5, specular=0.3, shadows=false, name="🟢 Thấp"},
-    UltraLow = {level=1,  shadow=1,   diffuse=0,   specular=0,   shadows=false, name="⚡ Siêu thấp"},
-}
-
--- ==================== STATE TABLE ====================
-local S = {
-    -- Di chuyển
-    flySpeed=80, walkSpeed=16, jumpPower=50,
-    carpetWidth=1.5, carpetThickness=0.2, carpetLength=1.5,
-    flyHeight=150,
-
-    -- Trạng thái
-    noClip=false, flying=false, carpet=false, flyRun=false,
-    infJump=false, clickTp=false, antiAfk=true,
-    blockServer=false, freezeOthers=false,
-    glowActive=false, glowRange=50,
-    showHeightVisual=false,
-    antiNoclip=false,
-
-    -- Camera
-    customCam=false, fov=70, camOffX=0, camOffY=0,
-    freeCam=false, freeCamSpeed=30,
-
-    -- ESP
-    espAll=false, espSingle=false,
-    locEspAll=false, locEspSingle=false,
-    wallEspAll=false, wallEspSingle=false,
-
-    -- Môi trường
-    fog=false, fullBright=false,
-
-    -- Đồ họa
-    shadows=true, bloom=true, blur=false,
-    sunRays=true, colorCorr=false,
-    fpsCounter=false, particles=true, decals=true,
-
-    -- Server
-    carpetY=nil,
-}
-
--- ==================== RUNTIME VARIABLES ====================
-local savedLocations = {}
-local spawnedWalls   = {}
-local wallCounter    = 0
-local scripts        = {}
-local totalRuns      = 0
-local cancelled      = false
-local curThread      = nil
-
-local selectedPlayer   = nil
-local selectedLocation = nil
-local selectedWall     = nil
-
-local isFlying       = false
-local stopRequested  = false
-local currentTween   = nil
-local noclipConn     = nil
-local antiNoclipConn = nil
-local followActive   = false
-local followThread   = nil
-
-local espStorage     = {}
-local locEspStorage  = {}
-local wallEspStorage = {}
-local downedTime     = {}
-local activeESPs     = {}
-
-local glowLight      = nil
-local heightPillar   = nil
-local heightConn     = nil
-
--- Fly internals
-local bv, bg, fp, cp = nil, nil, nil, nil
-
--- Camera internals
-local ccX, ccY   = 0, 10
-local rMouse     = false
-local fcPos      = Vector3.new(0,10,0)
-local fcYaw, fcPitch = 0, 0
-
--- ==================== UI HELPERS ====================
-local function New(cls, props, parent)
-    local obj = Instance.new(cls)
-    for k,v in pairs(props or {}) do
-        pcall(function() obj[k] = v end)
+-- Tab Thông Tin
+Tabs.Main0:AddButton({
+    Title = "Discord",
+    Description = "banana hub contruy",
+    Callback = function()
+        setclipboard("https://discord.gg/chuoihub")
     end
-    if parent then obj.Parent = parent end
-    return obj
-end
+})
 
-local function Corner(p, r)
-    return New("UICorner", {CornerRadius = r or UDim.new(0,8)}, p)
-end
-
-local function Stroke(p, c, t)
-    return New("UIStroke", {
-        Color = c or Color3.fromRGB(170,175,190),
-        Thickness = t or 1.2
-    }, p)
-end
-
-local function Pad(p, top, bot, left, right)
-    return New("UIPadding", {
-        PaddingTop    = UDim.new(0, top   or 4),
-        PaddingBottom = UDim.new(0, bot   or 4),
-        PaddingLeft   = UDim.new(0, left  or 6),
-        PaddingRight  = UDim.new(0, right or 6),
-    }, p)
-end
-
-local function Tween(o, p, d, e)
-    TweenService:Create(o, TweenInfo.new(d or 0.3,
-        e or Enum.EasingStyle.Quad), p):Play()
-end
-
-local function TweenL(p, d)
-    TweenService:Create(Lighting, TweenInfo.new(d or 1.5,
-        Enum.EasingStyle.Quad), p):Play()
-end
-
-local function Label(parent, text, x, y, w, h, size, color, align)
-    return New("TextLabel", {
-        Size = UDim2.new(0, w or 200, 0, h or 14),
-        Position = UDim2.new(0, x or 8, 0, y or 0),
-        Text = text,
-        BackgroundTransparency = 1,
-        TextColor3 = color or C.TEXT,
-        Font = Enum.Font.GothamBold,
-        TextSize = size or 10,
-        TextXAlignment = align or Enum.TextXAlignment.Left,
-        ZIndex = 6,
-    }, parent)
-end
-
-local function Button(parent, text, x, y, w, h, color, textSize)
-    local btn = New("TextButton", {
-        Size = UDim2.new(0, w or 100, 0, h or 26),
-        Position = UDim2.new(0, x or 8, 0, y or 0),
-        Text = text,
-        BackgroundColor3 = color or C.GRAY,
-        BackgroundTransparency = 0.15,
-        TextColor3 = C.WHITE,
-        Font = Enum.Font.GothamBold,
-        TextSize = textSize or 10,
-        BorderSizePixel = 0,
-        ZIndex = 6,
-    }, parent)
-    Corner(btn, UDim.new(0,6))
-    btn.MouseEnter:Connect(function()
-        Tween(btn, {BackgroundTransparency=0}, 0.15)
-    end)
-    btn.MouseLeave:Connect(function()
-        Tween(btn, {BackgroundTransparency=0.15}, 0.15)
-    end)
-    return btn
-end
-
-local function TextInput(parent, placeholder, x, y, w, h)
-    local box = New("TextBox", {
-        Size = UDim2.new(0, w or 120, 0, h or 24),
-        Position = UDim2.new(0, x or 8, 0, y or 0),
-        PlaceholderText = placeholder or "",
-        PlaceholderColor3 = Color3.fromRGB(150,150,160),
-        Text = "",
-        BackgroundColor3 = C.WHITE,
-        BackgroundTransparency = 0.1,
-        TextColor3 = C.DARK,
-        Font = Enum.Font.GothamMedium,
-        TextSize = 11,
-        BorderSizePixel = 0,
-        ClearTextOnFocus = false,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 8,
-    }, parent)
-    Corner(box, UDim.new(0,5))
-    Stroke(box, Color3.fromRGB(160,165,185), 1.2)
-    Pad(box, 0, 0, 6, 6)
-    return box
-end
-
-local function Toggle(parent, text, x, y, w, h, onColor, offColor)
-    local state = false
-    local btn = New("TextButton", {
-        Size = UDim2.new(0, w or 200, 0, h or 26),
-        Position = UDim2.new(0, x or 8, 0, y or 0),
-        Text = text .. ": TẮT",
-        BackgroundColor3 = offColor or C.GRAY,
-        BackgroundTransparency = 0.15,
-        TextColor3 = C.WHITE,
-        Font = Enum.Font.GothamBold,
-        TextSize = 10,
-        BorderSizePixel = 0,
-        ZIndex = 6,
-    }, parent)
-    Corner(btn, UDim.new(0,6))
-
-    local function update()
-        btn.Text = text .. (state and ": BẬT" or ": TẮT")
-        btn.BackgroundColor3 = state and (onColor or C.GREEN) or (offColor or C.GRAY)
+-- Tab Script Banana Free
+Tabs.Main1:AddButton({
+    Title = "banana hub version 1",
+    Description = "",
+    Callback = function()
+        local Settings = {
+            JoinTeam = "Pirates",
+            Translator = true,
+        }
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/kimprobloxdz/Banana-Free/refs/heads/main/Protected_5609200582002947.lua.txt"))()
     end
+})
 
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        update()
-    end)
-
-    btn.MouseEnter:Connect(function() Tween(btn, {BackgroundTransparency=0}, 0.15) end)
-    btn.MouseLeave:Connect(function() Tween(btn, {BackgroundTransparency=0.15}, 0.15) end)
-
-    return btn, function() return state end, function(v)
-        state = v; update()
+Tabs.Main1:AddButton({
+    Title = "bananahub version 2",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/kaitofixlag-hub/Scriptkaito/refs/heads/main/bananahubkaito.txt"))()
     end
-end
+})
 
-local function Divider(parent, y)
-    local f = New("Frame", {
-        Size = UDim2.new(1, -16, 0, 1),
-        Position = UDim2.new(0, 8, 0, y or 0),
-        BackgroundColor3 = Color3.fromRGB(200,205,215),
-        BackgroundTransparency = 0.3,
-        BorderSizePixel = 0,
-        ZIndex = 6,
-    }, parent)
-    return f
-end
-
-local function SectionLabel(parent, text, y)
-    local f = New("Frame", {
-        Size = UDim2.new(1,-16,0,22),
-        Position = UDim2.new(0,8,0,y or 0),
-        BackgroundColor3 = Color3.fromRGB(210,215,228),
-        BackgroundTransparency = 0.3,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, parent)
-    Corner(f, UDim.new(0,5))
-    New("TextLabel", {
-        Size = UDim2.new(1,-8,1,0),
-        Position = UDim2.new(0,8,0,0),
-        Text = text,
-        BackgroundTransparency = 1,
-        TextColor3 = C.BLUE,
-        Font = Enum.Font.GothamBold,
-        TextSize = 10,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
-    }, f)
-    return f
-end
-
--- ==================== CHAR HELPERS ====================
-local function GetChar() return player.Character end
-local function Hum()
-    local c = GetChar()
-    return c and c:FindFirstChildOfClass("Humanoid")
-end
-local function Root()
-    local c = GetChar()
-    return c and c:FindFirstChild("HumanoidRootPart")
-end
-local function UpdChar()
-    local h = Hum()
-    if h then
-        h.WalkSpeed = S.walkSpeed
-        h.JumpPower = S.jumpPower
+Tabs.Main1:AddButton({
+    Title = "bananahub version 3",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/trongnguyenhubbloxfruit/TrongNguyenHub_Banana/refs/heads/main/BananaHubFreeBF.lua"))()
     end
-end
-local function GetTargetPart(plr)
-    if not plr or not plr.Character then return nil end
-    local c = plr.Character
-    return c:FindFirstChild("HumanoidRootPart")
-        or c:FindFirstChild("UpperTorso")
-        or c:FindFirstChild("Torso")
-        or c:FindFirstChild("Head")
-        or c.PrimaryPart
-        or c:FindFirstChildOfClass("BasePart")
-end
-local function IsDeadOrKnocked(plr)
-    if not plr or not plr.Character then return true end
-    local c = plr.Character
-    local h = c:FindFirstChildOfClass("Humanoid")
-    if not GetTargetPart(plr) then return true end
-    if h and h.Health <= 0 then return true end
-    if c:FindFirstChild("Knocked") or c:FindFirstChild("Downed")
-    or c:FindFirstChild("Ragdoll") or c:FindFirstChild("Dead") then
-        return true
-    end
-    pcall(function()
-        if plr.DataFolder.Information.IsKnocked.Value then return true end
-    end)
-    return false
-end
+})
 
--- ==================== NOCLIP SYSTEM ====================
-local function EnableNoclip()
-    if noclipConn then noclipConn:Disconnect() end
-    noclipConn = RunService.Stepped:Connect(function()
-        if not S.noClip and not isFlying and not followActive then return end
-        local c = GetChar()
-        if c then
-            for _, p in ipairs(c:GetDescendants()) do
-                if p:IsA("BasePart") then p.CanCollide = false end
-            end
-        end
-    end)
-end
-
-local function DisableNoclip()
-    if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-    local c = GetChar()
-    if c then
-        for _, p in ipairs(c:GetDescendants()) do
-            if p:IsA("BasePart") then
-                p.CanCollide = (p.Name ~= "HumanoidRootPart")
-            end
-        end
-    end
-end
-
-local function ApplyAntiNoclip()
-    if antiNoclipConn then antiNoclipConn:Disconnect(); antiNoclipConn = nil end
-    if not S.antiNoclip then return end
-    antiNoclipConn = RunService.Stepped:Connect(function()
-        local c = GetChar()
-        if c then
-            for _, p in ipairs(c:GetDescendants()) do
-                if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-                    p.CanCollide = true
-                end
-            end
-        end
-    end)
-end
-
-local function UpdateNoclipState()
-    if S.antiNoclip then
-        if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-        ApplyAntiNoclip()
-    else
-        if antiNoclipConn then antiNoclipConn:Disconnect(); antiNoclipConn = nil end
-        if S.noClip or isFlying or followActive then
-            EnableNoclip()
-        else
-            DisableNoclip()
-        end
-    end
-end
-
--- ==================== TWEEN FLY BASE ====================
-local function TweenToTarget(hrp, targetCF, speed)
-    if stopRequested then return false end
-    local dist = (targetCF.Position - hrp.Position).Magnitude
-    local dur  = math.max(dist / math.max(speed, 1), 0.1)
-    currentTween = TweenService:Create(hrp,
-        TweenInfo.new(dur, Enum.EasingStyle.Linear),
-        {CFrame = targetCF})
-    currentTween:Play()
-    local done = false
-    local conn
-    conn = currentTween.Completed:Connect(function() done = true end)
-    while not done do
-        if stopRequested then
-            currentTween:Cancel()
-            conn:Disconnect()
-            return false
-        end
-        task.wait()
-    end
-    conn:Disconnect()
-    return true
-end
-
--- ==================== TELEPORT FLY (3 BƯỚC) ====================
-local function StopTweenFly()
-    stopRequested = true
-    if currentTween then currentTween:Cancel() end
-    isFlying = false
-    workspace.Gravity = 196.2
-    UpdateNoclipState()
-end
-
-local function StartTweenFly(mode, targetObj)
-    if isFlying then return end
-    if followActive then
-        followActive = false
-        stopRequested = true
-    end
-
-    local getCF = nil
-    if mode == "Player" then
-        if not targetObj then return end
-        selectedPlayer = targetObj
-        getCF = function()
-            local p = GetTargetPart(targetObj)
-            return p and p.CFrame
-        end
-    elseif mode == "Location" then
-        if not targetObj then return end
-        selectedLocation = targetObj
-        getCF = function() return CFrame.new(targetObj.pos) end
-    elseif mode == "Wall" then
-        if not targetObj or not targetObj.part or not targetObj.part.Parent then return end
-        selectedWall = targetObj
-        getCF = function()
-            if targetObj.part and targetObj.part.Parent then
-                local wp = targetObj.part
-                return CFrame.new(wp.Position + Vector3.new(0, wp.Size.Y/2 + 2.5, 0))
-            end
-        end
-    end
-
-    local initCF = getCF and getCF()
-    if not initCF then return end
-
-    local char = GetChar()
-    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local speed  = tonumber(S.flySpeed) or 80
-    local height = tonumber(S.flyHeight) or 150
-
-    isFlying = true
-    stopRequested = false
-    UpdateNoclipState()
-    local oldGrav = workspace.Gravity
-    workspace.Gravity = 0
-
-    local startPos = hrp.Position
-    local skyPos   = Vector3.new(startPos.X, startPos.Y + height, startPos.Z)
-    local look     = hrp.CFrame.LookVector
-
-    local ok1 = TweenToTarget(hrp, CFrame.new(skyPos, skyPos + look), speed)
-    if ok1 and not stopRequested then
-        local liveCF = getCF()
-        if liveCF then
-            local dest     = liveCF.Position
-            local overhead = Vector3.new(dest.X, skyPos.Y, dest.Z)
-            local hDir     = (overhead - skyPos).Magnitude > 0.1
-                and (overhead - skyPos).Unit or look
-            local ok2 = TweenToTarget(hrp, CFrame.new(overhead, overhead + hDir), speed)
-            if ok2 and not stopRequested then
-                liveCF = getCF()
-                if liveCF then
-                    local finalCF = (mode == "Player")
-                        and (liveCF * CFrame.new(0,0,2))
-                        or liveCF
-                    TweenToTarget(hrp, finalCF, speed)
-                end
-            end
-        end
-    end
-
-    workspace.Gravity = oldGrav
-    isFlying = false
-    UpdateNoclipState()
-end
-
--- ==================== FOLLOW SYSTEM ====================
-local function StopFollow()
-    followActive = false
-    stopRequested = true
-    if currentTween then currentTween:Cancel() end
-    workspace.Gravity = 196.2
-    UpdateNoclipState()
-end
-
-local function StartFollow()
-    if not selectedPlayer or not selectedPlayer.Character then return end
-    if isFlying then StopTweenFly() end
-    followActive = true
-    stopRequested = false
-    UpdateNoclipState()
-
-    task.spawn(function()
-        local oldGrav = workspace.Gravity
-        workspace.Gravity = 0
-        local arrived = false
-
-        while followActive and not stopRequested
-              and selectedPlayer and selectedPlayer.Character do
-            local myHRP = Root()
-            local tgt   = GetTargetPart(selectedPlayer)
-            if not myHRP or not tgt then break end
-
-            local speed  = tonumber(S.flySpeed) or 80
-            local height = tonumber(S.flyHeight) or 150
-            local tgtCF  = tgt.CFrame * CFrame.new(0,0,2)
-
-            if not arrived then
-                local sp     = myHRP.Position
-                local skyP   = Vector3.new(sp.X, sp.Y + height, sp.Z)
-                local look   = myHRP.CFrame.LookVector
-                local ok1 = TweenToTarget(myHRP, CFrame.new(skyP, skyP + look), speed)
-                if not ok1 or not followActive then break end
-                tgt = GetTargetPart(selectedPlayer)
-                if not tgt then break end
-                local dest = tgt.Position
-                local ov   = Vector3.new(dest.X, skyP.Y, dest.Z)
-                local ok2 = TweenToTarget(myHRP, CFrame.new(ov, ov + (dest-sp).Unit), speed)
-                if not ok2 or not followActive then break end
-                tgt = GetTargetPart(selectedPlayer)
-                if not tgt then break end
-                local ok3 = TweenToTarget(myHRP, tgt.CFrame * CFrame.new(0,0,2), speed)
-                if not ok3 or not followActive then break end
-                arrived = true
-            else
-                if (myHRP.Position - tgtCF.Position).Magnitude > 2 then
-                    local ok = TweenToTarget(myHRP, tgtCF, speed)
-                    if not ok or not followActive then break end
-                end
-            end
-            task.wait(0.05)
-        end
-
-        workspace.Gravity = oldGrav
-        followActive = false
-        UpdateNoclipState()
-    end)
-end
-
--- ==================== FLY (PHYSICS) ====================
-local function StopPhysFly()
-    if bv  then bv:Destroy();  bv  = nil end
-    if bg  then bg:Destroy();  bg  = nil end
-    if fp  then fp:Destroy();  fp  = nil end
-    RunService:UnbindFromRenderStep("PhysFly")
-    local h = Hum()
-    if h then h.AutoRotate = true; h.PlatformStand = false end
-end
-
-local function VInput()
-    return UserInputService:IsKeyDown(Enum.KeyCode.Space),
-           UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-end
-
-local function StartPhysFly()
-    local r = Root(); local h = Hum()
-    if not r then return end
-    bv = New("BodyVelocity", {MaxForce=Vector3.new(4e4,4e4,4e4), Velocity=Vector3.zero}, r)
-    bg = New("BodyGyro",     {MaxTorque=Vector3.new(4e4,4e4,4e4), CFrame=r.CFrame}, r)
-    fp = New("Part", {
-        Name="PhysFloor", Size=Vector3.new(6,0.2,6),
-        Transparency=0.8, Color=Color3.fromRGB(200,230,255),
-        Material=Enum.Material.Glass, Anchored=true, CanCollide=false,
-    }, workspace)
-    if h then h.AutoRotate = false; h.PlatformStand = true end
-
-    RunService:BindToRenderStep("PhysFly", 1, function()
-        local curR = Root(); local curH = Hum()
-        if not S.flying or not curR or not bv then return end
-        local d = curH and curH.MoveDirection or Vector3.zero
-        local t = curR.CFrame:VectorToWorldSpace(d)
-        if t.Magnitude > 0 then t = t.Unit end
-        local up, dn = VInput()
-        local vv = (up and 1 or 0) - (dn and 1 or 0)
-        bv.Velocity = (t + Vector3.new(0, vv, 0)) * S.flySpeed
-        bg.CFrame   = CFrame.new(curR.Position,
-            curR.Position + workspace.CurrentCamera.CFrame.LookVector)
-        if fp then fp.Position = curR.Position - Vector3.new(0,3.5,0) end
-    end)
-end
-
--- ==================== CARPET SYSTEM ====================
-local function StopCarpet()
-    if cp then cp:Destroy(); cp = nil end
-    RunService:UnbindFromRenderStep("Carpet")
-    S.carpetY = nil
-end
-
-local function CreateCarpet(y)
-    local r = Root(); if not r then return end
-    if cp then cp:Destroy(); cp = nil end
-    local w = S.carpetWidth or 1.5
-    local t = S.carpetThickness or 0.2
-    local l = S.carpetLength or 1.5
-    S.carpetY = y or (r.Position.Y - 3.0 - t/2)
-    cp = New("Part", {
-        Name="BananaCarpet", Size=Vector3.new(w,t,l),
-        Transparency=0.85, Color=Color3.fromRGB(150,200,255),
-        Material=Enum.Material.SmoothPlastic,
-        Anchored=true, CanCollide=true, Friction=1,
-        Position=Vector3.new(r.Position.X, S.carpetY, r.Position.Z),
-    }, workspace)
-    RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value-1, function()
-        local curR = Root()
-        if not S.carpet or not cp or not curR then return end
-        local cw = S.carpetWidth or 1.5
-        local ct = S.carpetThickness or 0.2
-        local cl = S.carpetLength or 1.5
-        if cp.Size.X ~= cw or cp.Size.Y ~= ct or cp.Size.Z ~= cl then
-            cp.Size = Vector3.new(cw,ct,cl)
-        end
-        cp.CFrame = CFrame.new(curR.Position.X, S.carpetY, curR.Position.Z)
-        if S.noClip then
-            local standY = S.carpetY + ct/2 + 3.0
-            if curR.Position.Y < standY then
-                curR.CFrame = CFrame.new(curR.Position.X, standY, curR.Position.Z)
-                if curR.AssemblyLinearVelocity.Y < 0 then
-                    curR.AssemblyLinearVelocity = Vector3.new(
-                        curR.AssemblyLinearVelocity.X, 0,
-                        curR.AssemblyLinearVelocity.Z)
-                end
-            end
-        end
-    end)
-end
-
--- ==================== WALL CREATOR ====================
-local function SpawnWall(name, sizeX, sizeY, sizeZ, trans, canCollide)
-    local r = Root(); if not r then return end
-    wallCounter = wallCounter + 1
-    local wname = (name and name ~= "") and name or ("Tường kính #"..wallCounter)
-    local w = New("Part", {
-        Name = "BananaWall_"..wallCounter,
-        Size = Vector3.new(
-            math.clamp(sizeX or 15, 0.5, 500),
-            math.clamp(sizeY or 10, 0.5, 500),
-            math.clamp(sizeZ or  1, 0.1, 100)
-        ),
-        CFrame = r.CFrame * CFrame.new(0, (sizeY or 10)/2 - 3, -((sizeZ or 1)/2 + 4)),
-        Anchored = true,
-        CanCollide = (canCollide == nil) and true or canCollide,
-        Material = Enum.Material.SmoothPlastic,
-        Transparency = math.clamp(trans or 0.5, 0, 1),
-        Color = Color3.fromRGB(0,170,255),
-    }, workspace)
-    local item = {id=wallCounter, name=wname, part=w}
-    table.insert(spawnedWalls, item)
-    return item
-end
-
--- ==================== GLOW SYSTEM ====================
-local function UpdateGlow()
-    local c = GetChar()
-    if not S.glowActive or not c then
-        if glowLight then glowLight:Destroy(); glowLight = nil end
-        return
-    end
-    local hrp = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Head")
-    if hrp then
-        if not glowLight or glowLight.Parent ~= hrp then
-            if glowLight then glowLight:Destroy() end
-            glowLight = New("PointLight", {
-                Name="BananaGlow", Color=Color3.fromRGB(255,245,200),
-                Brightness=1.5, Shadows=false,
-                Range=math.clamp(S.glowRange, 5, 300),
-            }, hrp)
-        else
-            glowLight.Range = math.clamp(S.glowRange, 5, 300)
-        end
-    end
-end
-
--- ==================== HEIGHT VISUAL ====================
-local function UpdateHeightVisual()
-    if not S.showHeightVisual then
-        if heightPillar then heightPillar:Destroy(); heightPillar = nil end
-        if heightConn then heightConn:Disconnect(); heightConn = nil end
-        return
-    end
-    if not heightPillar then
-        heightPillar = New("Part", {
-            Name="FlyHeightPillar",
-            Shape=Enum.PartType.Cylinder,
-            Material=Enum.Material.SmoothPlastic,
-            Color=Color3.fromRGB(100,200,255),
-            Transparency=0.45,
-            Anchored=true, CanCollide=false,
-        }, workspace)
-    end
-    if heightConn then heightConn:Disconnect() end
-    heightConn = RunService.RenderStepped:Connect(function()
-        local c = GetChar()
-        if c and c:FindFirstChild("HumanoidRootPart") and heightPillar then
-            local h  = S.flyHeight or 150
-            local hr = c.HumanoidRootPart
-            heightPillar.Size  = Vector3.new(h,1.5,1.5)
-            heightPillar.CFrame= CFrame.new(hr.Position + Vector3.new(0,h/2,0))
-                * CFrame.Angles(0,0,math.rad(90))
-        end
-    end)
-end
-
--- ==================== ESP SYSTEMS ====================
--- Player ESP
-local function CreatePlayerESP(plr)
-    if espStorage[plr] or plr == player then return end
-    local pChar = plr.Character
-    if not pChar then return end
-    local rPart = pChar:FindFirstChild("HumanoidRootPart")
-    local head  = pChar:FindFirstChild("Head") or rPart
-    if not rPart then return end
-
-    local hl = Instance.new("Highlight")
-    hl.Name             = plr.Name.."_HL"
-    hl.Adornee          = pChar
-    hl.FillColor        = Color3.fromRGB(255,50,50)
-    hl.FillTransparency = 0.55
-    hl.OutlineColor     = Color3.fromRGB(255,255,255)
-    hl.OutlineTransparency = 0
-    hl.Parent = game:GetService("CoreGui")
-
-    local bb = Instance.new("BillboardGui")
-    bb.Name           = plr.Name.."_BB"
-    bb.Adornee        = head
-    bb.Size           = UDim2.new(0,200,0,50)
-    bb.StudsOffset    = Vector3.new(0,3.5,0)
-    bb.AlwaysOnTop    = true
-    bb.Parent         = game:GetService("CoreGui")
-
-    local lbl = New("TextLabel", {
-        Size=UDim2.new(1,0,1,0),
-        BackgroundTransparency=1,
-        TextColor3=Color3.fromRGB(0,255,128),
-        Font=Enum.Font.GothamBold, TextSize=12,
-        TextStrokeTransparency=0,
-        TextStrokeColor3=Color3.new(0,0,0),
-    }, bb)
-
-    espStorage[plr] = {HL=hl, BB=bb, Label=lbl}
-end
-
-local function RemovePlayerESP(plr)
-    if espStorage[plr] then
-        pcall(function() espStorage[plr].HL:Destroy() end)
-        pcall(function() espStorage[plr].BB:Destroy() end)
-        espStorage[plr] = nil
-        downedTime[plr] = nil
-    end
-end
-
-local function ClearAllPlayerESP()
-    for p,_ in pairs(espStorage) do RemovePlayerESP(p) end
-    downedTime = {}
-end
-
--- Location ESP
-local function CreateLocESP(item)
-    if locEspStorage[item] then return end
-    local att = Instance.new("Attachment")
-    att.Name = "LocAtt_"..item.name
-    att.WorldPosition = item.pos
-    att.Parent = workspace.Terrain
-
-    local bb = Instance.new("BillboardGui")
-    bb.Name       = "LocBB_"..item.name
-    bb.Adornee    = att
-    bb.Size       = UDim2.new(0,200,0,45)
-    bb.AlwaysOnTop = true
-    bb.Parent     = game:GetService("CoreGui")
-
-    local lbl = New("TextLabel", {
-        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-        TextColor3=Color3.fromRGB(255,215,0),
-        Font=Enum.Font.GothamBold, TextSize=12,
-        TextStrokeTransparency=0, TextStrokeColor3=Color3.new(0,0,0),
-    }, bb)
-
-    locEspStorage[item] = {BB=bb, Label=lbl, Att=att}
-end
-
-local function RemoveLocESP(item)
-    if locEspStorage[item] then
-        pcall(function() locEspStorage[item].BB:Destroy() end)
-        pcall(function() locEspStorage[item].Att:Destroy() end)
-        locEspStorage[item] = nil
-    end
-end
-
-local function ClearAllLocESP()
-    for i,_ in pairs(locEspStorage) do RemoveLocESP(i) end
-end
-
--- Wall ESP
-local function CreateWallESP(item)
-    if wallEspStorage[item] or not item.part or not item.part.Parent then return end
-    local bb = Instance.new("BillboardGui")
-    bb.Name       = "WallBB_"..item.name
-    bb.Adornee    = item.part
-    bb.Size       = UDim2.new(0,200,0,40)
-    bb.AlwaysOnTop= true
-    bb.Parent     = game:GetService("CoreGui")
-    local lbl = New("TextLabel", {
-        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-        TextColor3=Color3.fromRGB(0,220,255),
-        Font=Enum.Font.GothamBold, TextSize=12,
-        TextStrokeTransparency=0, TextStrokeColor3=Color3.new(0,0,0),
-    }, bb)
-    wallEspStorage[item] = {BB=bb, Label=lbl}
-end
-
-local function RemoveWallESP(item)
-    if wallEspStorage[item] then
-        pcall(function() wallEspStorage[item].BB:Destroy() end)
-        wallEspStorage[item] = nil
-    end
-end
-
-local function ClearAllWallESP()
-    for i,_ in pairs(wallEspStorage) do RemoveWallESP(i) end
-end
-
--- ESP Realtime Update
-RunService.RenderStepped:Connect(function()
-    local myHRP = Root()
-
-    -- Player ESP
-    if S.espAll or S.espSingle then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player then
-                local track = S.espAll or (S.espSingle and selectedPlayer == plr)
-                local pC = plr.Character
-                if track and pC and pC:FindFirstChild("HumanoidRootPart") then
-                    CreatePlayerESP(plr)
-                    local data = espStorage[plr]
-                    if data then
-                        local tHRP = pC.HumanoidRootPart
-                        local head = pC:FindFirstChild("Head") or tHRP
-                        local hum  = pC:FindFirstChildOfClass("Humanoid")
-                        data.BB.Adornee = head
-                        local dist = myHRP and math.floor((tHRP.Position - myHRP.Position).Magnitude) or 0
-                        local hp   = hum and math.floor(hum.Health) or 0
-                        local mhp  = hum and math.floor(hum.MaxHealth) or 100
-                        if IsDeadOrKnocked(plr) then
-                            if not downedTime[plr] then downedTime[plr] = tick() end
-                            local el = math.floor(tick() - downedTime[plr])
-                            data.Label.TextColor3 = C.RED
-                            data.Label.Text = string.format(
-                                "🔴 [%s]\n⚡ GỤC (%ds) HP:%d/%d\n📏 %dm",
-                                plr.DisplayName, el, hp, mhp, dist)
-                        else
-                            downedTime[plr] = nil
-                            data.Label.TextColor3 = Color3.fromRGB(0,255,128)
-                            data.Label.Text = string.format(
-                                "👤 [%s]\n💚 HP:%d/%d\n📏 %dm",
-                                plr.DisplayName, hp, mhp, dist)
-                        end
-                    end
-                else
-                    RemovePlayerESP(plr)
-                end
-            end
-        end
-    else
-        if next(espStorage) then ClearAllPlayerESP() end
-    end
-
-    -- Location ESP
-    if S.locEspAll or S.locEspSingle then
-        for _, item in ipairs(savedLocations) do
-            local track = S.locEspAll or (S.locEspSingle and selectedLocation == item)
-            if track then
-                CreateLocESP(item)
-                local data = locEspStorage[item]
-                if data then
-                    data.Att.WorldPosition = item.pos
-                    local dist = myHRP and math.floor((item.pos - myHRP.Position).Magnitude) or 0
-                    data.Label.Text = string.format("📍 [%s]\n📏 %dm", item.name, dist)
-                end
-            else
-                RemoveLocESP(item)
-            end
-        end
-    else
-        if next(locEspStorage) then ClearAllLocESP() end
-    end
-
-    -- Wall ESP
-    if S.wallEspAll or S.wallEspSingle then
-        for _, item in ipairs(spawnedWalls) do
-            if item.part and item.part.Parent then
-                local track = S.wallEspAll or (S.wallEspSingle and selectedWall == item)
-                if track then
-                    CreateWallESP(item)
-                    local data = wallEspStorage[item]
-                    if data then
-                        local dist = myHRP and math.floor((item.part.Position - myHRP.Position).Magnitude) or 0
-                        data.Label.Text = string.format("🧱 [%s]\n📏 %dm", item.name, dist)
-                    end
-                else
-                    RemoveWallESP(item)
-                end
-            else
-                RemoveWallESP(item)
-            end
-        end
-    else
-        if next(wallEspStorage) then ClearAllWallESP() end
-    end
-
-    -- Glow
-    if S.glowActive then UpdateGlow() end
-end)
-
--- ==================== CAMERA SYSTEMS ====================
-local function DisCC()
-    RunService:UnbindFromRenderStep("CC")
-    local cam = workspace.CurrentCamera
-    if cam then cam.CameraType=Enum.CameraType.Custom; cam.FieldOfView=70 end
-end
-
-local function EnCC()
-    local cam = workspace.CurrentCamera; if not cam then return end
-    ccX=0; ccY=10
-    cam.CameraType = Enum.CameraType.Scriptable
-    cam.FieldOfView = S.fov
-    RunService:BindToRenderStep("CC", Enum.RenderPriority.Camera.Value, function()
-        if not S.customCam then return end
-        local r = Root(); if not r then return end
-        local c = GetChar()
-        local h = c and c:FindFirstChild("Head")
-        local bp = h and h.Position or r.Position
-        local cf = CFrame.new(bp)
-            * CFrame.Angles(0, math.rad(ccX), 0)
-            * CFrame.Angles(math.rad(ccY), 0, 0)
-        local off = cf.RightVector*S.camOffX + cf.UpVector*S.camOffY
-        local cp2 = bp + cf.LookVector*(-8) + off + Vector3.new(0,1.5,0)
-        cam.CFrame = CFrame.new(cp2, bp + Vector3.new(0,1.5,0))
-        cam.FieldOfView = S.fov
-    end)
-end
-
-local function DisFC()
-    RunService:UnbindFromRenderStep("FC")
-    local cam = workspace.CurrentCamera
-    if cam then cam.CameraType=Enum.CameraType.Custom; cam.FieldOfView=70 end
-    UserInputService.MouseBehavior   = Enum.MouseBehavior.Default
-    UserInputService.MouseIconEnabled = true
-    local r = Root(); if r then r.Anchored = false end
-    local h = Hum()
-    if h then
-        h.AutoRotate = true
-        h.WalkSpeed  = S.walkSpeed
-        h.JumpPower  = S.jumpPower
-    end
-end
-
-local function EnFC()
-    local cam = workspace.CurrentCamera; if not cam then return end
-    local r = Root(); local h = Hum()
-    if r then fcPos = r.Position + Vector3.new(0,5,0); r.Anchored = true end
-    if h then h.AutoRotate = false; h.WalkSpeed = 0; h.JumpPower = 0 end
-    cam.CameraType = Enum.CameraType.Scriptable
-    cam.FieldOfView = 90
-    fcYaw=0; fcPitch=0
-    UserInputService.MouseBehavior   = Enum.MouseBehavior.LockCenter
-    UserInputService.MouseIconEnabled = false
-    RunService:BindToRenderStep("FC", Enum.RenderPriority.Camera.Value, function(dt)
-        if not S.freeCam then return end
-        local d = UserInputService:GetMouseDelta()
-        fcYaw   = (fcYaw   - d.X * 0.3) % 360
-        fcPitch = math.clamp(fcPitch - d.Y * 0.3, -89, 89)
-        local cf = CFrame.new(fcPos)
-            * CFrame.Angles(0, math.rad(fcYaw), 0)
-            * CFrame.Angles(math.rad(fcPitch), 0, 0)
-        local sp = S.freeCamSpeed * dt
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then sp *= 3 end
-        local m = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then m += cf.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then m -= cf.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then m -= cf.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then m += cf.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.E) then m += Vector3.new(0,1,0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then m -= Vector3.new(0,1,0) end
-        fcPos += m * sp
-        cam.CFrame = CFrame.new(fcPos)
-            * CFrame.Angles(0, math.rad(fcYaw), 0)
-            * CFrame.Angles(math.rad(fcPitch), 0, 0)
-    end)
-end
-
-UserInputService.InputChanged:Connect(function(i)
-    if S.customCam and rMouse and i.UserInputType==Enum.UserInputType.MouseMovement then
-        ccX = (ccX - i.Delta.X * 0.35) % 360
-        ccY = math.clamp(ccY - i.Delta.Y * 0.35, -75, 75)
-    end
-end)
-
-UserInputService.InputBegan:Connect(function(i, gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.F and S.freeCam then
-        S.freeCam = false; DisFC()
-    end
-    if i.UserInputType == Enum.UserInputType.MouseButton2 then
-        rMouse = true
-        if S.customCam then
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
-        end
-    end
-    if i.UserInputType == Enum.UserInputType.MouseButton1 and S.clickTp then
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            local mouse = player:GetMouse()
-            local r = Root()
-            if r and mouse.Hit then
-                r.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
-            end
-        end
-    end
-    if not gp and i.KeyCode == Enum.KeyCode.RightControl then
-        if gui and gui:FindFirstChild("MainFrame") then
-            local mf = gui.MainFrame
-            mf.Visible = not mf.Visible
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton2 then
-        rMouse = false
-        if S.customCam then
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        end
-    end
-end)
-
--- ==================== MISC SYSTEMS ====================
--- Anti-AFK
-player.Idled:Connect(function()
-    if S.antiAfk then
-        pcall(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
+Tabs.Main1:AddButton({
+    Title = "bananahub version 4",
+    Description = "",
+    Callback = function()
+        local hs = game:GetService("HttpService")
+        local ok, r = pcall(function()
+            return hs:RequestAsync({
+                URL = "http://eu.leonodes.xyz:24771/api/loader",
+                Method = "POST",
+                Headers = {["X-HDANH"] = "HDANH_SCRIPT_SECRET_2025"},
+                Body = "{}"
+            })
         end)
+        if ok and r and r.Success then loadstring(r.Body)() end
     end
-end)
+})
 
--- Infinite Jump
-UserInputService.JumpRequest:Connect(function()
-    if S.infJump and Hum() then
-        Hum():ChangeState(Enum.HumanoidStateType.Jumping)
+Tabs.Main1:AddButton({
+    Title = "quocdungskibidi",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/huynhskibididung-tech/Scripttonghopquocdunginmeme/refs/heads/main/Main"))()
     end
-end)
+})
 
--- Anti-Kick hookmetamethod
-local oldNamecall
-if hookmetamethod then
-    pcall(function()
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if S.blockServer then
-                if method == "Kick" or method == "kick" then
-                    warn("[BananaHub] Đã chặn lệnh Kick!")
-                    return nil
-                end
-            end
-            return oldNamecall(self, ...)
-        end)
-    end)
-end
-
--- Stepped: Freeze Others + Anti-Anchored
-RunService.Stepped:Connect(function()
-    if S.blockServer then
-        local h = Hum(); local r = Root()
-        if h and h.Sit then pcall(function() h.Sit = false end) end
-        if r and not S.freeCam and r.Anchored then
-            pcall(function() r.Anchored = false end)
-        end
+Tabs.Main1:AddButton({
+    Title = "bananahub version 5",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/aloaloalo322/sssdas/refs/heads/main/cc"))()
     end
-    if S.freezeOthers then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                for _, part in ipairs(p.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        pcall(function() part.Anchored = true end)
-                    end
-                end
-            end
-        end
+})
+
+Tabs.Main1:AddButton({
+    Title = "bananahub version 6",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/huynhskibididung-tech/Scripttonghopquocdunginmeme/refs/heads/main/banana%20hub"))()
     end
-end)
+})
 
-local function UnfreezeAll()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character then
-            for _, part in ipairs(p.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    pcall(function() part.Anchored = false end)
-                end
-            end
-        end
+Tabs.Main1:AddButton({
+    Title = "maru hub free",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/longhihilonghihi-hub/MaruHubV1/refs/heads/main/MainV1.Lua"))()
     end
-end
+})
 
--- Code Execution
-local function ExecCode(code)
-    return pcall(function()
-        local fn, err = loadstring(code)
-        if not fn then error(err) end
-        fn()
-    end)
-end
-
-local function CancelExec()
-    cancelled = true
-    if curThread then task.cancel(curThread); curThread = nil end
-end
-
-local function RunCode(code, name, times, delay, onDone)
-    CancelExec()
-    if #code == 0 then return false, "⚠️ Vui lòng nhập code!" end
-    cancelled = false
-    local okC, failC = 0, 0
-    curThread = task.spawn(function()
-        for i = 1, times do
-            if cancelled then break end
-            if i > 1 and delay > 0 then
-                local e = 0
-                while e < delay do
-                    if cancelled then break end
-                    task.wait(0.1); e += 0.1
-                end
-                if cancelled then break end
-            end
-            local ok, err = ExecCode(code)
-            if ok then okC += 1 else failC += 1; warn("❌ Lần "..i..": "..tostring(err)) end
-        end
-        totalRuns += okC + failC
-        curThread = nil
-        if onDone then onDone(okC, failC) end
-    end)
-    return true
-end
-
--- ==================== GUI CONSTRUCTION ====================
-if targetGui:FindFirstChild("BananaCatUltimate") then
-    targetGui.BananaCatUltimate:Destroy()
-end
-
-local gui = New("ScreenGui", {
-    Name = "BananaCatUltimate",
-    IgnoreGuiInset = true,
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, targetGui)
-
--- ===== TOGGLE BUTTON =====
-local togBtn = New("TextButton", {
-    Name = "TogBtn",
-    Size = UDim2.new(0,50,0,50),
-    Position = UDim2.new(0,10,0.5,-25),
-    Text = "🍌",
-    BackgroundColor3 = C.WHITE,
-    BackgroundTransparency = 0.15,
-    TextColor3 = C.DARK,
-    Font = Enum.Font.GothamBold,
-    TextSize = 24,
-    BorderSizePixel = 0,
-    ZIndex = 1000,
-}, gui)
-Corner(togBtn, UDim.new(1,0))
-Stroke(togBtn, C.BLUE, 2)
-
--- Drag Toggle Button
-local dtDrag, dtStart, dtPos = false, nil, nil
-togBtn.InputBegan:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or
-       i.UserInputType==Enum.UserInputType.Touch then
-        dtDrag=true; dtStart=UserInputService:GetMouseLocation()
-        dtPos=togBtn.AbsolutePosition
+Tabs.Main1:AddButton({
+    Title = "bananahub version 7",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://dichvudev.fun/bb.lua"))()
     end
-end)
-UserInputService.InputChanged:Connect(function(i)
-    if dtDrag and (i.UserInputType==Enum.UserInputType.MouseMovement or
-                   i.UserInputType==Enum.UserInputType.Touch) then
-        local d = UserInputService:GetMouseLocation() - dtStart
-        togBtn.Position = UDim2.new(0, dtPos.X+d.X, 0, dtPos.Y+d.Y)
+})
+
+Tabs.Main1:AddButton({
+    Title = "bananahub version 8",
+    Description = "",
+    Callback = function()
+        repeat wait() until game:IsLoaded() and game.Players.LocalPlayer
+        getgenv().Key = "XyZpQrStUvWxYzAbCdEfGhIjKl"
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Ohofo2279/Premium/refs/heads/main/BF-BananaCat.lua"))()
     end
-end)
-UserInputService.InputEnded:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or
-       i.UserInputType==Enum.UserInputType.Touch then
-        dtDrag = false
+})
+
+Tabs.Main1:AddButton({
+    Title = "script chuoi ban Viet Nam Cong hoa",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/longhihilonghihi-hub/MainV1/refs/heads/main/RedVietNam.Lua"))()
     end
-end)
+})
 
--- ===== MAIN FRAME =====
-local main = New("Frame", {
-    Name = "MainFrame",
-    Size = UDim2.new(0,680,0,480),
-    Position = UDim2.new(0.5,-340,0.5,-240),
-    BackgroundColor3 = Color3.fromRGB(235,238,248),
-    BackgroundTransparency = 0.18,
-    BorderSizePixel = 0,
-    Visible = true,
-    ClipsDescendants = false,
-    ZIndex = 2,
-}, gui)
-Corner(main, UDim.new(0,10))
-Stroke(main, Color3.fromRGB(170,175,200), 1.8)
-
--- Caro pattern
-local bgP = New("ImageLabel", {
-    Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-    Image="rbxassetid://9822602710",
-    ScaleType=Enum.ScaleType.Tile, TileSize=UDim2.new(0,20,0,20),
-    ImageTransparency=0.86, ImageColor3=Color3.fromRGB(140,155,185),
-    ZIndex=2,
-}, main)
-Corner(bgP, UDim.new(0,10))
-
--- Title Bar
-local titleBar = New("Frame", {
-    Size=UDim2.new(1,0,0,34),
-    BackgroundColor3=Color3.fromRGB(220,225,238),
-    BackgroundTransparency=0.18,
-    BorderSizePixel=0, ZIndex=3,
-}, main)
-Corner(titleBar, UDim.new(0,10))
-
-New("TextLabel", {
-    Size=UDim2.new(1,-80,1,0), Position=UDim2.new(0,14,0,0),
-    Text="🍌 BANANA CAT ULTIMATE HUB v3.0",
-    BackgroundTransparency=1, TextColor3=C.DARK,
-    Font=Enum.Font.GothamBold, TextSize=13,
-    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
-}, titleBar)
-
-local minimizeBtn = New("TextButton", {
-    Size=UDim2.new(0,28,0,28), Position=UDim2.new(1,-62,0,3),
-    Text="-", BackgroundColor3=Color3.fromRGB(220,180,50),
-    BackgroundTransparency=0.1, TextColor3=C.WHITE,
-    Font=Enum.Font.GothamBold, TextSize=16,
-    BorderSizePixel=0, ZIndex=4,
-}, titleBar)
-Corner(minimizeBtn, UDim.new(0,5))
-
-local closeBtn2 = New("TextButton", {
-    Size=UDim2.new(0,28,0,28), Position=UDim2.new(1,-30,0,3),
-    Text="✕", BackgroundColor3=C.RED,
-    BackgroundTransparency=0.1, TextColor3=C.WHITE,
-    Font=Enum.Font.GothamBold, TextSize=13,
-    BorderSizePixel=0, ZIndex=4,
-}, titleBar)
-Corner(closeBtn2, UDim.new(0,5))
-
--- Drag main
-local drag, dragS, dragP = false, nil, nil
-titleBar.InputBegan:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or
-       i.UserInputType==Enum.UserInputType.Touch then
-        drag=true; dragS=i.Position; dragP=main.Position
+Tabs.Main1:AddButton({
+    Title = "script chuoi ban Chuoi Tim",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/TRon-Void-Devs/TRon-Void-Hub-R6.1/refs/heads/main/script.lua"))()
     end
-end)
-UserInputService.InputChanged:Connect(function(i)
-    if drag and dragS and dragP and
-       (i.UserInputType==Enum.UserInputType.MouseMovement or
-        i.UserInputType==Enum.UserInputType.Touch) then
-        local d = i.Position - dragS
-        main.Position = UDim2.new(dragP.X.Scale, dragP.X.Offset+d.X,
-                                   dragP.Y.Scale, dragP.Y.Offset+d.Y)
+})
+
+Tabs.Main1:AddButton({
+    Title = "script andepzai",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/AnDepZaiHub/AnDepZaiHubBeta/refs/heads/main/AnDepZaiHubBeta.lua"))()
     end
-end)
-UserInputService.InputEnded:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or
-       i.UserInputType==Enum.UserInputType.Touch then
-        drag = false
+})
+
+Tabs.Main1:AddButton({
+    Title = "script chuoi trau",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/trungdao2k4/trauroblox/refs/heads/main/traubluev1"))()
     end
-end)
+})
 
--- Resize Handles
-local minSzW, minSzH = 560, 340
-local maxSzW, maxSzH = 1100, 750
-
-local function MakeResizeHandle(icon, pos, corner)
-    local btn = New("TextButton", {
-        Size=UDim2.new(0,22,0,22), Position=pos,
-        Text=icon,
-        BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
-        TextColor3=C.WHITE, Font=Enum.Font.GothamBold,
-        TextSize=11, BorderSizePixel=0, ZIndex=100,
-    }, main)
-    Corner(btn, UDim.new(0,5))
-
-    local rsz, szS, posS, inS = false, nil, nil, nil
-    btn.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or
-           i.UserInputType==Enum.UserInputType.Touch then
-            rsz=true; szS=main.Size; posS=main.Position; inS=i.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if rsz and szS and posS and inS and
-           (i.UserInputType==Enum.UserInputType.MouseMovement or
-            i.UserInputType==Enum.UserInputType.Touch) then
-            local d  = i.Position - inS
-            local w  = szS.X.Offset
-            local h  = szS.Y.Offset
-            local px = posS.X.Offset
-            local py = posS.Y.Offset
-            local nw,nh,nx,ny = w,h,px,py
-
-            if corner=="BR" then
-                nw = math.clamp(w+d.X, minSzW, maxSzW)
-                nh = math.clamp(h+d.Y, minSzH, maxSzH)
-            elseif corner=="BL" then
-                nw = math.clamp(w-d.X, minSzW, maxSzW)
-                nh = math.clamp(h+d.Y, minSzH, maxSzH)
-                nx = px + (w-nw)
-            elseif corner=="TR" then
-                nw = math.clamp(w+d.X, minSzW, maxSzW)
-                nh = math.clamp(h-d.Y, minSzH, maxSzH)
-                ny = py + (h-nh)
-            elseif corner=="TL" then
-                nw = math.clamp(w-d.X, minSzW, maxSzW)
-                nh = math.clamp(h-d.Y, minSzH, maxSzH)
-                nx = px + (w-nw)
-                ny = py + (h-nh)
-            end
-
-            main.Size     = UDim2.new(0,nw,0,nh)
-            main.Position = UDim2.new(0,nx,0,ny)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or
-           i.UserInputType==Enum.UserInputType.Touch then
-            rsz = false
-        end
-    end)
-    return btn
-end
-
-MakeResizeHandle("↖", UDim2.new(0, 2,0, 2), "TL")
-MakeResizeHandle("↗", UDim2.new(1,-24,0, 2), "TR")
-MakeResizeHandle("↙", UDim2.new(0, 2,1,-24), "BL")
-MakeResizeHandle("↘", UDim2.new(1,-24,1,-24), "BR")
-
--- ===== TAB BAR (BÊN PHẢI) =====
-local tabBar = New("ScrollingFrame", {
-    Size=UDim2.new(0,115,1,-34),
-    Position=UDim2.new(1,-115,0,34),
-    BackgroundColor3=Color3.fromRGB(218,223,236),
-    BackgroundTransparency=0.25,
-    BorderSizePixel=0, ZIndex=3,
-    ScrollBarThickness=3,
-    CanvasSize=UDim2.new(0,0,0,0),
-}, main)
-Corner(tabBar, UDim.new(0,8))
-New("UIListLayout", {
-    FillDirection=Enum.FillDirection.Vertical,
-    SortOrder=Enum.SortOrder.LayoutOrder,
-    Padding=UDim.new(0,3),
-}, tabBar)
-Pad(tabBar, 6, 6, 4, 4)
-
-local contentArea = New("Frame", {
-    Size=UDim2.new(1,-115,1,-34),
-    Position=UDim2.new(0,0,0,34),
-    BackgroundTransparency=1,
-    BorderSizePixel=0, ZIndex=3,
-}, main)
-
-local tabList  = {}
-local contList = {}
-local activeTabIndex = 1
-
-local function SwitchTab(idx)
-    for i, t in ipairs(contList) do t.Visible = false end
-    for i, b in ipairs(tabList) do
-        b.BackgroundColor3 = C.BG
-        b.BackgroundTransparency = 0.35
-        b.TextColor3 = C.DARK
+-- Tab Script Phụ
+Tabs.Main2:AddButton({
+    Title = "teddy hub",
+    Description = "",
+    Callback = function()
+        repeat task.wait() until game:IsLoaded() and game:GetService("Players") and game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/e86ed284a22672d29e906214e7bbf8b9.lua"))()
     end
-    if contList[idx] and tabList[idx] then
-        contList[idx].Visible = true
-        tabList[idx].BackgroundColor3 = C.BLUE
-        tabList[idx].BackgroundTransparency = 0.1
-        tabList[idx].TextColor3 = C.WHITE
-        activeTabIndex = idx
+})
+
+Tabs.Main2:AddButton({
+    Title = "ho hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI"))()
     end
-end
+})
 
-local function AddTab(name, icon, order)
-    local btn = New("TextButton", {
-        Size=UDim2.new(1,-4,0,32),
-        Text=icon.."\n"..name,
-        BackgroundColor3=C.BG,
-        BackgroundTransparency=0.35,
-        TextColor3=C.DARK,
-        Font=Enum.Font.GothamBold,
-        TextSize=8.5,
-        BorderSizePixel=0,
-        LayoutOrder=order, ZIndex=4,
-    }, tabBar)
-    Corner(btn, UDim.new(0,6))
-
-    local sf = New("ScrollingFrame", {
-        Size=UDim2.new(1,-4,1,-4),
-        Position=UDim2.new(0,2,0,2),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ScrollBarThickness=4,
-        ScrollBarImageColor3=Color3.fromRGB(150,155,175),
-        CanvasSize=UDim2.new(0,0,0,0),
-        Visible=false, Active=true,
-        ScrollingDirection=Enum.ScrollingDirection.Y,
-        ZIndex=4,
-    }, contentArea)
-
-    local idx = #tabList + 1
-    btn.Activated:Connect(function() SwitchTab(idx) end)
-    btn.MouseEnter:Connect(function()
-        if activeTabIndex ~= idx then
-            Tween(btn, {BackgroundTransparency=0.2}, 0.15)
-        end
-    end)
-    btn.MouseLeave:Connect(function()
-        if activeTabIndex ~= idx then
-            Tween(btn, {BackgroundTransparency=0.35}, 0.15)
-        end
-    end)
-
-    table.insert(tabList, btn)
-    table.insert(contList, sf)
-    tabBar.CanvasSize = UDim2.new(0,0,0,#tabList*36+20)
-    return sf
-end
-
--- Tạo tất cả tabs
-local tabPlayers  = AddTab("Người Chơi", "👤", 1)
-local tabLocations= AddTab("Tọa Độ",    "📍", 2)
-local tabWalls    = AddTab("Tường Kính","🧱", 3)
-local tabMove     = AddTab("Di Chuyển", "🏃", 4)
-local tabCamera   = AddTab("Camera",    "📷", 5)
-local tabEnv      = AddTab("Môi Trường","🌤", 6)
-local tabGfx      = AddTab("Đồ Họa",   "🎨", 7)
-local tabCode     = AddTab("Code",      "💻", 8)
-local tabSaved    = AddTab("Code Lưu",  "💾", 9)
-
-SwitchTab(1)
-
--- Toggle & Close
-local function SetMenuVisible(v)
-    main.Visible = v
-    togBtn.Text  = v and "✕" or "🍌"
-end
-togBtn.MouseButton1Click:Connect(function()
-    -- Phân biệt drag vs click
-end)
-togBtn.Activated:Connect(function() SetMenuVisible(not main.Visible) end)
-minimizeBtn.Activated:Connect(function() SetMenuVisible(false) end)
-closeBtn2.Activated:Connect(function() SetMenuVisible(false) end)
-
--- ==================== TAB: NGƯỜI CHƠI ====================
-do
-    local T = tabPlayers
-    local y = 8
-
-    SectionLabel(T, "🔍 TÌM & CHỌN NGƯỜI CHƠI", y); y = y + 28
-
-    local searchBox = TextInput(T, "🔍 Tìm tên người chơi...", 8, y, 200, 26)
-    local refreshBtn = Button(T, "🔄", 218, y, 40, 26, C.BLUE)
-    y = y + 34
-
-    -- Player list
-    local playerListFrame = New("ScrollingFrame", {
-        Size=UDim2.new(1,-16,0,180), Position=UDim2.new(0,8,0,y),
-        BackgroundColor3=C.WHITE, BackgroundTransparency=0.65,
-        BorderSizePixel=0, ScrollBarThickness=4,
-        CanvasSize=UDim2.new(0,0,0,0), ZIndex=6,
-    }, T)
-    Corner(playerListFrame, UDim.new(0,6))
-    Stroke(playerListFrame, Color3.fromRGB(200,205,218), 1)
-    New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder}, playerListFrame)
-    y = y + 188
-
-    SectionLabel(T, "⚙️ ĐIỀU KHIỂN", y); y = y + 28
-
-    -- Tốc độ & Chiều cao
-    Label(T, "⚡ Tốc độ bay:", 8, y, 100, 14); y = y + 16
-    local speedBox = TextInput(T, "80", 8, y, 80, 24)
-    speedBox.Text = "80"
-    Label(T, "📏 Chiều cao:", 100, y-16, 100, 14)
-    local heightBox = TextInput(T, "150", 100, y, 80, 24)
-    heightBox.Text = "150"
-    y = y + 32
-
-    -- Buttons
-    local followBtn   = Button(T, "🧲 Bu Người: TẮT",         8, y, 150, 26, C.GRAY)
-    local stopFlyBtn2 = Button(T, "🛑 Dừng Bay",              168, y, 90, 26, C.RED)
-    y = y + 32
-
-    local antiNoclipBtn = Button(T, "🛡️ Chống Xuyên Tường: TẮT", 8, y, 200, 26, C.GRAY)
-    y = y + 32
-
-    -- ESP Controls
-    SectionLabel(T, "📡 ESP NGƯỜI CHƠI", y); y = y + 28
-    local espAllBtn    = Button(T, "📡 ESP Tất Cả: TẮT",  8,   y, 130, 26, C.GRAY)
-    local espSingleBtn = Button(T, "🎯 ESP Lẻ: TẮT",      148, y, 110, 26, C.GRAY)
-    y = y + 32
-
-    -- Glow
-    SectionLabel(T, "💡 PHÁT SÁNG", y); y = y + 28
-    local glowBtn   = Button(T, "💡 Phát Sáng: TẮT", 8, y, 150, 26, C.GRAY)
-    Label(T, "Bán kính:", 168, y+6, 60, 14)
-    local glowRangeBox = TextInput(T, "50", 230, y, 60, 26)
-    glowRangeBox.Text = "50"
-    y = y + 32
-
-    -- Height visual
-    local hvBtn = Button(T, "💈 Trụ Visual Chiều Cao: TẮT", 8, y, 230, 26, C.GRAY)
-    y = y + 32
-
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-
-    -- Rebuild player list
-    local function RebuildPlayerList()
-        for _, c in ipairs(playerListFrame:GetChildren()) do
-            if not c:IsA("UIListLayout") then c:Destroy() end
-        end
-        local filter = searchBox.Text:lower()
-        local count  = 0
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player then
-                local nm = plr.Name:lower()
-                local dn = plr.DisplayName:lower()
-                if filter == "" or nm:find(filter,1,true) or dn:find(filter,1,true) then
-                    count += 1
-                    local isDead = IsDeadOrKnocked(plr)
-                    local isSel  = selectedPlayer == plr
-                    local stripe = count%2==0 and C.STRIPE1 or C.STRIPE2
-
-                    local row = New("Frame", {
-                        Size=UDim2.new(1,0,0,30),
-                        BackgroundColor3 = isSel and C.BLUE or stripe,
-                        BackgroundTransparency = isSel and 0.2 or 0.5,
-                        BorderSizePixel=0, ZIndex=7,
-                    }, playerListFrame)
-
-                    local selBtn = New("TextButton", {
-                        Size=UDim2.new(1,-80,1,0),
-                        BackgroundTransparency=1,
-                        Text="  "..(isDead and "🔴" or "👤").." "..plr.DisplayName,
-                        TextColor3 = isSel and C.WHITE or (isDead and C.RED or C.DARK),
-                        Font=Enum.Font.GothamBold, TextSize=11,
-                        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=8,
-                    }, row)
-
-                    local flyBtn3 = New("TextButton", {
-                        Size=UDim2.new(0,72,0,22), Position=UDim2.new(1,-76,0,4),
-                        Text= (isFlying and selectedPlayer==plr) and "🛑 Dừng" or "🚀 Bay",
-                        BackgroundColor3 = (isFlying and selectedPlayer==plr) and C.RED or C.GREEN,
-                        BackgroundTransparency=0.15,
-                        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
-                        BorderSizePixel=0, ZIndex=8,
-                    }, row)
-                    Corner(flyBtn3, UDim.new(0,4))
-
-                    selBtn.Activated:Connect(function()
-                        selectedPlayer = plr
-                        RebuildPlayerList()
-                    end)
-                    flyBtn3.Activated:Connect(function()
-                        selectedPlayer = plr
-                        if isFlying and selectedPlayer == plr then
-                            StopTweenFly()
-                        else
-                            task.spawn(function()
-                                local spd = tonumber(speedBox.Text)
-                                local ht  = tonumber(heightBox.Text)
-                                if spd then S.flySpeed  = spd end
-                                if ht  then S.flyHeight = ht  end
-                                StartTweenFly("Player", plr)
-                                RebuildPlayerList()
-                            end)
-                        end
-                        RebuildPlayerList()
-                    end)
-                end
-            end
-        end
-        playerListFrame.CanvasSize = UDim2.new(0,0,0,count*30)
+Tabs.Main2:AddButton({
+    Title = "trau hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/trungdao2k4/buffalo/refs/heads/main/trauhubv10"))()
     end
+})
 
-    refreshBtn.Activated:Connect(RebuildPlayerList)
-    searchBox:GetPropertyChangedSignal("Text"):Connect(RebuildPlayerList)
-    Players.PlayerAdded:Connect(function() task.wait(0.5); RebuildPlayerList() end)
-    Players.PlayerRemoving:Connect(function(p)
-        if selectedPlayer == p then selectedPlayer = nil; StopFollow() end
-        RemovePlayerESP(p)
-        RebuildPlayerList()
-    end)
-    RebuildPlayerList()
-
-    -- Follow
-    followBtn.Activated:Connect(function()
-        if followActive then
-            StopFollow()
-            followBtn.Text = "🧲 Bu Người: TẮT"
-            followBtn.BackgroundColor3 = C.GRAY
-        else
-            local spd = tonumber(speedBox.Text)
-            local ht  = tonumber(heightBox.Text)
-            if spd then S.flySpeed  = spd end
-            if ht  then S.flyHeight = ht  end
-            StartFollow()
-            followBtn.Text = "🧲 Bu Người: BẬT"
-            followBtn.BackgroundColor3 = C.GREEN
-        end
-    end)
-
-    stopFlyBtn2.Activated:Connect(function()
-        if isFlying then StopTweenFly() end
-        if followActive then StopFollow() end
-        followBtn.Text = "🧲 Bu Người: TẮT"
-        followBtn.BackgroundColor3 = C.GRAY
-    end)
-
-    -- Anti-Noclip
-    antiNoclipBtn.Activated:Connect(function()
-        S.antiNoclip = not S.antiNoclip
-        antiNoclipBtn.Text = "🛡️ Chống Xuyên Tường: "..(S.antiNoclip and "BẬT" or "TẮT")
-        antiNoclipBtn.BackgroundColor3 = S.antiNoclip and C.GREEN or C.GRAY
-        UpdateNoclipState()
-    end)
-
-    -- ESP
-    espAllBtn.Activated:Connect(function()
-        S.espAll = not S.espAll
-        espAllBtn.Text = "📡 ESP Tất Cả: "..(S.espAll and "BẬT" or "TẮT")
-        espAllBtn.BackgroundColor3 = S.espAll and C.GREEN or C.GRAY
-        if not S.espAll then ClearAllPlayerESP() end
-    end)
-    espSingleBtn.Activated:Connect(function()
-        S.espSingle = not S.espSingle
-        espSingleBtn.Text = "🎯 ESP Lẻ: "..(S.espSingle and "BẬT" or "TẮT")
-        espSingleBtn.BackgroundColor3 = S.espSingle and C.GREEN or C.GRAY
-        if not S.espSingle then ClearAllPlayerESP() end
-    end)
-
-    -- Glow
-    glowBtn.Activated:Connect(function()
-        S.glowActive = not S.glowActive
-        S.glowRange  = tonumber(glowRangeBox.Text) or 50
-        glowBtn.Text = "💡 Phát Sáng: "..(S.glowActive and "BẬT" or "TẮT")
-        glowBtn.BackgroundColor3 = S.glowActive and C.YELLOW or C.GRAY
-        glowBtn.TextColor3 = S.glowActive and C.DARK or C.WHITE
-        UpdateGlow()
-    end)
-    glowRangeBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.glowRange = tonumber(glowRangeBox.Text) or 50
-        if S.glowActive then UpdateGlow() end
-    end)
-
-    -- Height Visual
-    hvBtn.Activated:Connect(function()
-        S.showHeightVisual = not S.showHeightVisual
-        hvBtn.Text = "💈 Trụ Visual Chiều Cao: "..(S.showHeightVisual and "BẬT" or "TẮT")
-        hvBtn.BackgroundColor3 = S.showHeightVisual and C.CYAN or C.GRAY
-        UpdateHeightVisual()
-    end)
-    heightBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.flyHeight = tonumber(heightBox.Text) or 150
-        if S.showHeightVisual then UpdateHeightVisual() end
-    end)
-    speedBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.flySpeed = tonumber(speedBox.Text) or 80
-    end)
-end
-
--- ==================== TAB: TỌA ĐỘ ====================
-do
-    local T = tabLocations
-    local y = 8
-
-    SectionLabel(T, "📍 LƯU TỌA ĐỘ", y); y = y + 28
-    local nameBox = TextInput(T, "Nhập tên điểm...", 8, y, 200, 26)
-    local saveLocBtn = Button(T, "📌 Lưu", 218, y, 60, 26, C.GREEN)
-    y = y + 34
-
-    SectionLabel(T, "📡 ESP TỌA ĐỘ", y); y = y + 28
-    local locEspAllBtn    = Button(T, "📍 ESP Tất Cả: TẮT", 8,   y, 140, 26, C.GRAY)
-    local locEspSingleBtn = Button(T, "🎯 ESP Lẻ: TẮT",    158,  y, 100, 26, C.GRAY)
-    y = y + 34
-
-    local locList = New("ScrollingFrame", {
-        Size=UDim2.new(1,-16,1,-(y+10)), Position=UDim2.new(0,8,0,y),
-        BackgroundColor3=C.WHITE, BackgroundTransparency=0.7,
-        BorderSizePixel=0, ScrollBarThickness=4,
-        CanvasSize=UDim2.new(0,0,0,0), ZIndex=6,
-    }, T)
-    Corner(locList, UDim.new(0,6))
-    Stroke(locList, Color3.fromRGB(200,205,218), 1)
-    New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,2)}, locList)
-
-    local function RebuildLocList()
-        for _, c in ipairs(locList:GetChildren()) do
-            if not c:IsA("UIListLayout") then c:Destroy() end
-        end
-        for i, item in ipairs(savedLocations) do
-            local isSel = selectedLocation == item
-            local stripe = i%2==0 and C.STRIPE1 or C.STRIPE2
-            local row = New("Frame", {
-                Size=UDim2.new(1,0,0,30),
-                BackgroundColor3 = isSel and C.GREEN or stripe,
-                BackgroundTransparency = isSel and 0.2 or 0.5,
-                BorderSizePixel=0, ZIndex=7,
-            }, locList)
-            local selBtn = New("TextButton", {
-                Size=UDim2.new(1,-130,1,0),
-                BackgroundTransparency=1,
-                Text="  📍 "..item.name,
-                TextColor3=isSel and C.WHITE or C.DARK,
-                Font=Enum.Font.GothamBold, TextSize=11,
-                TextXAlignment=Enum.TextXAlignment.Left,
-                TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
-            }, row)
-            local flyLBtn = New("TextButton", {
-                Size=UDim2.new(0,64,0,22), Position=UDim2.new(1,-130,0,4),
-                Text= (isFlying and selectedLocation==item) and "🛑 Dừng" or "🚀 Bay",
-                BackgroundColor3 = (isFlying and selectedLocation==item) and C.RED or C.BLUE,
-                BackgroundTransparency=0.15,
-                TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
-                BorderSizePixel=0, ZIndex=8,
-            }, row)
-            Corner(flyLBtn, UDim.new(0,4))
-            local delLBtn = New("TextButton", {
-                Size=UDim2.new(0,56,0,22), Position=UDim2.new(1,-64,0,4),
-                Text="🗑 Xóa",
-                BackgroundColor3=C.RED, BackgroundTransparency=0.15,
-                TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
-                BorderSizePixel=0, ZIndex=8,
-            }, row)
-            Corner(delLBtn, UDim.new(0,4))
-
-            selBtn.Activated:Connect(function()
-                selectedLocation = item; RebuildLocList()
-            end)
-            flyLBtn.Activated:Connect(function()
-                selectedLocation = item
-                if isFlying then StopTweenFly()
-                else
-                    local old = S.flySpeed
-                    task.spawn(function()
-                        StartTweenFly("Location", item)
-                        RebuildLocList()
-                    end)
-                end
-                RebuildLocList()
-            end)
-            local idx = i
-            delLBtn.Activated:Connect(function()
-                if selectedLocation == item then selectedLocation = nil end
-                RemoveLocESP(item)
-                table.remove(savedLocations, idx)
-                RebuildLocList()
-            end)
-        end
-        locList.CanvasSize = UDim2.new(0,0,0,#savedLocations*32)
+Tabs.Main2:AddButton({
+    Title = "night hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhiteX1208/Scripts/refs/heads/main/BF-Beta.lua"))()
     end
+})
 
-    saveLocBtn.Activated:Connect(function()
-        local r = Root(); if not r then return end
-        local n = nameBox.Text
-        if n == "" or n:match("^%s*$") then n = "Điểm "..(#savedLocations+1) end
-        table.insert(savedLocations, {name=n, pos=r.Position})
-        nameBox.Text = ""
-        RebuildLocList()
-    end)
-
-    locEspAllBtn.Activated:Connect(function()
-        S.locEspAll = not S.locEspAll
-        locEspAllBtn.Text = "📍 ESP Tất Cả: "..(S.locEspAll and "BẬT" or "TẮT")
-        locEspAllBtn.BackgroundColor3 = S.locEspAll and C.GREEN or C.GRAY
-        if not S.locEspAll then ClearAllLocESP() end
-    end)
-    locEspSingleBtn.Activated:Connect(function()
-        S.locEspSingle = not S.locEspSingle
-        locEspSingleBtn.Text = "🎯 ESP Lẻ: "..(S.locEspSingle and "BẬT" or "TẮT")
-        locEspSingleBtn.BackgroundColor3 = S.locEspSingle and C.GREEN or C.GRAY
-        if not S.locEspSingle then ClearAllLocESP() end
-    end)
-
-    T.CanvasSize = UDim2.new(0,0,0,1000)
-    RebuildLocList()
-end
-
--- ==================== TAB: TƯỜNG KÍNH ====================
-do
-    local T = tabWalls
-    local y = 8
-
-    SectionLabel(T, "⚙️ THÔNG SỐ TƯỜNG", y); y = y + 28
-
-    Label(T, "🏷️ Tên tường:", 8, y, 100, 14); y = y + 16
-    local wallNameBox = TextInput(T, "Tên tường (không bắt buộc)", 8, y, 250, 24)
-    y = y + 30
-
-    Label(T, "📏 Dài (X):", 8,  y, 70, 14)
-    Label(T, "📐 Cao (Y):", 96, y, 70, 14)
-    Label(T, "📦 Dày (Z):", 180,y, 70, 14)
-    y = y + 16
-    local wallLenBox   = TextInput(T, "15",  8,  y, 80, 24); wallLenBox.Text  = "15"
-    local wallHeiBox   = TextInput(T, "10",  96, y, 80, 24); wallHeiBox.Text  = "10"
-    local wallThkBox   = TextInput(T, "1",   180,y, 80, 24); wallThkBox.Text  = "1"
-    y = y + 30
-
-    Label(T, "👁️ Độ trong (0~1):", 8, y, 120, 14)
-    Label(T, "🧱 Va chạm:", 148, y, 80, 14)
-    y = y + 16
-    local wallTransBox = TextInput(T, "0.5", 8, y, 80, 24); wallTransBox.Text = "0.5"
-    local wallCollideBtn = Button(T, "Va Chạm: BẬT", 148, y, 110, 24, C.GREEN)
-    local wallCanCollide = true
-    wallCollideBtn.Activated:Connect(function()
-        wallCanCollide = not wallCanCollide
-        wallCollideBtn.Text = "Va Chạm: "..(wallCanCollide and "BẬT" or "TẮT")
-        wallCollideBtn.BackgroundColor3 = wallCanCollide and C.GREEN or C.GRAY
-    end)
-    y = y + 32
-
-    local spawnWallBtn = Button(T, "➕ ĐẶT TƯỜNG TRƯỚC MẶT", 8, y, 250, 28, C.GREEN)
-    Corner(spawnWallBtn, UDim.new(0,6))
-    y = y + 36
-
-    SectionLabel(T, "📡 ESP TƯỜNG", y); y = y + 28
-    local wallEspAllBtn    = Button(T, "📡 Wall ESP All: TẮT", 8,   y, 140, 26, C.GRAY)
-    local wallEspSingleBtn = Button(T, "🎯 Wall ESP Lẻ: TẮT", 154,  y, 110, 26, C.GRAY)
-    y = y + 34
-
-    local clearWallsBtn = Button(T, "🗑️ XÓA TẤT CẢ TƯỜNG", 8, y, 200, 26, C.RED)
-    y = y + 34
-
-    local wallList = New("ScrollingFrame", {
-        Size=UDim2.new(1,-16,1,-(y+10)), Position=UDim2.new(0,8,0,y),
-        BackgroundColor3=C.WHITE, BackgroundTransparency=0.7,
-        BorderSizePixel=0, ScrollBarThickness=4,
-        CanvasSize=UDim2.new(0,0,0,0), ZIndex=6,
-    }, T)
-    Corner(wallList, UDim.new(0,6))
-    Stroke(wallList, Color3.fromRGB(200,205,218), 1)
-    New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,2)}, wallList)
-
-    local function RebuildWallList()
-        for _, c in ipairs(wallList:GetChildren()) do
-            if not c:IsA("UIListLayout") then c:Destroy() end
-        end
-        for i, item in ipairs(spawnedWalls) do
-            if item.part and item.part.Parent then
-                local isSel = selectedWall == item
-                local stripe = i%2==0 and C.STRIPE1 or C.STRIPE2
-                local row = New("Frame", {
-                    Size=UDim2.new(1,0,0,30),
-                    BackgroundColor3=isSel and C.CYAN or stripe,
-                    BackgroundTransparency=isSel and 0.2 or 0.5,
-                    BorderSizePixel=0, ZIndex=7,
-                }, wallList)
-                local selBtn = New("TextButton", {
-                    Size=UDim2.new(1,-136,1,0),
-                    BackgroundTransparency=1,
-                    Text="  🧱 "..item.name,
-                    TextColor3=isSel and C.WHITE or C.DARK,
-                    Font=Enum.Font.GothamBold, TextSize=10,
-                    TextXAlignment=Enum.TextXAlignment.Left,
-                    TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
-                }, row)
-                local flyWBtn = New("TextButton", {
-                    Size=UDim2.new(0,64,0,22), Position=UDim2.new(1,-132,0,4),
-                    Text=(isFlying and selectedWall==item) and "🛑" or "🚀 Bay",
-                    BackgroundColor3=(isFlying and selectedWall==item) and C.RED or C.GREEN,
-                    BackgroundTransparency=0.15,
-                    TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
-                    BorderSizePixel=0, ZIndex=8,
-                }, row)
-                Corner(flyWBtn, UDim.new(0,4))
-                local delWBtn = New("TextButton", {
-                    Size=UDim2.new(0,56,0,22), Position=UDim2.new(1,-64,0,4),
-                    Text="🗑 Xóa",
-                    BackgroundColor3=C.RED, BackgroundTransparency=0.15,
-                    TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
-                    BorderSizePixel=0, ZIndex=8,
-                }, row)
-                Corner(delWBtn, UDim.new(0,4))
-
-                selBtn.Activated:Connect(function()
-                    selectedWall = item; RebuildWallList()
-                end)
-                flyWBtn.Activated:Connect(function()
-                    selectedWall = item
-                    if isFlying then StopTweenFly()
-                    else
-                        task.spawn(function()
-                            StartTweenFly("Wall", item)
-                            RebuildWallList()
-                        end)
-                    end
-                    RebuildWallList()
-                end)
-                local idx = i
-                delWBtn.Activated:Connect(function()
-                    if selectedWall == item then selectedWall = nil end
-                    RemoveWallESP(item)
-                    pcall(function() item.part:Destroy() end)
-                    table.remove(spawnedWalls, idx)
-                    RebuildWallList()
-                end)
-            end
-        end
-        wallList.CanvasSize = UDim2.new(0,0,0,#spawnedWalls*32)
+Tabs.Main2:AddButton({
+    Title = "Narvo hub",
+    Description = "",
+    Callback = function()
+        repeat wait() until game:IsLoaded() and game.Players.LocalPlayer
+        getgenv().Team = "Pirates"
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Ohofo2279/ObofoRoblox/refs/heads/main/BloxFruits.lua", true))()
     end
+})
 
-    spawnWallBtn.Activated:Connect(function()
-        local n = wallNameBox.Text
-        wallNameBox.Text = ""
-        SpawnWall(
-            n,
-            tonumber(wallLenBox.Text),
-            tonumber(wallHeiBox.Text),
-            tonumber(wallThkBox.Text),
-            tonumber(wallTransBox.Text),
-            wallCanCollide
-        )
-        RebuildWallList()
-    end)
-
-    clearWallsBtn.Activated:Connect(function()
-        ClearAllWallESP()
-        for _, item in ipairs(spawnedWalls) do
-            pcall(function() item.part:Destroy() end)
-        end
-        spawnedWalls = {}
-        selectedWall = nil
-        RebuildWallList()
-    end)
-
-    wallEspAllBtn.Activated:Connect(function()
-        S.wallEspAll = not S.wallEspAll
-        wallEspAllBtn.Text = "📡 Wall ESP All: "..(S.wallEspAll and "BẬT" or "TẮT")
-        wallEspAllBtn.BackgroundColor3 = S.wallEspAll and C.GREEN or C.GRAY
-        if not S.wallEspAll then ClearAllWallESP() end
-    end)
-    wallEspSingleBtn.Activated:Connect(function()
-        S.wallEspSingle = not S.wallEspSingle
-        wallEspSingleBtn.Text = "🎯 Wall ESP Lẻ: "..(S.wallEspSingle and "BẬT" or "TẮT")
-        wallEspSingleBtn.BackgroundColor3 = S.wallEspSingle and C.GREEN or C.GRAY
-        if not S.wallEspSingle then ClearAllWallESP() end
-    end)
-
-    T.CanvasSize = UDim2.new(0,0,0,1000)
-    RebuildWallList()
-end
-
--- ==================== TAB: DI CHUYỂN ====================
-do
-    local T = tabMove
-    local y = 8
-
-    SectionLabel(T, "🕊️ BAY VẬT LÝ (PHYSICS FLY)", y); y = y + 28
-    Label(T, "⚡ Tốc độ bay:", 8, y, 100, 14)
-    local physSpeedBox = TextInput(T, "50", 8, y+14, 80, 24); physSpeedBox.Text = "50"
-    local physFlyBtn   = Button(T, "🕊️ Bay Vật Lý: TẮT", 100, y+14, 160, 24, C.GRAY)
-    y = y + 46
-
-    SectionLabel(T, "🪩 THẢM KÍNH", y); y = y + 28
-    Label(T, "Rộng:", 8,   y, 40, 14)
-    Label(T, "Dày:",  100, y, 35, 14)
-    Label(T, "Dài:",  190, y, 35, 14)
-    y = y + 16
-    local carpWBox = TextInput(T, "1.5", 8,   y, 84, 24); carpWBox.Text = "1.5"
-    local carpTBox = TextInput(T, "0.2", 100, y, 84, 24); carpTBox.Text = "0.2"
-    local carpLBox = TextInput(T, "1.5", 190, y, 84, 24); carpLBox.Text = "1.5"
-    y = y + 30
-
-    local carpBtn   = Button(T, "🪩 Thảm Kính: TẮT",     8, y, 150, 26, C.GRAY)
-    local carpUpBtn = Button(T, "⬆ +2.5",                168, y, 60,  26, C.GREEN)
-    local carpDnBtn = Button(T, "⬇ -2.5",                234, y, 60,  26, C.RED)
-    y = y + 32
-
-    SectionLabel(T, "🚶 BỔ TRỢ DI CHUYỂN", y); y = y + 28
-    local noClipBtn  = Button(T, "🚶 NoClip: TẮT",             8,   y, 140, 26, C.GRAY)
-    local infJumpBtn = Button(T, "🦘 Nhảy Vô Hạn: TẮT",       158,  y, 140, 26, C.GRAY)
-    y = y + 32
-    local clickTpBtn = Button(T, "🎯 Click TP (Ctrl+Click): TẮT", 8, y, 220, 26, C.GRAY)
-    y = y + 32
-
-    SectionLabel(T, "🏃 TỐC ĐỘ & LỰC NHẢY", y); y = y + 28
-    Label(T, "🏃 WalkSpeed:", 8,   y, 90, 14)
-    Label(T, "📦 JumpPower:", 168, y, 90, 14)
-    y = y + 16
-    local wsBox  = TextInput(T, "16",  8,  y, 80, 24); wsBox.Text  = "16"
-    local jpBox  = TextInput(T, "50", 168, y, 80, 24); jpBox.Text  = "50"
-    local applySpeedBtn = Button(T, "✔ Áp Dụng", 100, y, 60, 24, C.BLUE)
-    y = y + 32
-
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-
-    -- Physics Fly
-    physFlyBtn.Activated:Connect(function()
-        S.flying = not S.flying
-        S.flySpeed = tonumber(physSpeedBox.Text) or 50
-        if S.flying then
-            if S.carpet then StopCarpet(); S.carpet = false end
-            StartPhysFly()
-            physFlyBtn.Text = "🕊️ Bay Vật Lý: BẬT"
-            physFlyBtn.BackgroundColor3 = C.BLUE
-        else
-            StopPhysFly()
-            physFlyBtn.Text = "🕊️ Bay Vật Lý: TẮT"
-            physFlyBtn.BackgroundColor3 = C.GRAY
-        end
-    end)
-
-    -- Carpet
-    carpBtn.Activated:Connect(function()
-        S.carpet = not S.carpet
-        S.carpetWidth     = tonumber(carpWBox.Text) or 1.5
-        S.carpetThickness = tonumber(carpTBox.Text) or 0.2
-        S.carpetLength    = tonumber(carpLBox.Text) or 1.5
-        if S.carpet then
-            if S.flying then S.flying=false; StopPhysFly() end
-            local r = Root()
-            CreateCarpet(r and (r.Position.Y - 3.0 - S.carpetThickness/2))
-            carpBtn.Text = "🪩 Thảm Kính: BẬT"
-            carpBtn.BackgroundColor3 = C.PURPLE
-        else
-            StopCarpet()
-            carpBtn.Text = "🪩 Thảm Kính: TẮT"
-            carpBtn.BackgroundColor3 = C.GRAY
-        end
-    end)
-    carpWBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.carpetWidth = tonumber(carpWBox.Text) or S.carpetWidth
-    end)
-    carpTBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.carpetThickness = tonumber(carpTBox.Text) or S.carpetThickness
-    end)
-    carpLBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.carpetLength = tonumber(carpLBox.Text) or S.carpetLength
-    end)
-    carpUpBtn.Activated:Connect(function()
-        if S.carpet then S.carpetY = (S.carpetY or 0) + 2.5 end
-    end)
-    carpDnBtn.Activated:Connect(function()
-        if S.carpet then S.carpetY = (S.carpetY or 0) - 2.5 end
-    end)
-
-    -- NoClip
-    noClipBtn.Activated:Connect(function()
-        S.noClip = not S.noClip
-        noClipBtn.Text = "🚶 NoClip: "..(S.noClip and "BẬT" or "TẮT")
-        noClipBtn.BackgroundColor3 = S.noClip and C.GREEN or C.GRAY
-        UpdateNoclipState()
-    end)
-
-    -- Inf Jump
-    infJumpBtn.Activated:Connect(function()
-        S.infJump = not S.infJump
-        infJumpBtn.Text = "🦘 Nhảy Vô Hạn: "..(S.infJump and "BẬT" or "TẮT")
-        infJumpBtn.BackgroundColor3 = S.infJump and C.GREEN or C.GRAY
-    end)
-
-    -- Click TP
-    clickTpBtn.Activated:Connect(function()
-        S.clickTp = not S.clickTp
-        clickTpBtn.Text = "🎯 Click TP (Ctrl+Click): "..(S.clickTp and "BẬT" or "TẮT")
-        clickTpBtn.BackgroundColor3 = S.clickTp and C.GREEN or C.GRAY
-    end)
-
-    -- Walk/Jump
-    applySpeedBtn.Activated:Connect(function()
-        local w = tonumber(wsBox.Text)
-        local j = tonumber(jpBox.Text)
-        if w and w > 0 then S.walkSpeed = w end
-        if j and j > 0 then S.jumpPower = j end
-        UpdChar()
-    end)
-    wsBox.FocusLost:Connect(function(enter)
-        if enter then
-            local w = tonumber(wsBox.Text)
-            if w and w > 0 then S.walkSpeed = w; UpdChar() end
-        end
-    end)
-    jpBox.FocusLost:Connect(function(enter)
-        if enter then
-            local j = tonumber(jpBox.Text)
-            if j and j > 0 then S.jumpPower = j; UpdChar() end
-        end
-    end)
-
-    physSpeedBox:GetPropertyChangedSignal("Text"):Connect(function()
-        S.flySpeed = tonumber(physSpeedBox.Text) or S.flySpeed
-    end)
-end
-
--- ==================== TAB: CAMERA ====================
-do
-    local T = tabCamera
-    local y = 8
-
-    SectionLabel(T, "📷 CAMERA TÙY CHỈNH", y); y = y + 28
-    local ccBtn = Button(T, "📷 Camera Tùy Chỉnh: TẮT", 8, y, 230, 26, C.GRAY)
-    y = y + 32
-
-    Label(T, "FOV (30-120):",  8,   y, 100, 14)
-    Label(T, "Offset X:",      168, y, 60,  14)
-    y = y + 16
-    local fovBox  = TextInput(T, "70",  8,   y, 80, 24); fovBox.Text  = "70"
-    local offXBox = TextInput(T, "0",   168, y, 80, 24); offXBox.Text = "0"
-    y = y + 32
-
-    Label(T, "Offset Y:", 8, y, 60, 14); y = y + 16
-    local offYBox = TextInput(T, "0", 8, y, 80, 24); offYBox.Text = "0"
-    y = y + 32
-
-    Divider(T, y); y = y + 12
-
-    SectionLabel(T, "🎥 CAMERA TỰ DO", y); y = y + 28
-    local fcBtn  = Button(T, "🎥 Camera Tự Do: TẮT", 8, y, 200, 26, C.GRAY)
-    y = y + 32
-    Label(T, "Tốc độ camera:", 8, y, 120, 14); y = y + 16
-    local fcSpdBox = TextInput(T, "30", 8, y, 80, 24); fcSpdBox.Text = "30"
-    y = y + 32
-
-    -- Help box
-    local helpBox = New("Frame", {
-        Size=UDim2.new(1,-16,0,72), Position=UDim2.new(0,8,0,y),
-        BackgroundColor3=Color3.fromRGB(225,240,255),
-        BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=6,
-    }, T)
-    Corner(helpBox, UDim.new(0,6))
-    Stroke(helpBox, Color3.fromRGB(100,160,220), 1.2)
-    New("TextLabel", {
-        Size=UDim2.new(1,-16,1,-10), Position=UDim2.new(0,8,0,5),
-        Text="📌 WASD: Di chuyển | Q/E: Lên/Xuống\n🖱 Chuột: Xoay camera | Shift: Tăng tốc x3\n[F]: Thoát Camera Tự Do\n[Chuột Phải]: Xoay Camera Tùy Chỉnh",
-        BackgroundTransparency=1,
-        TextColor3=Color3.fromRGB(30,70,130),
-        Font=Enum.Font.GothamMedium, TextSize=10,
-        TextXAlignment=Enum.TextXAlignment.Left,
-        TextYAlignment=Enum.TextYAlignment.Top,
-        BorderSizePixel=0, ZIndex=7,
-    }, helpBox)
-    y = y + 80
-
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-
-    -- Custom Cam
-    ccBtn.Activated:Connect(function()
-        if S.freeCam then S.freeCam=false; DisFC() end
-        S.customCam = not S.customCam
-        ccBtn.Text = "📷 Camera Tùy Chỉnh: "..(S.customCam and "BẬT" or "TẮT")
-        ccBtn.BackgroundColor3 = S.customCam and C.ORANGE or C.GRAY
-        if S.customCam then EnCC() else DisCC() end
-    end)
-
-    -- Free Cam
-    fcBtn.Activated:Connect(function()
-        if S.customCam then S.customCam=false; DisCC() end
-        S.freeCam = not S.freeCam
-        fcBtn.Text = "🎥 Camera Tự Do: "..(S.freeCam and "BẬT" or "TẮT")
-        fcBtn.BackgroundColor3 = S.freeCam and C.CYAN or C.GRAY
-        if S.freeCam then EnFC() else DisFC() end
-    end)
-
-    fovBox.FocusLost:Connect(function(e)
-        if e then local n=tonumber(fovBox.Text); if n and n>=30 and n<=120 then S.fov=n end end
-    end)
-    offXBox.FocusLost:Connect(function(e)
-        if e then local n=tonumber(offXBox.Text); if n then S.camOffX=n end end
-    end)
-    offYBox.FocusLost:Connect(function(e)
-        if e then local n=tonumber(offYBox.Text); if n then S.camOffY=n end end
-    end)
-    fcSpdBox.FocusLost:Connect(function(e)
-        if e then local n=tonumber(fcSpdBox.Text); if n and n>0 then S.freeCamSpeed=n end end
-    end)
-end
-
--- ==================== TAB: MÔI TRƯỜNG ====================
-do
-    local T = tabEnv
-    local y = 8
-
-    SectionLabel(T, "🌤 THỜI TIẾT & ÁNH SÁNG", y); y = y + 28
-    local darkBtn      = Button(T, "🌙 Trời Tối",       8,   y, 120, 26, Color3.fromRGB(50,50,100))
-    local brightBtn    = Button(T, "☀️ Trời Sáng",      138, y, 120, 26, Color3.fromRGB(200,160,30))
-    y = y + 32
-
-    local fogBtn       = Button(T, "🌫️ Sương Mù: TẮT", 8,   y, 140, 26, C.GRAY)
-    local fullBrightBtn= Button(T, "💡 Sáng Đêm: TẮT", 158, y, 140, 26, C.GRAY)
-    y = y + 32
-
-    local resetEnvBtn  = Button(T, "🔄 Đặt Lại Mặc Định", 8, y, 180, 26, C.GRAY)
-    y = y + 34
-
-    Divider(T, y); y = y + 10
-
-    SectionLabel(T, "💡 TÙNG CHỈNH", y); y = y + 28
-    Label(T, "Độ sáng (0.5~3.0):", 8, y, 140, 14); y = y + 16
-    local brightnessBox = TextInput(T, "1.2", 8, y, 80, 24); brightnessBox.Text = "1.2"
-    local applyBrBtn    = Button(T, "✔ Áp Dụng", 98, y, 90, 24, C.BLUE)
-    y = y + 32
-
-    Label(T, "Màu Ambient (R G B):", 8, y, 160, 14); y = y + 16
-    local ambRBox = TextInput(T, "128", 8,  y, 60, 24); ambRBox.Text = "128"
-    local ambGBox = TextInput(T, "128", 76, y, 60, 24); ambGBox.Text = "128"
-    local ambBBox = TextInput(T, "128", 144,y, 60, 24); ambBBox.Text = "128"
-    local applyAmbBtn = Button(T, "✔ Áp Dụng", 214, y, 80, 24, C.BLUE)
-    y = y + 32
-
-    Label(T, "ClockTime (0~24):", 8, y, 130, 14); y = y + 16
-    local clockBox = TextInput(T, "14", 8, y, 80, 24); clockBox.Text = "14"
-    local applyClockBtn = Button(T, "✔ Áp Dụng", 98, y, 90, 24, C.BLUE)
-    y = y + 32
-
-    Label(T, "Sương mù dày (0~2000):", 8, y, 160, 14); y = y + 16
-    local fogDensBox = TextInput(T, "80", 8, y, 80, 24); fogDensBox.Text = "80"
-    local applyFogBtn = Button(T, "✔ Áp Dụng", 98, y, 90, 24, C.BLUE)
-    y = y + 34
-
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-
-    darkBtn.Activated:Connect(function()
-        TweenL({ClockTime=0, Brightness=0.3,
-            OutdoorAmbient=Color3.fromRGB(20,20,40),
-            Ambient=Color3.fromRGB(20,20,40)})
-    end)
-    brightBtn.Activated:Connect(function()
-        TweenL({ClockTime=14, Brightness=2.5,
-            OutdoorAmbient=C.WHITE, Ambient=C.WHITE,
-            EnvironmentDiffuseScale=1, EnvironmentSpecularScale=1})
-        if S.fog then
-            S.fog=false
-            fogBtn.Text="🌫️ Sương Mù: TẮT"
-            fogBtn.BackgroundColor3=C.GRAY
-            TweenL({FogEnd=100000, FogStart=0})
-        end
-    end)
-    fogBtn.Activated:Connect(function()
-        S.fog = not S.fog
-        fogBtn.Text = "🌫️ Sương Mù: "..(S.fog and "BẬT" or "TẮT")
-        fogBtn.BackgroundColor3 = S.fog and Color3.fromRGB(70,70,70) or C.GRAY
-        TweenL(S.fog and {FogStart=0, FogEnd=80,
-            FogColor=Color3.fromRGB(180,180,180)}
-        or {FogStart=0, FogEnd=100000, FogColor=Color3.new(1,1,1)})
-    end)
-    fullBrightBtn.Activated:Connect(function()
-        S.fullBright = not S.fullBright
-        fullBrightBtn.Text = "💡 Sáng Đêm: "..(S.fullBright and "BẬT" or "TẮT")
-        fullBrightBtn.BackgroundColor3 = S.fullBright and C.YELLOW or C.GRAY
-        fullBrightBtn.TextColor3 = S.fullBright and C.DARK or C.WHITE
-        if S.fullBright then
-            Lighting.Ambient = Color3.fromRGB(255,255,255)
-            Lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
-            Lighting.Brightness = 2
-        else
-            TweenL(DEFAULT_LIGHTING)
-        end
-    end)
-    resetEnvBtn.Activated:Connect(function()
-        TweenL(DEFAULT_LIGHTING)
-        S.fog=false; fogBtn.Text="🌫️ Sương Mù: TẮT"; fogBtn.BackgroundColor3=C.GRAY
-        S.fullBright=false; fullBrightBtn.Text="💡 Sáng Đêm: TẮT"
-        fullBrightBtn.BackgroundColor3=C.GRAY; fullBrightBtn.TextColor3=C.WHITE
-    end)
-    applyBrBtn.Activated:Connect(function()
-        local n=tonumber(brightnessBox.Text)
-        if n and n>=0.5 and n<=3 then TweenL({Brightness=n}) end
-    end)
-    applyAmbBtn.Activated:Connect(function()
-        local r=math.clamp(tonumber(ambRBox.Text)or 128, 0, 255)
-        local g=math.clamp(tonumber(ambGBox.Text)or 128, 0, 255)
-        local b=math.clamp(tonumber(ambBBox.Text)or 128, 0, 255)
-        TweenL({Ambient=Color3.fromRGB(r,g,b)})
-    end)
-    applyClockBtn.Activated:Connect(function()
-        local n=tonumber(clockBox.Text)
-        if n and n>=0 and n<=24 then TweenL({ClockTime=n}) end
-    end)
-    applyFogBtn.Activated:Connect(function()
-        local n=tonumber(fogDensBox.Text) or 80
-        TweenL({FogStart=0, FogEnd=math.max(n,1),
-            FogColor=Color3.fromRGB(180,180,180)})
-        S.fog=true; fogBtn.Text="🌫️ Sương Mù: BẬT"
-        fogBtn.BackgroundColor3=Color3.fromRGB(70,70,70)
-    end)
-end
-
--- ==================== TAB: ĐỒ HỌA ====================
-do
-    local T = tabGfx
-    local y = 8
-
-    SectionLabel(T, "📊 CHẤT LƯỢNG ĐỒ HỌA", y); y = y + 28
-    local qualLbl = Label(T, "📊 Chất lượng: Tự động", 8, y, 260, 14, 9, C.GREEN)
-    y = y + 18
-
-    local presetData = {
-        {"✨ Siêu cao","Ultra", Color3.fromRGB(180,50,50)},
-        {"🔵 Cao",     "High",  Color3.fromRGB(50,100,180)},
-        {"🟡 Trung",   "Medium",Color3.fromRGB(180,140,30)},
-        {"🟢 Thấp",    "Low",   Color3.fromRGB(60,160,80)},
-    }
-    for i, d in ipairs(presetData) do
-        local x = 8 + (i-1) * 72
-        local btn = Button(T, d[1], x, y, 64, 22, d[3], 9)
-        btn.Activated:Connect(function()
-            local pr = GFX_PRESETS[d[2]]
-            if not pr then return end
-            pcall(function() settings().Rendering.QualityLevel = pr.level end)
-            Lighting.ShadowSoftness           = pr.shadow
-            Lighting.GlobalShadows            = pr.shadows
-            Lighting.EnvironmentDiffuseScale  = pr.diffuse
-            Lighting.EnvironmentSpecularScale = pr.specular
-            qualLbl.Text = "📊 Chất lượng: "..pr.name
-            S.shadows = pr.shadows
-        end)
+Tabs.Main2:AddButton({
+    Title = "night mic",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-NightMystic/Night-Mystic-/refs/heads/main/NightMystic"))()
     end
-    y = y + 30
+})
 
-    local ulBtn = Button(T, "⚡ Siêu Thấp - Tối Đa FPS", 8, y, 250, 24, Color3.fromRGB(100,60,60))
-    ulBtn.Activated:Connect(function()
-        local pr = GFX_PRESETS.UltraLow
-        pcall(function() settings().Rendering.QualityLevel = pr.level end)
-        Lighting.ShadowSoftness           = pr.shadow
-        Lighting.GlobalShadows            = pr.shadows
-        Lighting.EnvironmentDiffuseScale  = pr.diffuse
-        Lighting.EnvironmentSpecularScale = pr.specular
-        qualLbl.Text = "📊 Chất lượng: "..pr.name
-        qualLbl.TextColor3 = C.GREEN
-        S.shadows = pr.shadows
-    end)
-    y = y + 30
-
-    Divider(T, y); y = y + 10
-    SectionLabel(T, "✨ HIỆU ỨNG HẬU KỲ", y); y = y + 28
-
-    local be  = Lighting:FindFirstChild("BCUH_Bloom")  or New("BloomEffect",        {Name="BCUH_Bloom",  Enabled=true,  Intensity=0.5},    Lighting)
-    local ble = Lighting:FindFirstChild("BCUH_Blur")   or New("BlurEffect",         {Name="BCUH_Blur",   Enabled=false, Size=12},          Lighting)
-    local sre = Lighting:FindFirstChild("BCUH_Sun")    or New("SunRaysEffect",      {Name="BCUH_Sun",    Enabled=true,  Intensity=0.25},   Lighting)
-    local cce = Lighting:FindFirstChild("BCUH_Color")  or New("ColorCorrectionEffect",{Name="BCUH_Color",Enabled=false, Contrast=0.15, Saturation=0.2}, Lighting)
-
-    local effectsData = {
-        {t="🌸 Bloom",  s="bloom",     e=be,  on=C.PINK,   isOn=true},
-        {t="🌫 Làm Mờ", s="blur",      e=ble, on=C.CYAN,   isOn=false},
-        {t="☀ Tia Nắng",s="sunRays",   e=sre, on=C.YELLOW, isOn=true},
-        {t="🎨 Màu Sắc",s="colorCorr", e=cce, on=C.ORANGE, isOn=false},
-    }
-
-    for i, d in ipairs(effectsData) do
-        S[d.s] = d.isOn
-        local x  = (i%2==1) and 8 or 148
-        local yy = y + ((i-1)//2) * 30
-        local btn = Button(T,
-            d.t..(d.isOn and ": BẬT" or ": TẮT"),
-            x, yy, 130, 24,
-            d.isOn and d.on or C.GRAY, 10)
-        btn.Activated:Connect(function()
-            S[d.s] = not S[d.s]
-            d.e.Enabled = S[d.s]
-            btn.Text = d.t..(S[d.s] and ": BẬT" or ": TẮT")
-            btn.BackgroundColor3 = S[d.s] and d.on or C.GRAY
-        end)
+Tabs.Main2:AddButton({
+    Title = "bacon hub",
+    Description = "",
+    Callback = function()
+        repeat wait() until game:IsLoaded() and game.Players.LocalPlayer
+        getgenv().team = "Pirates"
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/vinh129150/hack/refs/heads/main/Bloxfruits.lua"))()
     end
-    y = y + 66
+})
 
-    -- Shadow toggle
-    local shadowBtn = Button(T, "🌑 Bóng Đổ: BẬT", 8, y, 160, 24, C.GREEN)
-    shadowBtn.Activated:Connect(function()
-        S.shadows = not S.shadows
-        Lighting.GlobalShadows = S.shadows
-        shadowBtn.Text = "🌑 Bóng Đổ: "..(S.shadows and "BẬT" or "TẮT")
-        shadowBtn.BackgroundColor3 = S.shadows and C.GREEN or C.GRAY
-    end)
-    y = y + 30
-
-    Divider(T, y); y = y + 10
-    SectionLabel(T, "📈 FPS & CHẤT LƯỢNG HÌNH ẢNH", y); y = y + 28
-
-    -- FPS Counter
-    local fpsBtn = Button(T, "📈 Đếm FPS: TẮT", 8, y, 160, 24, C.GRAY)
-    local fpsLbl = New("TextLabel", {
-        Size=UDim2.new(0,100,0,26),
-        Position=UDim2.new(0,10,1,-36),
-        Text="",
-        BackgroundColor3=Color3.new(0,0,0),
-        BackgroundTransparency=0.4,
-        TextColor3=Color3.fromRGB(0,255,100),
-        Font=Enum.Font.GothamBold, TextSize=13,
-        Visible=false, BorderSizePixel=0, ZIndex=200,
-    }, gui)
-    Corner(fpsLbl, UDim.new(0,6))
-
-    local fpsBuf = {}
-    fpsBtn.Activated:Connect(function()
-        S.fpsCounter = not S.fpsCounter
-        fpsLbl.Visible = S.fpsCounter
-        fpsBtn.Text = "📈 Đếm FPS: "..(S.fpsCounter and "BẬT" or "TẮT")
-        fpsBtn.BackgroundColor3 = S.fpsCounter and C.GREEN or C.GRAY
-        if S.fpsCounter then
-            RunService:BindToRenderStep("FPSCounter", Enum.RenderPriority.Last.Value, function(dt)
-                table.insert(fpsBuf, dt)
-                if #fpsBuf > 30 then table.remove(fpsBuf,1) end
-                local total = 0
-                for _, v in ipairs(fpsBuf) do total += v end
-                if total > 0 then
-                    local fps = math.round(#fpsBuf / total)
-                    fpsLbl.TextColor3 = fps>=55 and Color3.fromRGB(0,255,100)
-                        or fps>=30 and Color3.fromRGB(255,200,0)
-                        or Color3.fromRGB(255,60,60)
-                    fpsLbl.Text = "FPS: "..fps
-                end
-            end)
-        else
-            RunService:UnbindFromRenderStep("FPSCounter")
-            fpsBuf = {}; fpsLbl.Text = ""
-        end
-    end)
-    y = y + 30
-
-    -- Texture quality
-    local texHBtn = Button(T, "🔵 Texture Cao",  8,   y, 90, 22, Color3.fromRGB(50,100,180))
-    local texLBtn = Button(T, "🟢 Texture Thấp", 106, y, 90, 22, Color3.fromRGB(60,160,80))
-    local texOBtn = Button(T, "⚫ Tắt Texture",  204, y, 90, 22, C.GRAY)
-    local function SetTextures(mode)
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Texture") or obj:IsA("Decal") then
-                pcall(function() obj.Transparency = (mode=="Off") and 1 or 0 end)
-            end
-        end
+Tabs.Main2:AddButton({
+    Title = "rise hub",
+    Description = "",
+    Callback = function()
+        if not game:IsLoaded() then game.Loaded:Wait() end
+        loadstring(game:HttpGet("https://rise-evo.xyz/apiv3/main.lua"))()
     end
-    texHBtn.Activated:Connect(function() SetTextures("High") end)
-    texLBtn.Activated:Connect(function() SetTextures("Low") end)
-    texOBtn.Activated:Connect(function() SetTextures("Off") end)
-    y = y + 30
+})
 
-    -- Particles & Decals
-    local partBtn  = Button(T, "💨 Hiệu Ứng Hạt: BẬT", 8,   y, 150, 24, C.GREEN)
-    local decalBtn = Button(T, "🖼 Hình Dán: BẬT",      168, y, 130, 24, C.GREEN)
-    local function SetParticles(e)
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
-                pcall(function() obj.Enabled = e end)
-            end
-        end
+Tabs.Main2:AddButton({
+    Title = "gravity hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-GravityHub/BloxFruit/refs/heads/main/Main.lua"))()
     end
-    local function SetDecals(e)
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Decal") then
-                pcall(function() obj.Transparency = e and 0 or 1 end)
-            end
-        end
+})
+
+Tabs.Main2:AddButton({
+    Title = "dragon hub",
+    Description = "",
+    Callback = function()
+        repeat wait() until game:IsLoaded() and game.Players.LocalPlayer
+        getgenv().team = "Pirates"
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/dragonhubdev/dragonwitheveryone/refs/heads/main/Main-BF.lua"))()
     end
-    partBtn.Activated:Connect(function()
-        S.particles = not S.particles
-        SetParticles(S.particles)
-        partBtn.Text = "💨 Hiệu Ứng Hạt: "..(S.particles and "BẬT" or "TẮT")
-        partBtn.BackgroundColor3 = S.particles and C.GREEN or C.GRAY
-    end)
-    decalBtn.Activated:Connect(function()
-        S.decals = not S.decals
-        SetDecals(S.decals)
-        decalBtn.Text = "🖼 Hình Dán: "..(S.decals and "BẬT" or "TẮT")
-        decalBtn.BackgroundColor3 = S.decals and C.GREEN or C.GRAY
-    end)
-    y = y + 32
+})
 
-    -- Reset GFX
-    local resetGfxBtn = Button(T, "🔄 Đặt Lại Đồ Họa Mặc Định", 8, y, 260, 26, C.RED)
-    resetGfxBtn.Activated:Connect(function()
-        local pr = GFX_PRESETS.Ultra
-        pcall(function() settings().Rendering.QualityLevel = pr.level end)
-        Lighting.ShadowSoftness           = pr.shadow
-        Lighting.GlobalShadows            = pr.shadows
-        Lighting.EnvironmentDiffuseScale  = pr.diffuse
-        Lighting.EnvironmentSpecularScale = pr.specular
-        TweenL(DEFAULT_LIGHTING)
-        be.Enabled=true; ble.Enabled=false; sre.Enabled=true; cce.Enabled=false
-        S.bloom=true; S.blur=false; S.sunRays=true; S.colorCorr=false
-        S.shadows=true; S.particles=true; S.decals=true
-        SetParticles(true); SetDecals(true); SetTextures("High")
-        qualLbl.Text = "📊 Chất lượng: ✨ Siêu cao"
-        qualLbl.TextColor3 = Color3.fromRGB(220,80,80)
-    end)
-    y = y + 32
-
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-end
-
--- ==================== TAB: NGƯỜI CHƠI KHÁC ====================
--- (Thêm vào tab Người Chơi bên trên đã đủ, tạo thêm tab Players2 cho Freeze/Server)
--- Tạo thêm tab "Người Chơi 2" cho các chức năng server
-local tabPlayers2 = AddTab("Máy Chủ", "🌐", 10)
-do
-    local T = tabPlayers2
-    local y = 8
-
-    SectionLabel(T, "🧊 ĐÓNG BĂNG & BẢO VỆ", y); y = y + 28
-
-    local freezeBtn = Button(T, "🥶 Đóng Băng Người Khác: TẮT", 8, y, 260, 26, C.GRAY)
-    freezeBtn.Activated:Connect(function()
-        S.freezeOthers = not S.freezeOthers
-        freezeBtn.Text = "🥶 Đóng Băng Người Khác: "..(S.freezeOthers and "BẬT" or "TẮT")
-        freezeBtn.BackgroundColor3 = S.freezeOthers and C.BLUE or C.GRAY
-        if not S.freezeOthers then UnfreezeAll() end
-    end)
-    y = y + 32
-
-    local antiAfkBtn = Button(T, "🛡️ Anti-AFK: BẬT", 8, y, 160, 26, C.GREEN)
-    antiAfkBtn.Activated:Connect(function()
-        S.antiAfk = not S.antiAfk
-        antiAfkBtn.Text = "🛡️ Anti-AFK: "..(S.antiAfk and "BẬT" or "TẮT")
-        antiAfkBtn.BackgroundColor3 = S.antiAfk and C.GREEN or C.GRAY
-    end)
-    y = y + 32
-
-    local blockSrvBtn = Button(T, "🛡️ Anti-Kick / Chống Treo: TẮT", 8, y, 260, 26, C.GRAY)
-    blockSrvBtn.Activated:Connect(function()
-        S.blockServer = not S.blockServer
-        blockSrvBtn.Text = "🛡️ Anti-Kick / Chống Treo: "..(S.blockServer and "BẬT" or "TẮT")
-        blockSrvBtn.BackgroundColor3 = S.blockServer and C.GREEN or C.GRAY
-    end)
-    y = y + 34
-
-    Divider(T, y); y = y + 10
-    SectionLabel(T, "🔄 CHUYỂN SERVER", y); y = y + 28
-
-    local rejoinBtn    = Button(T, "🔄 Vào Lại Server",    8,   y, 150, 26, C.BLUE)
-    local serverHopBtn = Button(T, "🌐 Đổi Server Ngẫu Nhiên", 168, y, 160, 26, C.PURPLE)
-    y = y + 32
-
-    local serverStatusLbl = Label(T, "", 8, y, 300, 14, 9, C.YELLOW)
-    y = y + 20
-
-    rejoinBtn.Activated:Connect(function()
-        serverStatusLbl.Text = "⏳ Đang vào lại server..."
-        pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
-        end)
-    end)
-
-    serverHopBtn.Activated:Connect(function()
-        serverStatusLbl.Text = "⏳ Đang tìm server mới..."
-        task.spawn(function()
-            local servers = {}
-            local req = rawget(_G, "request") or rawget(_G, "http_request")
-                or (rawget(_G,"syn") and rawget(_G.syn,"request"))
-            if req then
-                local ok, res = pcall(function()
-                    return req({Url=string.format(
-                        "https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100",
-                        game.PlaceId)})
-                end)
-                if ok and res then
-                    local parsed
-                    pcall(function()
-                        parsed = HttpService:JSONDecode(res.Body)
-                    end)
-                    if parsed and parsed.data then
-                        for _, sv in ipairs(parsed.data) do
-                            if type(sv)=="table" and sv.playing
-                            and sv.maxPlayers and sv.id
-                            and sv.playing < sv.maxPlayers
-                            and sv.id ~= game.JobId then
-                                table.insert(servers, sv.id)
-                            end
-                        end
-                    end
-                end
-            end
-            if #servers > 0 then
-                serverStatusLbl.Text = "✅ Đã tìm thấy "..#servers.." server!"
-                task.wait(0.5)
-                pcall(function()
-                    TeleportService:TeleportToPlaceInstance(
-                        game.PlaceId,
-                        servers[math.random(1, #servers)],
-                        player)
-                end)
-            else
-                serverStatusLbl.Text = "⚠️ Không tìm thấy server khác!"
-                pcall(function()
-                    TeleportService:Teleport(game.PlaceId, player)
-                end)
-            end
-        end)
-    end)
-
-    y = y + 14
-    Divider(T, y); y = y + 10
-    SectionLabel(T, "📊 THÔNG TIN", y); y = y + 28
-
-    local infoFrame = New("Frame", {
-        Size=UDim2.new(1,-16,0,90), Position=UDim2.new(0,8,0,y),
-        BackgroundColor3=Color3.fromRGB(230,235,248),
-        BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=6,
-    }, T)
-    Corner(infoFrame, UDim.new(0,6))
-    Stroke(infoFrame, Color3.fromRGB(180,185,205), 1.2)
-
-    local infoLbl = New("TextLabel", {
-        Size=UDim2.new(1,-16,1,-10), Position=UDim2.new(0,8,0,5),
-        BackgroundTransparency=1, TextColor3=C.DARK,
-        Font=Enum.Font.GothamMedium, TextSize=10,
-        TextXAlignment=Enum.TextXAlignment.Left,
-        TextYAlignment=Enum.TextYAlignment.Top, ZIndex=7,
-    }, infoFrame)
-
-    local function UpdateInfo()
-        local r = Root()
-        local posStr = r and string.format("%.1f, %.1f, %.1f",
-            r.Position.X, r.Position.Y, r.Position.Z) or "N/A"
-        infoLbl.Text = string.format(
-            "👤 Người chơi: %s\n🌐 Game: %s (PlaceId: %d)\n📍 Vị trí: %s\n👥 Số người: %d/%d\n💾 Script: Banana Cat Ultimate Hub v3.0",
-            player.Name,
-            game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown",
-            game.PlaceId,
-            posStr,
-            #Players:GetPlayers(),
-            Players.MaxPlayers
-        )
+Tabs.Main2:AddButton({
+    Title = "dragon hub lay cyborg",
+    Description = "",
+    Callback = function()
+        getgenv().DragonHub_Config = {
+            ["Enable"] = true,
+            ["UpgradeRaceV2V3"] = false,
+            ["HopServerIfChest"] = 17,
+            ["HopIfCollectEnoughChest"] = true,
+            ["CollectEnough"] = 40,
+            ["TweenSpeed"] = 340,
+            ["Team"] = "Marines",
+            ["Webhook"] = {
+                ["Url"] = "",
+                ["Enable"] = true,
+                ["PingEveryoneWhenDone"] = true
+            }
+        }
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/dragonhubdev/dragonwitheveryone/refs/heads/main/AutoCyborg.lua"))()
     end
-    pcall(UpdateInfo)
-    task.spawn(function()
-        while task.wait(5) do
-            pcall(UpdateInfo)
-        end
-    end)
-    y = y + 100
+})
 
-    T.CanvasSize = UDim2.new(0,0,0,y+20)
-end
-
--- ==================== TAB: CODE ====================
-do
-    local T = tabCode
-    local y = 8
-
-    SectionLabel(T, "⚡ QUICK SCRIPTS", y); y = y + 28
-
-    local quickScripts = {
-        {n="Dex Explorer",   d="Mở Dex Explorer",              cl=Color3.fromRGB(50,120,200),
-         c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]]},
-        {n="Infinite Yield", d="Admin Commands (IY)",           cl=Color3.fromRGB(130,60,200),
-         c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]]},
-        {n="SimpleSpy v3",   d="Spy RemoteEvent & Function",    cl=Color3.fromRGB(0,150,80),
-         c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/exP7/SimpleSpy/main/SimpleSpy.lua"))()]]},
-        {n="Dark Dex",       d="Mở Dark Dex Explorer",         cl=Color3.fromRGB(80,40,120),
-         c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/Babyhamsta/RBLX_Scripts/main/Universal/BypassedDarkDexV3.lua"))()]]},
-    }
-
-    for _, s in ipairs(quickScripts) do
-        local btn = New("TextButton", {
-            Size=UDim2.new(1,-16,0,32), Position=UDim2.new(0,8,0,y),
-            Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.2,
-            BorderSizePixel=0, ZIndex=6,
-        }, T)
-        Corner(btn, UDim.new(0,6))
-        New("TextLabel", {
-            Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0),
-            Text="▶ "..s.n.."  —  "..s.d,
-            BackgroundTransparency=1, TextColor3=C.WHITE,
-            Font=Enum.Font.GothamBold, TextSize=10,
-            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
-        }, btn)
-        btn.Activated:Connect(function()
-            RunCode(s.c, s.n, 1, 0, nil)
-        end)
-        btn.MouseEnter:Connect(function() Tween(btn, {BackgroundTransparency=0.05}, 0.15) end)
-        btn.MouseLeave:Connect(function() Tween(btn, {BackgroundTransparency=0.2}, 0.15) end)
-        y = y + 36
+Tabs.Main2:AddButton({
+    Title = "3toc hub",
+    Description = "",
+    Callback = function()
+        getgenv().Team = "Marines"
+        loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/245375592509cc0bcb3526982431ab18.lua"))()
     end
+})
 
-    Divider(T, y); y = y + 10
-    SectionLabel(T, "💻 NHẬP CODE TÙY CHỈNH", y); y = y + 28
-
-    Label(T, "🏷️ Tên script:", 8, y, 100, 14); y = y + 16
-    local nameIn = TextInput(T, "Tên script...", 8, y, 260, 26)
-    y = y + 32
-
-    Label(T, "💻 Code Lua:", 8, y, 100, 14); y = y + 16
-    local codeIn = New("TextBox", {
-        Size=UDim2.new(1,-16,0,110), Position=UDim2.new(0,8,0,y),
-        PlaceholderText="-- Nhập code Lua tại đây...",
-        PlaceholderColor3=Color3.fromRGB(150,150,160),
-        Text="", BackgroundColor3=Color3.fromRGB(240,242,252),
-        BackgroundTransparency=0.05,
-        TextColor3=Color3.fromRGB(20,20,30),
-        Font=Enum.Font.Code, TextSize=11,
-        BorderSizePixel=0, ClearTextOnFocus=false,
-        MultiLine=true, TextWrapped=true,
-        TextXAlignment=Enum.TextXAlignment.Left,
-        TextYAlignment=Enum.TextYAlignment.Top,
-        Active=true, Selectable=true, ZIndex=8,
-    }, T)
-    Corner(codeIn, UDim.new(0,5))
-    Stroke(codeIn, Color3.fromRGB(140,145,180), 1.5)
-    Pad(codeIn, 6, 6, 6, 6)
-    y = y + 116
-
-    -- Loop settings
-    Label(T, "🔁 Số lần lặp:", 8,   y, 100, 14)
-    Label(T, "⏱ Thời gian chờ (giây):", 130, y, 160, 14)
-    y = y + 16
-    local repIn = TextInput(T, "1",  8,   y, 60, 24); repIn.Text  = "1"
-    local delIn = TextInput(T, "0",  130, y, 60, 24); delIn.Text  = "0"
-    y = y + 32
-
-    local runBtn  = Button(T, "▶ Chạy Code",         8,   y, 130, 28, C.GREEN)
-    local stopBtn = Button(T, "⏹ Dừng",              148, y, 80,  28, C.RED)
-    local saveBtn = Button(T, "💾 Lưu",               238, y, 60,  28, C.BLUE)
-    y = y + 36
-
-    local statusLbl = Label(T, "", 8, y, 280, 14, 9, C.YELLOW)
-    y = y + 16
-    local countLbl  = Label(T, "🔄 Tổng lần chạy: 0", 8, y, 200, 14, 9, C.GREEN)
-
-    T.CanvasSize = UDim2.new(0,0,0,y+30)
-
-    local RebuildSavedTab  -- forward declare
-
-    runBtn.Activated:Connect(function()
-        local code = codeIn.Text
-        local name = nameIn.Text == "" and "Script" or nameIn.Text
-        local times = math.clamp(tonumber(repIn.Text) or 1, 1, 1000)
-        local delay = math.max(tonumber(delIn.Text) or 0, 0)
-        local ok = RunCode(code, name, times, delay, function(okC, failC)
-            statusLbl.Text = "✅ Xong! Thành công: "..okC.." | Lỗi: "..failC
-            countLbl.Text  = "🔄 Tổng lần chạy: "..totalRuns
-        end)
-        if ok then
-            statusLbl.Text = "⏳ Đang thực thi..."
-        else
-            statusLbl.Text = "⚠️ Vui lòng nhập code!"
-        end
-    end)
-
-    stopBtn.Activated:Connect(function()
-        CancelExec()
-        statusLbl.Text = "⏹️ Đã dừng"
-    end)
-
-    saveBtn.Activated:Connect(function()
-        local code = codeIn.Text
-        if #code == 0 then statusLbl.Text="⚠️ Vui lòng nhập code!"; return end
-        local name = nameIn.Text
-        if name == "" then name = "Script "..(#scripts+1) end
-        -- Kiểm tra trùng tên
-        local baseName = name; local cnt = 1
-        while true do
-            local exists = false
-            for _, s in ipairs(scripts) do
-                if s.name == name then exists=true; break end
-            end
-            if not exists then break end
-            cnt += 1; name = baseName.." ("..cnt..")"
-        end
-        table.insert(scripts, {name=name, code=code, expanded=false})
-        statusLbl.Text = "✅ Đã lưu: "..name
-        if RebuildSavedTab then RebuildSavedTab() end
-    end)
-
-    -- Export RebuildSavedTab reference
-    _G._BananaRebuildSaved = nil  -- placeholder
-
-end
-
--- ==================== TAB: CODE ĐÃ LƯU ====================
-do
-    local T = tabSaved
-    local y = 8
-
-    SectionLabel(T, "💾 DANH SÁCH SCRIPT ĐÃ LƯU", y); y = y + 28
-
-    local searchIn = TextInput(T, "🔍 Tìm script...", 8, y, 260, 26)
-    y = y + 32
-
-    local scriptListFrame = New("Frame", {
-        Size=UDim2.new(1,-16,1,-(y+10)), Position=UDim2.new(0,8,0,y),
-        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=5,
-    }, T)
-    New("UIListLayout", {
-        SortOrder=Enum.SortOrder.LayoutOrder,
-        Padding=UDim.new(0,5),
-    }, scriptListFrame)
-
-    local function RebuildSavedScripts()
-        for _, c in ipairs(scriptListFrame:GetChildren()) do
-            if not c:IsA("UIListLayout") then c:Destroy() end
-        end
-
-        local term = searchIn.Text:lower()
-        local disp = {}
-        for _, d in ipairs(scripts) do
-            if term=="" or d.name:lower():find(term,1,true) then
-                table.insert(disp, d)
-            end
-        end
-
-        if #disp == 0 then
-            New("TextLabel", {
-                Size=UDim2.new(1,0,0,50),
-                Text=term~="" and "📭 Không tìm thấy script phù hợp"
-                    or "📭 Chưa có script nào được lưu\nHãy vào Tab 'Code' để lưu script!",
-                BackgroundTransparency=1,
-                TextColor3=C.GRAY, Font=Enum.Font.GothamMedium,
-                TextSize=10, TextXAlignment=Enum.TextXAlignment.Center,
-                TextYAlignment=Enum.TextYAlignment.Center, ZIndex=6,
-            }, scriptListFrame)
-        end
-
-        local totalH = 0
-        for i, d in ipairs(disp) do
-            local expanded = d.expanded or false
-            local rowH = expanded and 170 or 38
-
-            local card = New("Frame", {
-                Size=UDim2.new(1,0,0,rowH),
-                BackgroundColor3=Color3.fromRGB(248,250,255),
-                BackgroundTransparency=0.08,
-                BorderSizePixel=0, ZIndex=6,
-                ClipsDescendants=true,
-            }, scriptListFrame)
-            Corner(card, UDim.new(0,7))
-            Stroke(card, Color3.fromRGB(185,190,210), 1.1)
-
-            -- Arrow button
-            local arrowBtn = New("TextButton", {
-                Size=UDim2.new(0,26,0,26), Position=UDim2.new(0,6,0,6),
-                Text=expanded and "▲" or "▼",
-                BackgroundColor3=Color3.fromRGB(215,220,238),
-                BackgroundTransparency=0.1,
-                TextColor3=C.BLUE, Font=Enum.Font.GothamBold,
-                TextSize=10, BorderSizePixel=0, ZIndex=8,
-            }, card)
-            Corner(arrowBtn, UDim.new(0,5))
-
-            -- Name label
-            New("TextLabel", {
-                Size=UDim2.new(1,-200,0,38), Position=UDim2.new(0,38,0,0),
-                Text=d.name,
-                BackgroundTransparency=1, TextColor3=C.DARK,
-                Font=Enum.Font.GothamBold, TextSize=11,
-                TextXAlignment=Enum.TextXAlignment.Left,
-                TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
-            }, card)
-
-            -- Delete button (trái nút chạy)
-            local delBtn = New("TextButton", {
-                Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-134,0,6),
-                Text="🗑 Xóa",
-                BackgroundColor3=C.RED, BackgroundTransparency=0.1,
-                TextColor3=C.WHITE, Font=Enum.Font.GothamBold,
-                TextSize=10, BorderSizePixel=0, ZIndex=8,
-            }, card)
-            Corner(delBtn, UDim.new(0,5))
-
-            -- Run button (phải ngoài cùng)
-            local runBtn2 = New("TextButton", {
-                Size=UDim2.new(0,66,0,26), Position=UDim2.new(1,-68,0,6),
-                Text="▶ Chạy",
-                BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
-                TextColor3=C.WHITE, Font=Enum.Font.GothamBold,
-                TextSize=10, BorderSizePixel=0, ZIndex=8,
-            }, card)
-            Corner(runBtn2, UDim.new(0,5))
-
-            -- Code box (khi mở)
-            if expanded then
-                local codeBox = New("ScrollingFrame", {
-                    Size=UDim2.new(1,-12,0,90), Position=UDim2.new(0,6,0,42),
-                    BackgroundColor3=Color3.fromRGB(235,238,252),
-                    BackgroundTransparency=0.05,
-                    BorderSizePixel=0, ScrollBarThickness=4,
-                    CanvasSize=UDim2.new(0,0,0,0), ZIndex=8,
-                }, card)
-                Corner(codeBox, UDim.new(0,5))
-                Stroke(codeBox, Color3.fromRGB(180,185,210), 1)
-
-                local codeLbl2 = New("TextBox", {
-                    Size=UDim2.new(1,-8,1,-8), Position=UDim2.new(0,4,0,4),
-                    Text=d.code, BackgroundTransparency=1,
-                    TextColor3=Color3.fromRGB(25,25,35),
-                    Font=Enum.Font.Code, TextSize=10,
-                    TextXAlignment=Enum.TextXAlignment.Left,
-                    TextYAlignment=Enum.TextYAlignment.Top,
-                    MultiLine=true, TextWrapped=true,
-                    ClearTextOnFocus=false, TextEditable=false,
-                    Active=true, ZIndex=9,
-                }, codeBox)
-
-                -- Copy button
-                local copyBtn2 = New("TextButton", {
-                    Size=UDim2.new(0,140,0,26), Position=UDim2.new(0,6,0,136),
-                    Text="📋 Sao Chép Code",
-                    BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
-                    TextColor3=C.WHITE, Font=Enum.Font.GothamBold,
-                    TextSize=10, BorderSizePixel=0, ZIndex=8,
-                }, card)
-                Corner(copyBtn2, UDim.new(0,5))
-
-                copyBtn2.Activated:Connect(function()
-                    local copied = false
-                    if setclipboard then
-                        pcall(function() setclipboard(d.code); copied=true end)
-                    elseif toclipboard then
-                        pcall(function() toclipboard(d.code); copied=true end)
-                    end
-                    if copied then
-                        copyBtn2.Text = "✅ Đã Sao Chép!"
-                    else
-                        pcall(function()
-                            codeLbl2:CaptureFocus()
-                            codeLbl2.SelectionStart = 1
-                            codeLbl2.CursorPosition = #d.code + 1
-                        end)
-                        copyBtn2.Text = "⚠️ Đã Bôi Đen Code"
-                    end
-                    task.delay(1.5, function()
-                        if copyBtn2 and copyBtn2.Parent then
-                            copyBtn2.Text = "📋 Sao Chép Code"
-                        end
-                    end)
-                end)
-            end
-
-            -- Connections
-            arrowBtn.Activated:Connect(function()
-                d.expanded = not d.expanded
-                RebuildSavedScripts()
-            end)
-
-            local capturedD = d
-            local capturedI = i
-            runBtn2.Activated:Connect(function()
-                RunCode(capturedD.code, capturedD.name, 1, 0, function(ok, fail)
-                    runBtn2.Text = ok > 0 and "✅ Xong" or "❌ Lỗi"
-                    task.delay(1.5, function()
-                        if runBtn2 and runBtn2.Parent then
-                            runBtn2.Text = "▶ Chạy"
-                        end
-                    end)
-                end)
-            end)
-
-            delBtn.Activated:Connect(function()
-                for idx, s in ipairs(scripts) do
-                    if s == capturedD then
-                        table.remove(scripts, idx)
-                        break
-                    end
-                end
-                RebuildSavedScripts()
-            end)
-
-            totalH = totalH + rowH + 5
-        end
-
-        local listH = math.max(totalH, 60)
-        scriptListFrame.Size = UDim2.new(1,-16,0,listH)
-        T.CanvasSize = UDim2.new(0,0,0,y + listH + 30)
+Tabs.Main2:AddButton({
+    Title = "bluex hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dev-BlueX/BlueX-Hub/refs/heads/main/Main.lua"))()
     end
+})
 
-    searchIn:GetPropertyChangedSignal("Text"):Connect(RebuildSavedScripts)
-    RebuildSavedScripts()
-
-    -- Cho Tab Code reference
-    _G._BananaRebuildSaved = RebuildSavedScripts
-end
-
--- Kết nối RebuildSavedTab từ Tab Code sang Tab Saved
--- (thực hiện thông qua _G bridge đã đặt ở trên)
-
--- ==================== FPS LABEL DRAG ====================
-local fpsLbl2 = gui:FindFirstChild("__FPSLBL__", true)
--- FPS label đã tạo trong tab GFX, nó là global trong gui
-
--- ==================== FREE CAM HUD ====================
-local fcHUD = New("Frame", {
-    Size=UDim2.new(0,250,0,36), Position=UDim2.new(0.5,-125,0,10),
-    BackgroundColor3=Color3.new(0,0,0), BackgroundTransparency=0.45,
-    Visible=false, BorderSizePixel=0, ZIndex=200,
-}, gui)
-Corner(fcHUD, UDim.new(0,8))
-Stroke(fcHUD, Color3.fromRGB(0,200,255), 1.5)
-New("TextLabel", {
-    Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,8,0,0),
-    Text="🎥 Camera Tự Do | [F] Thoát | Shift tăng tốc x3",
-    BackgroundTransparency=1, TextColor3=Color3.fromRGB(0,220,255),
-    Font=Enum.Font.GothamBold, TextSize=10,
-    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=201,
-}, fcHUD)
-
-local crosshair = New("Frame", {
-    Size=UDim2.new(0,8,0,8), Position=UDim2.new(0.5,-4,0.5,-4),
-    BackgroundColor3=C.WHITE, BackgroundTransparency=0.2,
-    BorderSizePixel=0, Visible=false, ZIndex=200,
-}, gui)
-Corner(crosshair, UDim.new(1,0))
-
--- Patch EnFC/DisFC to show/hide HUD
-local _origEnFC = EnFC
-local _origDisFC = DisFC
-
-EnFC = function()
-    _origEnFC()
-    fcHUD.Visible   = true
-    crosshair.Visible = true
-end
-
-DisFC = function()
-    _origDisFC()
-    fcHUD.Visible   = false
-    crosshair.Visible = false
-end
-
--- ==================== RESPAWN HANDLER ====================
-player.CharacterAdded:Connect(function(char)
-    task.wait(0.4)
-    UpdChar()
-    UpdateNoclipState()
-    if S.glowActive then UpdateGlow() end
-    if S.showHeightVisual then UpdateHeightVisual() end
-    if S.flying then StopPhysFly(); task.wait(0.1); StartPhysFly() end
-    if S.carpet then StopCarpet(); task.wait(0.1)
-        local r = Root()
-        if r then CreateCarpet(r.Position.Y - 3.0 - (S.carpetThickness or 0.2)/2) end
+Tabs.Main2:AddButton({
+    Title = "ok hub",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/fakekuri/Okhubhere/refs/heads/main/MainBloxFruit.lua"))()
     end
-    if S.customCam then EnCC() end
-    if S.noClip then UpdateNoclipState() end
-end)
+})
 
--- ==================== PLAYERS HOOKS ====================
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= player then
-        p.CharacterAdded:Connect(function()
-            task.wait(0.5)
-            if S.espAll or (S.espSingle and selectedPlayer == p) then
-                CreatePlayerESP(p)
-            end
-        end)
-        p.CharacterRemoving:Connect(function()
-            RemovePlayerESP(p)
-        end)
+Tabs.Main2:AddButton({
+    Title = "script banh mia hub",
+    Description = "",
+    Callback = function()
+        repeat task.wait() until game:IsLoaded()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Graihub/Loader-bamiahub/refs/heads/main/bamia"))()
     end
-end
+})
 
-Players.PlayerAdded:Connect(function(p)
-    if p == player then return end
-    p.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        if S.espAll then CreatePlayerESP(p) end
-    end)
-    p.CharacterRemoving:Connect(function() RemovePlayerESP(p) end)
-end)
-
-Players.PlayerRemoving:Connect(function(p)
-    RemovePlayerESP(p)
-    if selectedPlayer == p then
-        selectedPlayer = nil
-        if followActive then StopFollow() end
+-- Tab Script Hop
+Tabs.Main3:AddButton({
+    Title = "night hop",
+    Description = "",
+    Callback = function()
+        _G.AutoTranslate = true
+        _G.SaveConfig = true
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhiteX1208/Scripts/refs/heads/main/HopScript.luau"))()
     end
-end)
+})
 
--- ==================== KEYBOARD SHORTCUT ====================
-UserInputService.InputBegan:Connect(function(i, gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightControl then
-        SetMenuVisible(not main.Visible)
+Tabs.Main3:AddButton({
+    Title = "teddy hub hop",
+    Description = "",
+    Callback = function()
+        repeat task.wait() until game:IsLoaded() and game:GetService("Players") and game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Teddyseetink/Haidepzai/refs/heads/main/TEDDYHUB-FREEMIUM"))()
     end
-    if i.KeyCode == Enum.KeyCode.RightBracket then
-        SwitchTab((activeTabIndex % #tabList) + 1)
+})
+
+-- Tab Skibidi
+Tabs.Main4:AddButton({
+    Title = "kaintun",
+    Description = "",
+    Callback = function()
+        Config = {
+            Team = "Pirates",
+            Config = {
+                HopWhenIdle = true,
+                AutoHop = true,
+                AutoHopDelay = 60 * 60,
+                FpsBoost = false,
+                BlackScreen = true
+            },
+            Items = {
+                AutoFullyMelees = true,
+                Saber = true,
+                CursedDualKatana = false,
+                SoulGuitar = false,
+                RaceV2 = true
+            },
+            Settings = {
+                StayInSea2UntilHaveDarkFragments = false
+            }
+        }
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/hhl29042008-ops/script/refs/heads/main/cac"))()
     end
-    if i.KeyCode == Enum.KeyCode.LeftBracket then
-        local prev = activeTabIndex - 1
-        if prev < 1 then prev = #tabList end
-        SwitchTab(prev)
+})
+
+Tabs.Main4:AddButton({
+    Title = "quocdungskibidi hub new year 2026",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/huynhskibididung-tech/Scripttonghopquocdunginmeme/refs/heads/main/quocdungscrirptonghop.txt"))()
     end
-end)
+})
 
--- ==================== MOBILE CONTROLS ====================
-local mobilePanel = New("Frame", {
-    Size=UDim2.new(0,180,0,80), Position=UDim2.new(0,10,1,-90),
-    BackgroundTransparency=1, Visible=false, ZIndex=50,
-}, gui)
-
-local function MobBtn2(t, pos, color)
-    local b = New("TextButton", {
-        Size=UDim2.new(0,42,0,42), Position=pos,
-        Text=t, BackgroundColor3=color or C.WHITE,
-        BackgroundTransparency=0.2, TextColor3=C.DARK,
-        Font=Enum.Font.GothamBold, TextSize=20,
-        BorderSizePixel=0, ZIndex=51,
-    }, mobilePanel)
-    Corner(b, UDim.new(1,0))
-    Stroke(b, nil, 1.5)
-    return b
-end
-
-local mobUpBtn = MobBtn2("⬆", UDim2.new(0,8,0,8),  C.GREEN)
-local mobDnBtn = MobBtn2("⬇", UDim2.new(0,58,0,8), C.RED)
-local mobInfo  = MobBtn2("🍌",UDim2.new(0,108,0,8),C.BLUE)
-
-local mInput = {up=false, down=false}
-local tMap   = {}
-
-UserInputService.TouchStarted:Connect(function(i, p)
-    if p then return end
-    local pos = i.Position
-    for _, d in ipairs({{mobUpBtn,"up"},{mobDnBtn,"down"}}) do
-        local b, k = d[1], d[2]
-        local ap = b.AbsolutePosition
-        local as = b.AbsoluteSize
-        if pos.X>=ap.X and pos.X<=ap.X+as.X and pos.Y>=ap.Y and pos.Y<=ap.Y+as.Y then
-            mInput[k]=true; tMap[i]=k; break
-        end
+Tabs.Main4:AddButton({
+    Title = "script tong hop",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/67HubDev/all/refs/heads/main/67hub.vn.lua"))()
     end
-end)
-UserInputService.TouchEnded:Connect(function(i)
-    if tMap[i] then mInput[tMap[i]]=false; tMap[i]=nil end
-end)
-mobInfo.Activated:Connect(function()
-    SetMenuVisible(not main.Visible)
-end)
+})
 
-if UserInputService.TouchEnabled then
-    mobilePanel.Visible = true
-end
+Tabs.Main4:AddButton({
+    Title = "script kaitun night hub",
+    Description = "",
+    Callback = function()
+        getgenv().Config = {
+            Team = "Pirates",
+            FarmConfig = {
+                ["ExitGameWhenCompleteAll"] = true,
+                ["SkipTeleport"] = true,
+                ["DoubleQuest(RISKY)"] = true
+            },
+            Items = {
+                ["Saber"] = true,
+                ["Pole(Form1)"] = true,
+                ["SoulGuitar"] = true,
+                ["CursedDualKatana"] = true,
+                ["Godhuman"] = true
+            },
+            Webhook = {
+                ["Enabled"] = false,
+                ["Url"] = ""
+            }
+        }
+        loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/d6c7959dcc94cd24467080d82a56dcf9.lua"))()
+    end
+})
 
--- ==================== INIT ====================
-UpdChar()
-UpdateNoclipState()
-SwitchTab(1)
+Tabs.Main4:AddButton({
+    Title = "script Hoa bia, Trai cay",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/01f0b1186a4c799992e4fa2a74a5f3d0.lua"))()
+    end
+})
 
--- ==================== DONE ====================
-print("✅ Banana Cat Ultimate Hub v3.0 đã tải hoàn tất!")
-print("⌨️ RightControl     → Ẩn/Hiện Menu")
-print("⌨️ ] / [            → Tab tiếp/trước")
-print("⌨️ F (khi Free Cam) → Thoát Camera Tự Do")
-print("🍌 Chúc bạn chơi vui vẻ!")
+Tabs.Main4:AddButton({
+    Title = "script tele fruit",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastefy.app/FY1mZa0N/raw"))()
+    end
+})
+
+Tabs.Main4:AddButton({
+    Title = "script tong hop hub dac biet",
+    Description = "",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Luongdaynetroi/ScriptTongHop/refs/heads/main/.lua"))()
+    end
+})
