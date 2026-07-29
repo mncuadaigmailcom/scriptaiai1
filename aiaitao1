@@ -1,7 +1,7 @@
 -- ============================================
--- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
--- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + Tab "Code Đã Lưu" CẬP NHẬT: Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
+-- EXECUTOR MENU - Banana Cat Hub Style (Đã lọc bỏ Camera & Đồ Hoạ)
+-- (Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
+-- + Tab "Code Đã Lưu": Sổ code có nút "📋 Sao Chép Code" + Đổi vị trí Nút Xóa (Trái) & Nút Chạy (Phải)
 -- + ĐỐNG BĂNG NGƯỜI CHƠI KHÁC (FREEZE OTHERS) & ANTI-KICK BẢO VỆ BẢN THÂN
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
@@ -47,14 +47,6 @@ local DEFAULT_LIGHTING = {
     FogEnd = 100000, FogStart = 0, FogColor = Color3.new(1, 1, 1),
     GlobalShadows = true, EnvironmentDiffuseScale = 1,
     EnvironmentSpecularScale = 1, ShadowSoftness = 0.5,
-}
-
-local PRESETS = {
-    Ultra = {level=21, shadow=0.2, diffuse=1, specular=1, shadows=true, name="✨ Siêu cao"},
-    High = {level=17, shadow=0.5, diffuse=1, specular=1, shadows=true, name="🔵 Cao"},
-    Medium = {level=10, shadow=1, diffuse=0.8, specular=0.6, shadows=true, name="🟡 Trung"},
-    Low = {level=5, shadow=1, diffuse=0.5, specular=0.3, shadows=false, name="🟢 Thấp"},
-    UltraLow = {level=1, shadow=1, diffuse=0, specular=0, shadows=false, name="⚡ Siêu thấp"},
 }
 
 -- ==================== UI HELPER ====================
@@ -239,7 +231,7 @@ local function SetupResizeHandle(btn, cornerType)
                 newY = posY + (h - newH)
             end
 
-            main.Size = UDim2.new(sizeStart.X.Scale, newW, main.Size.Y.Scale, newH)
+            main.Size = UDim2.new(sizeStart.X.Scale, newW, sizeStart.Y.Scale, newH)
             main.Position = UDim2.new(posStart.X.Scale, newX, posStart.Y.Scale, newY)
         end
     end)
@@ -367,7 +359,7 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 5 TABS (đã xóa Camera và Đồ Họa)
+-- 5 TABS (ĐÃ BỎ CAMERA VÀ ĐỒ HỌA)
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -382,10 +374,7 @@ local S = {
     carpetWidth=1.5, carpetThickness=0.2, carpetLength=1.5,
     walkSpeed=16, jumpPower=50,
     noClip=false, fog=false, flying=false, carpet=false, flyRun=false,
-    customCam=false, fov=70, camOffX=0, camOffY=0,
-    freeCam=false, freeCamSpeed=30, carpetY=nil,
-    shadows=true,
-    fpsCounter=false, particles=true, decals=true,
+    carpetY=nil,
     infJump=false, clickTp=false, esp=false, antiAfk=true, fullBright=false,
     blockServer=false, freezeOthers=false,
 }
@@ -434,7 +423,7 @@ RunService.Stepped:Connect(function()
         local h = Hum()
         local r = Root()
         if h and h.Sit then h.Sit = false end
-        if r and not S.freeCam and r.Anchored then r.Anchored = false end
+        if r and r.Anchored then r.Anchored = false end
     end
 
     if S.freezeOthers then
@@ -1126,7 +1115,7 @@ saveBtn.Activated:Connect(function()
     statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'!"
 end)
 
--- ==================== TAB 2: CODE ĐÃ LƯU (CẬP NHẬT GIAO DIỆN MỚI) ====================
+-- ==================== TAB 2: CODE ĐÃ LƯU ====================
 local sy = 8
 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
@@ -1182,7 +1171,6 @@ RebuildScripts = function()
         }, scriptList)
         Corner(row,UDim.new(0,6)); Stroke(row)
 
-        -- 1. NÚT MŨI TÊN BÊN TRÁI (SỔ CODE)
         local arrowBtn = New("TextButton", {
             Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
             Text=isExpanded and "▲" or "▼",
@@ -1191,7 +1179,6 @@ RebuildScripts = function()
         }, row)
         Corner(arrowBtn, UDim.new(0,4))
 
-        -- 2. TÊN SCRIPT (CẠNH MŨI TÊN)
         local nameLbl = New("TextLabel", {
             Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
@@ -1199,7 +1186,6 @@ RebuildScripts = function()
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
         }, row)
 
-        -- 3. NÚT "🗑 XÓA" (ĐƯỢC CHUYỂN SANG BÊN TRÁI NÚT CHẠY)
         local delScriptBtn = New("TextButton", {
             Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
             Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
@@ -1207,7 +1193,6 @@ RebuildScripts = function()
         }, row)
         Corner(delScriptBtn, UDim.new(0,5))
 
-        -- 4. NÚT "▶ CHẠY" (ĐƯỢC CHUYỂN SANG BÊN PHẢI NGOÀI CÙNG)
         local runScriptBtn = New("TextButton", {
             Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
@@ -1215,7 +1200,6 @@ RebuildScripts = function()
         }, row)
         Corner(runScriptBtn, UDim.new(0,5))
 
-        -- 5. KHUNG HIỂN THỊ CODE VÀ NÚT SAO CHÉP (SỔ RA KHI BẤM MŨI TÊN)
         if isExpanded then
             local codeBoxFrame = New("ScrollingFrame", {
                 Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
@@ -1234,7 +1218,6 @@ RebuildScripts = function()
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
             }, codeBoxFrame)
 
-            -- [MỚI] NÚT SAO CHÉP CODE NẰM TRONG KHUNG SỔ NÀY
             local copyBtn = New("TextButton", {
                 Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
@@ -1660,4 +1643,4 @@ end)
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã cập nhật Tab 'Code Đã Lưu' thành công: Thêm nút '📋 Sao Chép Code' + Đổi nút '🗑 Xóa' bên Trái và '▶ Chạy' bên Phải!")
+print("✅ Đã xóa hoàn toàn 2 tính năng Camera & Đồ Họa thành công! Menu gọn nhẹ và tối ưu hơn.")
