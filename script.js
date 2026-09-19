@@ -4753,7 +4753,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.6",
+    Version = "4.25",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7418,12 +7418,21 @@ function MV.SetFly(on)
         local curR, curH = MV.Root(), MV.Hum()
         if not MV.fly or not curR or not MV._bv then return end
         local d = (curH and curH.MoveDirection) or Vector3.zero
+        -- v4.24: NÚT ẢO — nếu joystick ảo đang giữ thì dùng nó
+        if MV.Safe and (math.abs(tonumber(MV.Safe._virtX) or 0) > 0.01 or math.abs(tonumber(MV.Safe._virtZ) or 0) > 0.01) then
+            d = Vector3.new(tonumber(MV.Safe._virtX) or 0, 0, tonumber(MV.Safe._virtZ) or 0)
+        end
         local t = curR.CFrame:VectorToWorldSpace(d)
         if t.Magnitude > 0 then t = t.Unit end
         local up   = UserInputService:IsKeyDown(Enum.KeyCode.Space)
         local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
                   or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        local vv = (up and 1 or 0) - (down and 1 or 0)
+        local vv
+        if MV.Safe and math.abs(tonumber(MV.Safe._virtY) or 0) > 0.01 then
+            vv = tonumber(MV.Safe._virtY) or 0
+        else
+            vv = (up and 1 or 0) - (down and 1 or 0)
+        end
         -- v4.23: BỌC pcall TỪNG PHẦN — game/anti-cheat xoá part bay, camera nil, nhân vật đổi giữa
         -- frame... trước đây 1 lỗi ở đây là vòng lặp chết ngay frame đó (và 🛡 chết theo vì nằm cuối).
         -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
@@ -7502,6 +7511,11 @@ MV.Safe = {
     threats = 0, nearest = nil,     -- để hiện trạng thái
     _rep = Vector3.new(0, 0, 0),    -- vector đẩy của lần quét gần nhất
     _seen = {}, _cache = nil, _listAcc = 0, _sc = 0,
+    -- v4.24: NÚT ẢO cho 🛡 Bay An Toàn
+    _virtX = 0, _virtZ = 0, _virtY = 0,
+    showHud = true,
+    _hud = nil,
+    _joyBG = nil, _joyKnob = nil, _dragging = false,
 }
 local SF = MV.Safe
 
@@ -7907,8 +7921,14 @@ function MV.Safe.Step(dt)
     -- v4.20: NHỚ HƯỚNG NÉ ~0,9s. Boss đuổi theo mà hễ ra khỏi tầm quét là mình quay lại hướng cũ
     -- -> bị gí lại ngay. Nay tiếp tục chạy RA XA hướng đó, yếu dần rồi mới thôi.
     -- hướng bay: theo phím đang bấm, không bấm gì mà ➡ Tự bay thì bay theo hướng camera
+    -- v4.24: NÚT ẢO — nếu đang giữ joystick ảo thì dùng nó thay cho MoveDirection thật
     local keys = (h and h.MoveDirection) or Vector3.new(0, 0, 0)
-    local busy = keys.Magnitude >= 0.01                  -- đang bấm WASD -> nhường quyền cho bạn
+    local vX = tonumber(SF._virtX) or 0
+    local vZ = tonumber(SF._virtZ) or 0
+    if math.abs(vX) > 0.01 or math.abs(vZ) > 0.01 then
+        keys = Vector3.new(vX, 0, vZ)
+    end
+    local busy = keys.Magnitude >= 0.01                  -- đang bấm WASD / joystick ảo -> nhường quyền cho bạn
     local dir = keys
     if dir.Magnitude < 0.01 and SF.auto then
         local cam = workspace.CurrentCamera
@@ -7921,7 +7941,13 @@ function MV.Safe.Step(dt)
     local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
     local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
               or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-    local vv = (up and 1 or 0) - (down and 1 or 0)
+    local vY = tonumber(SF._virtY) or 0
+    local vv
+    if math.abs(vY) > 0.01 then
+        vv = vY
+    else
+        vv = (up and 1 or 0) - (down and 1 or 0)
+    end
     local spd = mvClamp(SF.speed, 1, 2000, 60)
     -- ⭕ VÒNG TRÒN: chỉ khi ➡ Tự bay đang bật, KHÔNG bấm phím, và quanh đây KHÔNG có mối nguy
     -- nào (đúng ý "khi không có ai / vật chuyển động bay tới mình thì tự bay vòng tròn").
@@ -7969,6 +7995,12 @@ function MV.Safe.Step(dt)
     pcall(function() bv.Velocity = target end)
     -- 🔲 khiên trong suốt bám theo mình (vẽ vùng né cho thấy)
     if SF.shield then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    -- v4.24: cập nhật nhãn nút ảo mỗi ~0.3s cho nhẹ
+    SF._hudAcc = (SF._hudAcc or 0) + dtv
+    if SF._hudAcc >= 0.3 then
+        SF._hudAcc = 0
+        if SF._hudUpdate then pcall(SF._hudUpdate) end
+    end
 end
 function MV.Safe.Set(on)
     SF.on = (on == true)
@@ -7986,9 +8018,11 @@ function MV.Safe.Set(on)
         SF._lastFrameAt = tick()
         pcall(MV.Safe.Bind)                      -- v4.23: vòng lặp RIÊNG của 🛡 (không nhờ 🚀 Bay nữa)
         pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
+        pcall(function() MV.Safe.SyncHud() end)
     else
         pcall(MV.Safe.Unbind)                    -- v4.23: gỡ vòng lặp riêng của 🛡
         MV.Safe.Reset()
+        pcall(function() MV.Safe.ClearVirt() end)
         MV.SetFly(false)
         MV.Safe.KillShield()
         SF._root = nil
@@ -7998,6 +8032,7 @@ function MV.Safe.Set(on)
             SF._ncPrev = nil
             pcall(function() MV.SetNoclip(was) end)   -- SetNoclip đã tự bỏ qua nếu trùng trạng thái
         end
+        pcall(function() MV.Safe.SyncHud() end)
     end
     return SF.on
 end
@@ -8099,11 +8134,12 @@ function MV.Safe.Status()
         s = s .. string.format(" · 🔲 khiên %g m/cạnh%s", half * 2, (tonumber(SF.shieldSize) or 0) > 0 and "" or " (tự)")
     end
     if SF.circle and SF.auto then
-        -- v4.19: nói RÕ vì sao đang tạm dừng — đang né hoặc đang bấm WASD (Step cũng tạm dừng như vậy)
+        -- v4.19: nói RÕ vì sao đang tạm dừng — đang né hoặc đang bấm WASD / joystick ảo (Step cũng tạm dừng như vậy)
         local busy = false
         local hum0 = MV.Hum()
         local md0 = hum0 and hum0.MoveDirection
         if md0 and md0.Magnitude and md0.Magnitude >= 0.01 then busy = true end
+        if math.abs(tonumber(SF._virtX) or 0) > 0.01 or math.abs(tonumber(SF._virtZ) or 0) > 0.01 then busy = true end
         if (SF.threats or 0) > 0 then
             s = s .. " · ⭕ tạm dừng (đang né)"
         elseif busy then
@@ -8124,7 +8160,336 @@ function MV.Safe.Status()
     else
         s = s .. " · ✅ quanh đây không có gì lao tới mình"
     end
+    -- v4.24: hiển thị thêm trạng thái nút ảo
+    if SF.showHud and SF.on then
+        s = s .. " · 📱 nút ảo BẬT"
+    end
     return s
+end
+
+-- ========== v4.24: NÚT ẢO CHO 🛡 BAY AN TOÀN ==========
+function MV.Safe.SetVirt(x, z, y)
+    SF._virtX = mvClamp(tonumber(x) or 0, -1, 1, 0)
+    SF._virtZ = mvClamp(tonumber(z) or 0, -1, 1, 0)
+    SF._virtY = mvClamp(tonumber(y) or 0, -1, 1, 0)
+    return SF._virtX, SF._virtZ, SF._virtY
+end
+function MV.Safe.ClearVirt()
+    SF._virtX, SF._virtZ, SF._virtY = 0, 0, 0
+    return true
+end
+function MV.Safe.SetShowHud(b)
+    SF.showHud = (b == true)
+    if not SF.showHud then
+        pcall(function() MV.Safe.ClearVirt() end)
+        -- reset núm nếu có
+        pcall(function()
+            if SF._joyKnob then SF._joyKnob.Position = UDim2.new(0.5, -16, 0.5, -16) end
+        end)
+        SF._dragging = false
+    end
+    pcall(function() MV.Safe.SyncHud() end)
+    return SF.showHud
+end
+function MV.Safe._BuildHud()
+    if SF._hud and SF._hud.Parent then return SF._hud end
+    -- Frame chính: nằm dưới-trái màn hình, không đụng BC_MoveHud (phải 190px)
+    local hud = New("Frame", {
+        Name = "BC_SafeHud",
+        Size = UDim2.new(0, 300, 0, 190),
+        Position = UDim2.new(0, 10, 1, -200),
+        BackgroundColor3 = C.SURFACE,
+        BackgroundTransparency = 0.18,
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 25,
+    }, gui)
+    Corner(hud, UDim.new(0, 12))
+    Stroke(hud, C.HAIRLINE, 1)
+    D.Shade(hud, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+
+    -- Tiêu đề kéo được
+    local title = New("TextLabel", {
+        Size = UDim2.new(1, -70, 0, 18), Position = UDim2.new(0, 10, 0, 4),
+        Text = "🛡 Bay An Toàn - Nút Ảo", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 26,
+    }, hud)
+
+    -- Nút đóng HUD ảo (không tắt bay, chỉ ẩn nút ảo)
+    local hideBtn = New("TextButton", {
+        Size = UDim2.new(0, 28, 0, 20), Position = UDim2.new(1, -62, 0, 2),
+        Text = "👁", BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.15,
+        TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 10,
+        BorderSizePixel = 0, ZIndex = 26,
+    }, hud)
+    Corner(hideBtn, UDim.new(0, 6))
+    hideBtn.Activated:Connect(function()
+        MV.Safe.SetShowHud(false)
+        D.Say("📱 đã ẩn nút ảo 🛡 (vào khung 🛡 trong 📚 Script Hub để BẬT lại)", C.MUTED)
+    end)
+
+    local closeBtn = New("TextButton", {
+        Size = UDim2.new(0, 28, 0, 20), Position = UDim2.new(1, -32, 0, 2),
+        Text = "✕", BackgroundColor3 = C.RED, BackgroundTransparency = 0.2,
+        TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 10,
+        BorderSizePixel = 0, ZIndex = 26,
+    }, hud)
+    Corner(closeBtn, UDim.new(0, 6))
+    closeBtn.Activated:Connect(function()
+        MV.Safe.Stop()
+        D.Say("🚫 đã tắt 🛡 Bay An Toàn", C.YELLOW)
+    end)
+
+    -- Vùng joystick: 110x110
+    local joyBG = New("Frame", {
+        Name = "JoyBG",
+        Size = UDim2.new(0, 110, 0, 110), Position = UDim2.new(0, 10, 0, 26),
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15,
+        BorderSizePixel = 0, ZIndex = 26,
+    }, hud)
+    Corner(joyBG, UDim.new(0, 14))
+    Stroke(joyBG, C.BORDER, 1)
+    SF._joyBG = joyBG
+
+    local joyKnob = New("Frame", {
+        Name = "JoyKnob",
+        Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0.5, -16, 0.5, -16),
+        BackgroundColor3 = C.ACCENT, BackgroundTransparency = 0.15,
+        BorderSizePixel = 0, ZIndex = 27,
+    }, joyBG)
+    Corner(joyKnob, UDim.new(1, 0))
+    Stroke(joyKnob, C.WHITE, 1)
+    SF._joyKnob = joyKnob
+
+    -- 4 nút hướng nhỏ trong joystick để tap nhanh (mobile không kéo được vẫn dùng được)
+    local function dirBtn(txt, x, y, vx, vz)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.2,
+            TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 12,
+            BorderSizePixel = 0, ZIndex = 27,
+        }, joyBG)
+        Corner(b, UDim.new(1, 0))
+        -- giữ để bay liên tục
+        local holding = false
+        b.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                holding = true
+                MV.Safe.SetVirt(vx, vz, SF._virtY)
+            end
+        end)
+        b.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                holding = false
+                -- nếu không còn kéo joystick thì mới xóa, tránh xóa khi đang drag
+                if not SF._dragging then MV.Safe.SetVirt(0, 0, SF._virtY) end
+            end
+        end)
+        return b
+    end
+    dirBtn("↑", 41, 2, 0, -1)
+    dirBtn("↓", 41, 80, 0, 1)
+    dirBtn("←", 2, 41, -1, 0)
+    dirBtn("→", 80, 41, 1, 0)
+
+    -- Xử lý kéo joystick
+    local function updateJoy(inputPos)
+        local okPos, absPos = pcall(function() return joyBG.AbsolutePosition end)
+        local okSize, absSize = pcall(function() return joyBG.AbsoluteSize end)
+        if not (okPos and okSize and absPos and absSize) then return end
+        local cx = absPos.X + absSize.X * 0.5
+        local cy = absPos.Y + absSize.Y * 0.5
+        local dx = inputPos.X - cx
+        local dy = inputPos.Y - cy
+        local maxR = 38
+        local mag = math.sqrt(dx*dx + dy*dy)
+        if mag > maxR then
+            dx = dx / mag * maxR
+            dy = dy / mag * maxR
+            mag = maxR
+        end
+        -- cập nhật núm
+        pcall(function()
+            joyKnob.Position = UDim2.new(0.5, dx - 16, 0.5, dy - 16)
+        end)
+        -- chuẩn hóa -1..1: X = trái/phải, Z = trước/sau (đảo Y)
+        local nx = dx / maxR
+        local nz = dy / maxR
+        -- Roblox MoveDirection: X = phải/trái, Z = trước/sau nhưng W = -Z
+        -- joystick kéo lên = đi tới (W) => nz âm = -1 khi kéo lên
+        pcall(function() MV.Safe.SetVirt(nx, nz, SF._virtY) end)
+    end
+    local function resetJoy()
+        SF._dragging = false
+        pcall(function()
+            joyKnob.Position = UDim2.new(0.5, -16, 0.5, -16)
+        end)
+        MV.Safe.SetVirt(0, 0, SF._virtY)
+    end
+
+    joyBG.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            SF._dragging = true
+            updateJoy(inp.Position)
+        end
+    end)
+    joyBG.InputChanged:Connect(function(inp)
+        if SF._dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+            updateJoy(inp.Position)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if SF._dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+            -- nếu input đang trên joyBG thì updateJoy đã lo, còn kéo ra ngoài vẫn cần
+            local ok, pos = pcall(function() return inp.Position end)
+            if ok and pos then updateJoy(pos) end
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            if SF._dragging then resetJoy() end
+        end
+    end)
+
+    -- Cụm nút lên/xuống/bay vòng/trung tâm
+    local function vBtn(txt, x, y, w, h, color, cb)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.15,
+            TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 11,
+            BorderSizePixel = 0, ZIndex = 27,
+        }, hud)
+        Corner(b, UDim.new(0, 8))
+        Stroke(b, C.BORDER, 1)
+        local hold = false
+        if cb then
+            b.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    hold = true
+                    pcall(cb, true)
+                end
+            end)
+            b.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    hold = false
+                    pcall(cb, false)
+                end
+            end)
+            -- fallback Activated cho click nhanh
+            b.Activated:Connect(function() pcall(cb, nil) end)
+        end
+        return b
+    end
+
+    vBtn("⬆", 130, 26, 40, 36, Color3.fromRGB(0,150,0), function(isDown)
+        if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 1)
+        elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0)
+        else
+            -- tap: nhích lên 2.5
+            pcall(function() MV.Nudge(2.5) end)
+        end
+    end)
+    vBtn("⬇", 130, 66, 40, 36, Color3.fromRGB(150,0,0), function(isDown)
+        if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, -1)
+        elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0)
+        else
+            pcall(function() MV.Nudge(-2.5) end)
+        end
+    end)
+
+    vBtn("⏹ Dừng", 130, 108, 82, 26, C.RED, function() MV.Safe.Stop() end)
+    vBtn("⭕ Tâm", 216, 108, 52, 26, C.PURPLE, function() MV.Safe.Recenter() end)
+
+    vBtn("↻", 174, 26, 36, 36, C.SURFACE3, function()
+        -- xoay nhanh: đổi góc vòng tròn
+        SF._ang = (SF._ang or 0) + 0.6
+    end)
+
+    -- Hàng dưới: auto / circle toggle + status nhỏ
+    local autoTog = vBtn("➡ Tự: BẬT", 10, 142, 82, 24, C.GREEN, function()
+        MV.Safe.SetAuto(not SF.auto)
+        D.Say(SF.auto and "➡ tự bay: BẬT" or "➡ tự bay: TẮT", C.ACCENT)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        pcall(function() MV.Safe.SyncHud() end)
+    end)
+    local circTog = vBtn("⭕ Vòng: BẬT", 96, 142, 82, 24, C.GREEN, function()
+        MV.Safe.SetCircle(not SF.circle)
+        D.Say(SF.circle and "⭕ vòng tròn: BẬT" or "⭕ vòng tròn: TẮT", C.ACCENT)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        pcall(function() MV.Safe.SyncHud() end)
+    end)
+
+    local speedLbl = New("TextLabel", {
+        Size = UDim2.new(0, 108, 0, 24), Position = UDim2.new(0, 182, 0, 142),
+        Text = "💨 60", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 27,
+    }, hud)
+
+    -- Cho phép kéo cả cụm HUD bằng tiêu đề
+    do
+        local dragging, startPos, startInput
+        title.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                startInput = inp.Position
+                startPos = hud.Position
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                local delta = inp.Position - startInput
+                hud.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+    end
+
+    -- Hàm cập nhật nhanh trạng thái trong HUD
+    function SF._hudUpdate()
+        pcall(function()
+            if autoTog then
+                autoTog.Text = SF.auto and "➡ Tự: BẬT" or "➡ Tự: TẮT"
+                autoTog.BackgroundColor3 = SF.auto and C.GREEN or C.SURFACE3
+                autoTog.TextColor3 = D.BestText(autoTog.BackgroundColor3)
+            end
+            if circTog then
+                circTog.Text = SF.circle and "⭕ Vòng: BẬT" or "⭕ Vòng: TẮT"
+                circTog.BackgroundColor3 = SF.circle and C.GREEN or C.SURFACE3
+                circTog.TextColor3 = D.BestText(circTog.BackgroundColor3)
+            end
+            if speedLbl then
+                local thr = SF.threats or 0
+                speedLbl.Text = string.format("💨 %g · %s%d", SF.speed or 60, thr>0 and "⚠️" or "✅", thr)
+                speedLbl.TextColor3 = thr>0 and C.YELLOW or C.MUTED
+            end
+        end)
+    end
+
+    SF._hud = hud
+    return hud
+end
+
+function MV.Safe.SyncHud()
+    pcall(function()
+        local hud = MV.Safe._BuildHud()
+        if hud then
+            local should = (SF.on == true) and (SF.showHud ~= false)
+            hud.Visible = should
+            if should and SF._hudUpdate then SF._hudUpdate() end
+        end
+        -- v4.24: ẩn BC_MoveHud cũ khi 🛡 đang bật, hiện lại khi 🛡 tắt (gọi SyncHud của Move)
+        if SF.on then
+            local old = MV._hud
+            if old then old.Visible = false end
+        else
+            pcall(function() MV.SyncHud() end)
+        end
+    end)
 end
 
 end   -- hết khối 🛡 BAY AN TOÀN (v4.18)
@@ -8272,6 +8637,10 @@ function MV.CreateCarpet(y)
                 end
             end
         end
+        -- v4.24: tự đặt kính khi bật 🔄 Tự Đặt Kính
+        if MV.autoGlass then
+            pcall(function() MV._AutoGlassTick(curR.Position) end)
+        end
     end)
 end
 function MV.SetCarpet(on)
@@ -8289,6 +8658,93 @@ function MV.SetCarpet(on)
     MV._Watchdog()
     MV.SyncHud()
     return MV.carpet
+end
+
+-- ---------- v4.24: ĐẶT KÍNH DƯỚI CHÂN (đặt nhiều tấm kính cố định) ----------
+MV._placedGlasses = MV._placedGlasses or {}
+MV._glassId = MV._glassId or 0
+MV.autoGlass = MV.autoGlass or false
+MV._lastGlassPos = MV._lastGlassPos or nil
+
+function MV.PlaceGlass()
+    local r = MV.Root()
+    if not r then return false, "chưa có nhân vật để đặt kính" end
+    local y = MV.FootY()
+    if not y then y = r.Position.Y - 3.0 - (MV.carpetH / 2) - (MV.carpetGap or 0) end
+    MV._glassId = (MV._glassId or 0) + 1
+    local name = "BC_Glass_" .. tostring(MV._glassId)
+    local sz = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
+    local pos = Vector3.new(r.Position.X, y, r.Position.Z)
+    local part = nil
+    local ok = pcall(function()
+        part = New("Part", {
+            Name = name,
+            Size = sz,
+            Transparency = 0.45,
+            Color = Color3.fromRGB(150, 210, 255),
+            Material = Enum.Material.Glass,
+            Anchored = true, CanCollide = true, Friction = 1,
+            Position = pos,
+        }, MV.CarpetHost())
+    end)
+    if not ok or not part then return false, "không tạo được kính" end
+    if MV.carpetEdge ~= false then
+        pcall(function() MV._MakeEdge(part) end)
+    end
+    MV._placedGlasses[#MV._placedGlasses + 1] = part
+    MV._lastGlassPos = { X = pos.X, Z = pos.Z }
+    -- tự dọn khi game xóa part (để bảng không giữ rác)
+    pcall(function()
+        part.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                for i, p in ipairs(MV._placedGlasses) do
+                    if p == part then
+                        table.remove(MV._placedGlasses, i)
+                        break
+                    end
+                end
+            end
+        end)
+    end)
+    return true, part
+end
+
+function MV.ClearPlacedGlasses()
+    local n = 0
+    if MV._placedGlasses then
+        for _, p in ipairs(MV._placedGlasses) do
+            if p and p.Parent then
+                pcall(function() p:Destroy() end)
+                n = n + 1
+            end
+        end
+    end
+    MV._placedGlasses = {}
+    MV._lastGlassPos = nil
+    return n
+end
+
+function MV.SetAutoGlass(on)
+    MV.autoGlass = (on == true)
+    return MV.autoGlass
+end
+
+-- tự đặt kính khi di chuyển (gọi từ vòng lặp thảm)
+function MV._AutoGlassTick(curPos)
+    if not MV.autoGlass then return end
+    if not curPos then return end
+    local last = MV._lastGlassPos
+    if not last then
+        pcall(function() MV.PlaceGlass() end)
+        return
+    end
+    local dx = curPos.X - last.X
+    local dz = curPos.Z - last.Z
+    local dist = math.sqrt(dx*dx + dz*dz)
+    local need = math.max(2, (tonumber(MV.carpetW) or 12) * 0.7)
+    if dist >= need then
+        pcall(function() MV.PlaceGlass() end)
+    end
 end
 
 -- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
@@ -8373,7 +8829,10 @@ end
 function MV.SyncHud()
     pcall(function()
         local hud = MV._BuildHud()
+        -- v4.24: khi 🛡 Bay An Toàn đang BẬT thì ẨN cụm nút cũ BC_MoveHud (🪩⬆⬇✕) để chỉ hiện BC_SafeHud mới, tránh rối màn hình. Không mất tính năng vì BC_SafeHud đã có ⬆⬇ + ⏹ + joystick.
+        local safeOn = (MV.Safe and MV.Safe.on == true)
         local on = (MV.carpet or MV.fly or MV.runMode)
+        if safeOn then on = false end
         hud.Visible = (on == true)
         if MV._hudCarpet then                       -- xám như bản gốc, XANH khi thảm đang bật
             MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY
@@ -8431,13 +8890,16 @@ end
 
 -- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
 function MV.StopAll()
+    if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Stop() end) end
     MV.SetFly(false)
     MV.SetCarpet(false)
+    pcall(function() MV.ClearPlacedGlasses() end)
     MV.SetNoclip(false)
     MV.SetInfJump(false)
     MV.SetSpeed(false)
     MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
     MV.SyncHud()
+    pcall(function() if MV.Safe and MV.Safe.SyncHud then MV.Safe.SyncHud() end end)
 end
 -- Bảng để thẻ trong Script Hub tự hiện trạng thái (BẬT/TẮT): thêm tính năng mới thì chỉ
 -- cần thêm 1 dòng ở đây, không phải sửa hàm dựng thẻ.
@@ -8474,6 +8936,7 @@ function MV.Refresh()
         MV.CreateCarpet(MV.carpetY)
     end
     MV.SyncHud()
+    pcall(function() if MV.Safe and MV.Safe.SyncHud then MV.Safe.SyncHud() end end)
 end
 function MV.Status()
     local t = {}
@@ -8490,6 +8953,10 @@ function MV.Status()
     if MV.carpet then
         t[#t + 1] = string.format("🪩 thảm %g×%g×%g", MV.carpetW, MV.carpetH, MV.carpetL)
     end
+    if MV._placedGlasses and #MV._placedGlasses > 0 then
+        t[#t + 1] = string.format("🧱 đặt kính %d tấm", #MV._placedGlasses)
+    end
+    if MV.autoGlass then t[#t + 1] = "🔄 tự đặt kính" end
     if #t == 0 then return "🚶 di chuyển: đang TẮT hết" end
     return "🚶 đang BẬT: " .. table.concat(t, " · ")
 end
@@ -8632,8 +9099,14 @@ S.ScriptHubList = {
      desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
     {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
      desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
-    {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
-     desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
+    {icon="🧱", name="Đặt Kính", cat="Di chuyển", ord=16, action="carpet",
+     desc="ĐẶT KÍNH dưới chân để đứng/làm cầu/thang: bấm 🧱 Đặt Kính Dưới Chân trong khung ⚙ để đặt 1 tấm CỐ ĐỊNH tại chỗ đang đứng (đặt nhiều tấm thành đường đi), 🔄 Tự Đặt để đi tới đâu đặt tới đó, 🧹 Xóa để dọn. Vẫn giữ 🪩 Thảm bay theo người (bám theo) + chỉnh RỘNG×CAO×DÀI + ⬆⬇ + 🛟 chống rơi + 🔲 viền. Không rơi xuyên dù KHÔNG bật Xuyên Tường."},
+    {icon="🧱", name="Đặt 1 Tấm Kính Dưới Chân", cat="Di chuyển", ord=16.1, action="placeglass",
+     desc="Đặt ngay 1 tấm kính CỐ ĐỊNH dưới chân (kích thước lấy từ khung ⚙ Rộng×Cao×Dài). Đặt nhiều lần để làm đường đi/cầu/thang trên không. Không mất — chỉ bị game xóa mới mất, dùng 🧹 Xóa Kính để dọn."},
+    {icon="🧹", name="Xóa Kính Đã Đặt", cat="Di chuyển", ord=16.2, action="clearglass",
+     desc="Xóa sạch tất cả tấm kính CỐ ĐỊNH đã đặt bằng 🧱 Đặt Kính (không xóa thảm bay theo)."},
+    {icon="🔄", name="Tự Đặt Kính", cat="Di chuyển", ord=16.3, action="autoglass",
+     desc="BẬT là tự động đặt kính CỐ ĐỊNH dưới chân khi bạn di chuyển — đi tới đâu đặt tới đó, khoảng cách = max(2, Rộng×0.7). TẮT thì chỉ đặt thủ công."},
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
     {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
      desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
@@ -8741,12 +9214,28 @@ function S.RunHubAction(id)
                                  .. " · JumpPower " .. tostring(S.Move.jumpPower))
                             or ("👟 Chạy độ: TẮT — về tốc độ game (" .. tostring(S.Move._baseWS) .. ")")
     elseif id == "carpet" then
-        if not S.Move.Root() then return "⚠️ chưa có nhân vật để trải thảm (đợi vào game xong hãy bấm)" end
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để đặt kính (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetCarpet(not S.Move.carpet) end)
         S.Rebuild()
-        return S.Move.carpet and string.format("🪩 Thảm kính: BẬT — %g×%g×%g (Rộng×Cao×Dài) · ⬆⬇ chỉnh độ cao",
-                                               S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
-                            or "🪩 Thảm kính: TẮT (thảm đã dọn khỏi workspace)"
+        local cnt = S.Move._placedGlasses and #S.Move._placedGlasses or 0
+        return S.Move.carpet and string.format("🧱 Đặt Kính: THẢM BAY THEO BẬT — %g×%g×%g (Rộng×Cao×Dài) · ⬆⬇ chỉnh độ cao · đã đặt %d tấm cố định (dùng nút 🧱 trong khung ⚙ để đặt thêm)",
+                                               S.Move.carpetW, S.Move.carpetH, S.Move.carpetL, cnt)
+                            or string.format("🧱 Đặt Kính: THẢM BAY THEO TẮT (đã dọn thảm bay theo) · vẫn còn %d tấm kính cố định đã đặt (bấm 🧹 Xóa trong khung ⚙ để dọn)", cnt)
+    elseif id == "placeglass" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để đặt kính (đợi vào game xong hãy bấm)" end
+        local ok, res = S.Move.PlaceGlass()
+        S.Rebuild()
+        return ok and ("🧱 đã đặt kính dưới chân · tổng " .. tostring(#(S.Move._placedGlasses or {})) .. " tấm · kích thước " .. string.format("%g×%g×%g", S.Move.carpetW, S.Move.carpetH, S.Move.carpetL))
+                    or ("⚠️ " .. tostring(res or "không đặt được kính"))
+    elseif id == "clearglass" then
+        local n = S.Move.ClearPlacedGlasses()
+        S.Rebuild()
+        return "🧹 đã xóa " .. tostring(n) .. " tấm kính đã đặt"
+    elseif id == "autoglass" then
+        S.Move.SetAutoGlass(not S.Move.autoGlass)
+        S.Rebuild()
+        return S.Move.autoGlass and "🔄 tự đặt kính: BẬT — di chuyển là tự đặt kính dưới chân theo khoảng cách thảm"
+                                or "🔄 tự đặt kính: TẮT"
     elseif id == "runmode" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
@@ -9146,8 +9635,9 @@ end
 -- Nằm TRÊN CÙNG của danh sách thẻ (LayoutOrder = 0) và được đặt tên "HubMove_Panel"
 -- (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá nó khi lọc/tìm kiếm.
 -- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
+-- v4.24: thêm ĐẶT KÍNH dưới chân (nhiều tấm cố định)
 do
-    local PH = 168
+    local PH = 220
     local P = New("Frame", {
         Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH),
@@ -9230,12 +9720,13 @@ do
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
     -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết các tính năng mới sửa)
+    -- v4.24: thêm ghi chú đặt kính
     New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 126),
+        Size = UDim2.new(1, -16, 0, 60), Position = UDim2.new(0, 8, 0, 150),
         Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
              .. "gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game (như bản gốc). "
              .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
-             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
+             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. 🧱 Đặt Kính: đặt nhiều tấm kính CỐ ĐỊNH dưới chân để làm cầu/thang, 🔄 Tự Đặt thì đi tới đâu đặt tới đó. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
@@ -9364,6 +9855,48 @@ do
                            or "🧲 tự đẩy xuyên: TẮT (chỉ tắt va chạm như cũ)", true)
     end)
 
+    -- v4.24: Hàng 5 — ĐẶT KÍNH dưới chân (nhiều tấm cố định, không mất thảm bay theo)
+    local placeBtn = act("🧱 Đặt Kính Dưới Chân", 8, 124, 132, C.BLUE)
+    local clearBtn = act("🧹 Xóa Kính Đã Đặt", 146, 124, 118, C.RED)
+    local autoGlassBtn = act("🔄 Tự Đặt Kính: TẮT", 270, 124, 132, C.GRAY)
+    local function paintGlass()
+        local cnt = S.Move._placedGlasses and #S.Move._placedGlasses or 0
+        placeBtn.Text = cnt > 0 and ("🧱 Đặt Kính (" .. cnt .. ")") or "🧱 Đặt Kính Dưới Chân"
+        clearBtn.Text = cnt > 0 and ("🧹 Xóa (" .. cnt .. ")") or "🧹 Xóa Kính Đã Đặt"
+        local on = S.Move.autoGlass == true
+        autoGlassBtn.Text = on and "🔄 Tự Đặt Kính: BẬT" or "🔄 Tự Đặt Kính: TẮT"
+        autoGlassBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+        autoGlassBtn.TextColor3 = D.BestText(autoGlassBtn.BackgroundColor3)
+    end
+    placeBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, res = S.Move.PlaceGlass()
+        if ok then
+            say("🧱 đã đặt kính dưới chân tại " .. string.format("%.1f, %.1f", S.Move.Root() and S.Move.Root().Position.X or 0, S.Move.Root() and S.Move.Root().Position.Z or 0) .. " · tổng " .. tostring(#(S.Move._placedGlasses or {})) .. " tấm", true)
+        else
+            say("⚠️ " .. tostring(res or "không đặt được kính"), false)
+        end
+        st.Text = S.Move.Status()
+        paintGlass()
+    end)
+    clearBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local n = S.Move.ClearPlacedGlasses()
+        say("🧹 đã xóa " .. tostring(n) .. " tấm kính đã đặt", true)
+        st.Text = S.Move.Status()
+        paintGlass()
+    end)
+    autoGlassBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetAutoGlass(not S.Move.autoGlass)
+        paintGlass()
+        st.Text = S.Move.Status()
+        say(S.Move.autoGlass and "🔄 tự đặt kính: BẬT — di chuyển là tự đặt kính dưới chân theo khoảng cách thảm"
+                               or "🔄 tự đặt kính: TẮT", true)
+    end)
+    paintGlass()
+    S.Move._glassBtns = { place = placeBtn, clear = clearBtn, auto = autoGlassBtn, paint = paintGlass }
+
 
     -- nhãn trạng thái tự cập nhật mỗi khi dựng lại danh sách thẻ
     function S.RefreshMovePanel()
@@ -9376,6 +9909,9 @@ do
             jpIn.Text = S.Move.jumpPower
             -- v4.22: nút 🧲 đọc lại đúng trạng thái (respawn không làm lệch chữ so với thực tế)
             paintPass()
+            if paintHold then pcall(paintHold) end
+            if paintEdge then pcall(paintEdge) end
+            if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end
         end)
     end
 end
@@ -10519,7 +11055,7 @@ end
 
 -- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
 do
-    local PH = 174
+    local PH = 200
     local P = New("Frame", {
         Name = "HubSafe_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
@@ -10592,29 +11128,31 @@ do
     lab("giây", 302, 74, 30)
 
     local applyBtn = act("✔ Áp dụng", 8, 100, 84, C.SURFACE3, "SafeApply")
-    local stopBtn  = act("🚫 Tắt", 98, 100, 70, C.RED, "SafeStop")
+    local stopBtn  = act("🚫 Tắt", 98, 100, 50, C.RED, "SafeStop")
     -- v4.23: ô 🔲 Cỡ — cỡ khiên (nửa cạnh). 0 = tự động ôm sát nhân vật
-    lab("🔲 Cỡ", 174, 100, 32)
-    local szIn = box(208, 100, 40, 0)
-    lab("(0 = tự)", 250, 100, 64)
+    lab("🔲 Cỡ", 154, 100, 32)
+    local szIn = box(188, 100, 34, 0)
+    lab("(0 = tự)", 224, 100, 40)
+    local hudBtn = act("📱 Nút ảo: BẬT", 268, 100, 86, C.GREEN, "SafeHud")
     local statusLbl = New("TextLabel", {
         Name = "SafeStatus",
-        Size = UDim2.new(1, -186, 0, 20), Position = UDim2.new(0, 174, 0, 100),
+        Size = UDim2.new(1, -16, 0, 20), Position = UDim2.new(0, 8, 0, 124),
         Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
     }, P)
     New("TextLabel", {
         Name = "SafeNote",
-        Size = UDim2.new(1, -16, 0, 66), Position = UDim2.new(0, 8, 0, 124),
+        Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 0, 148),
         Text = "💡 🔲 Khiên = bức tường trong suốt hình vuông ÔM QUANH nhân vật (cỡ hợp lí; muốn to/nhỏ "
              .. "thì chỉnh ô 🔲 Cỡ — 0 = tự động. 📏 Né chỉ là khoảng cách né, không kéo giãn khiên) · "
              .. "👤 Né người = coi NGƯỜI CHƠI khác là mối nguy dù họ đứng yên · 🧱 Xuyên = tự bật Xuyên "
              .. "Tường để lực đẩy đưa bạn QUA vật cản, tắt 🛡 là trả lại như cũ. ⭕ Vòng tròn = khi KHÔNG "
              .. "có ai/vật nào đang lao tới mình thì tự bay vòng tròn quanh chỗ đang đứng (bán kính "
-             .. "chỉnh ở ô ⭕), đang né hoặc đang bấm WASD thì TẠM DỪNG, né xong tự bay vòng lại. "
-             .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm. 🛡 tự sống qua "
-             .. "respawn / hết trận sang trận mới — không phải bật lại.",
+             .. "chỉnh ở ô ⭕), đang né hoặc đang bấm WASD/joystick ảo thì TẠM DỪNG, né xong tự bay vòng lại. "
+             .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm. 📱 Nút ảo = joystick "
+             .. "kéo + ⬆⬇ giữ để lên/xuống, hiện khi 🛡 BẬT. 🛡 tự sống qua respawn / hết trận sang trận mới.",
+
         BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
@@ -10639,6 +11177,9 @@ do
         ciBtn.Text = MV.Safe.circle and "⭕ Vòng tròn: BẬT" or "⭕ Vòng tròn: TẮT"
         ciBtn.BackgroundColor3 = MV.Safe.circle and C.GREEN or C.SURFACE3
         ciBtn.TextColor3 = D.BestText(ciBtn.BackgroundColor3)
+        hudBtn.Text = MV.Safe.showHud and "📱 Nút ảo: BẬT" or "📱 Nút ảo: TẮT"
+        hudBtn.BackgroundColor3 = MV.Safe.showHud and C.GREEN or C.SURFACE3
+        hudBtn.TextColor3 = D.BestText(hudBtn.BackgroundColor3)
         radIn.Text, spdIn.Text, strIn.Text =
             tostring(MV.Safe.radius), tostring(MV.Safe.speed), tostring(MV.Safe.steer)
         cirIn.Text, lookIn.Text = tostring(MV.Safe.circleR), tostring(MV.Safe.lookTime)
@@ -10722,6 +11263,15 @@ do
         paint()
         if D.hubStatus then flash(D.hubStatus, "🚫 " .. MV.Safe.Status(), 1.8, C.ACCENT) end
         pcall(S.Rebuild)
+    end)
+    hudBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetShowHud(not MV.Safe.showHud)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.showHud and "📱 nút ảo 🛡: BẬT — hiện joystick + ⬆⬇ khi 🛡 đang bật"
+                 or "📱 nút ảo 🛡: TẮT — đã ẩn cụm nút nổi", 1.8, C.ACCENT)
+        end
     end)
     paint()
 end
