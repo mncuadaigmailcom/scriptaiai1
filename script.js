@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.28",
+    Version = "4.29",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -8809,10 +8809,13 @@ function MV._AutoGlassTick(curPos)
 end
 
 -- ---------- v4.27: BAY TỚI TẤM KÍNH (đổi đặt kính thành bay tới kính, chỉnh được tốc độ) ----------
+-- v4.29: DÙNG BAY RIÊNG, KHÔNG DÙNG CHUNG NÚT 🚀 Bay — tự có BodyVelocity/BodyGyro riêng, xuyên tường
 MV.glassFlySpeed = MV.glassFlySpeed or 60
 MV._glassFlyTarget = MV._glassFlyTarget or nil
 MV._glassFlyActive = MV._glassFlyActive or false
 MV._glassFlyIdx = MV._glassFlyIdx or nil
+MV._glassFlyBV = MV._glassFlyBV or nil
+MV._glassFlyBG = MV._glassFlyBG or nil
 
 function MV.SetGlassFlySpeed(n)
     local v = tonumber(n)
@@ -8821,11 +8824,41 @@ function MV.SetGlassFlySpeed(n)
     return MV.glassFlySpeed
 end
 
+function MV._EnsureGlassFlyBV()
+    local r = MV.Root()
+    if not r then return nil, nil end
+    if MV._glassFlyBV and MV._glassFlyBV.Parent == r then
+        return MV._glassFlyBV, MV._glassFlyBG
+    end
+    pcall(function() if MV._glassFlyBV then MV._glassFlyBV:Destroy() end end)
+    pcall(function() if MV._glassFlyBG then MV._glassFlyBG:Destroy() end end)
+    local bv = New("BodyVelocity", { Name = "BC_GlassFlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.new(0,0,0) }, r)
+    local bg = New("BodyGyro", { Name = "BC_GlassFlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50 }, r)
+    MV._glassFlyBV, MV._glassFlyBG = bv, bg
+    local h = MV.Hum()
+    if h then
+        pcall(function() h.PlatformStand = true end)
+        pcall(function() h.AutoRotate = false end)
+    end
+    return bv, bg
+end
+
 function MV.StopGlassFly()
     MV._glassFlyActive = false
     MV._glassFlyTarget = nil
     MV._glassFlyIdx = nil
     pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end)
+    pcall(function() if MV._glassFlyBV then MV._glassFlyBV:Destroy() end end)
+    pcall(function() if MV._glassFlyBG then MV._glassFlyBG:Destroy() end end)
+    MV._glassFlyBV, MV._glassFlyBG = nil, nil
+    -- chỉ trả lại humanoid nếu bay chính (🚀 Bay) không bật
+    if not MV.fly then
+        local h = MV.Hum()
+        if h then
+            pcall(function() h.PlatformStand = false end)
+            pcall(function() h.AutoRotate = true end)
+        end
+    end
     return true
 end
 
@@ -8847,25 +8880,28 @@ function MV._GlassFlyStep(dt)
     local dz = target.Z - pos.Z
     local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
     if dist < 2.5 then
-        -- tới nơi
         MV.StopGlassFly()
         pcall(function() if D.hubStatus then D.hubStatus.Text = "✅ đã bay tới " .. tostring(MV._glassFlyIdx and ("kính " .. MV._glassFlyIdx) or "kính") end end)
         return
     end
     local speed = tonumber(MV.glassFlySpeed) or 60
-    -- nếu đang bay (fly) thì dùng BodyVelocity cho mượt, không thì set CFrame trực tiếp
-    if MV.fly and MV._bv then
+    -- v4.29: bay riêng, không dùng MV.fly / MV._bv, luôn xuyên tường
+    pcall(function() MV.SetNoclip(true) end)
+    local bv, bg = MV._EnsureGlassFlyBV()
+    if bv then
         pcall(function()
             local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-            MV._bv.Velocity = dir * speed
-            if MV._bg then
-                -- quay mặt về hướng bay
-                local look = CFrame.new(pos, Vector3.new(target.X, pos.Y, target.Z))
-                MV._bg.CFrame = look
-            end
+            bv.Velocity = dir * speed
         end)
-    else
-        -- bay không cần bật fly trước: tự di chuyển CFrame
+    end
+    if bg then
+        pcall(function()
+            local look = CFrame.new(pos, Vector3.new(target.X, pos.Y, target.Z))
+            bg.CFrame = look
+        end)
+    end
+    -- fallback CFrame nếu không có BV (hiếm)
+    if not bv then
         pcall(function()
             local step = math.min(dist, speed * (tonumber(dt) or 0.05))
             local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
@@ -8887,7 +8923,6 @@ function MV.FlyToGlass(idxOrPos)
         if not ok or not pos then return false, "kính không có vị trí" end
         targetPos = Vector3.new(pos.X, pos.Y + 3.5, pos.Z)
     elseif type(idxOrPos) == "table" and idxOrPos.X and idxOrPos.Y and idxOrPos.Z then
-        -- Vector3 trực tiếp
         targetPos = Vector3.new(idxOrPos.X, idxOrPos.Y + 3.5, idxOrPos.Z)
     else
         return false, "chỉ số hoặc vị trí không hợp lệ"
@@ -8896,10 +8931,9 @@ function MV.FlyToGlass(idxOrPos)
     MV._glassFlyTarget = targetPos
     MV._glassFlyIdx = idx
     MV._glassFlyActive = true
-    -- tự bật bay nếu chưa bật để mượt hơn (không bắt buộc)
-    if not MV.fly then
-        pcall(function() MV.SetFly(true) end)
-    end
+    -- v4.29: bay riêng, không bật 🚀 Bay chung, chỉ bật xuyên tường
+    pcall(function() MV.SetNoclip(true) end)
+    pcall(function() MV._EnsureGlassFlyBV() end)
     pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end)
     pcall(function()
         RunService:BindToRenderStep("BC_GlassFly", Enum.RenderPriority.Camera.Value - 2, function(dt)
@@ -8911,10 +8945,13 @@ function MV.FlyToGlass(idxOrPos)
 end
 
 -- ---------- v4.28: BAY TỚI NGƯỜI CHƠI (xuyên tường, chỉnh tốc độ, 0=auto lấy tốc độ game) ----------
+-- v4.29: DÙNG BAY RIÊNG, KHÔNG DÙNG CHUNG NÚT 🚀 Bay — BodyVelocity/BodyGyro riêng, xuyên tường
 MV.playerFlySpeed = MV.playerFlySpeed or 0
 MV._playerFlyTarget = MV._playerFlyTarget or nil
 MV._playerFlyActive = MV._playerFlyActive or false
 MV._playerFlyPos = MV._playerFlyPos or nil
+MV._playerFlyBV = MV._playerFlyBV or nil
+MV._playerFlyBG = MV._playerFlyBG or nil
 
 function MV.SetPlayerFlySpeed(n)
     local v = tonumber(n)
@@ -8930,11 +8967,10 @@ end
 function MV.GetPlayerFlySpeed()
     local s = tonumber(MV.playerFlySpeed) or 0
     if s == 0 then
-        -- auto = lấy tốc độ mặc định của game: base WalkSpeed hoặc flySpeed
         local base = tonumber(MV._baseWS) or 16
         local flySp = tonumber(MV.flySpeed) or 60
-        -- nếu đang bay thì lấy flySpeed, không thì lấy base
-        if MV.fly then
+        -- v4.29: nếu bay riêng đang hoạt động thì ưu tiên flySpeed, không phụ thuộc MV.fly
+        if MV._playerFlyActive or MV.fly then
             return flySp
         else
             return base > 0 and base or 16
@@ -8943,11 +8979,40 @@ function MV.GetPlayerFlySpeed()
     return s
 end
 
+function MV._EnsurePlayerFlyBV()
+    local r = MV.Root()
+    if not r then return nil, nil end
+    if MV._playerFlyBV and MV._playerFlyBV.Parent == r then
+        return MV._playerFlyBV, MV._playerFlyBG
+    end
+    pcall(function() if MV._playerFlyBV then MV._playerFlyBV:Destroy() end end)
+    pcall(function() if MV._playerFlyBG then MV._playerFlyBG:Destroy() end end)
+    local bv = New("BodyVelocity", { Name = "BC_PlayerFlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.new(0,0,0) }, r)
+    local bg = New("BodyGyro", { Name = "BC_PlayerFlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50 }, r)
+    MV._playerFlyBV, MV._playerFlyBG = bv, bg
+    local h = MV.Hum()
+    if h then
+        pcall(function() h.PlatformStand = true end)
+        pcall(function() h.AutoRotate = false end)
+    end
+    return bv, bg
+end
+
 function MV.StopPlayerFly()
     MV._playerFlyActive = false
     MV._playerFlyTarget = nil
     MV._playerFlyPos = nil
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
+    pcall(function() if MV._playerFlyBV then MV._playerFlyBV:Destroy() end end)
+    pcall(function() if MV._playerFlyBG then MV._playerFlyBG:Destroy() end end)
+    MV._playerFlyBV, MV._playerFlyBG = nil, nil
+    if not MV.fly then
+        local h = MV.Hum()
+        if h then
+            pcall(function() h.PlatformStand = false end)
+            pcall(function() h.AutoRotate = true end)
+        end
+    end
     return true
 end
 
@@ -8967,7 +9032,6 @@ function MV._PlayerFlyStep(dt)
         end
     end)
     if not r then
-        -- target chưa có nhân vật, đợi
         return
     end
     local myRoot = MV.Root()
@@ -8991,19 +9055,22 @@ function MV._PlayerFlyStep(dt)
     if dist < 3.5 then
         speed = math.max(6, speed * 0.45)
     end
-    -- luôn bật noclip + fly để xuyên tường
+    -- v4.29: bay riêng, luôn xuyên tường, không bật 🚀 Bay chung
     pcall(function() MV.SetNoclip(true) end)
-    if not MV.fly then pcall(function() MV.SetFly(true) end) end
-    if MV.fly and MV._bv then
+    local bv, bg = MV._EnsurePlayerFlyBV()
+    if bv then
         pcall(function()
             local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-            MV._bv.Velocity = dir * speed
-            if MV._bg then
-                local look = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z))
-                MV._bg.CFrame = look
-            end
+            bv.Velocity = dir * speed
         end)
-    else
+    end
+    if bg then
+        pcall(function()
+            local look = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z))
+            bg.CFrame = look
+        end)
+    end
+    if not bv then
         pcall(function()
             local step = math.min(dist, speed * (tonumber(dt) or 0.05))
             local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
@@ -9020,9 +9087,9 @@ function MV.FlyToPlayer(p)
     MV._playerFlyTarget = p
     MV._playerFlyActive = true
     MV._playerFlyPos = nil
-    -- tự bật fly + noclip để xuyên tường
+    -- v4.29: bay riêng, chỉ bật xuyên tường, không bật 🚀 Bay chung
     pcall(function() MV.SetNoclip(true) end)
-    pcall(function() MV.SetFly(true) end)
+    pcall(function() MV._EnsurePlayerFlyBV() end)
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
     pcall(function()
         RunService:BindToRenderStep("BC_PlayerFly", Enum.RenderPriority.Camera.Value - 1, function(dt)
