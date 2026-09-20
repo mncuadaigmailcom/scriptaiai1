@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.26",
+    Version = "4.26.1",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -9167,6 +9167,8 @@ S.ScriptHubList = {
      desc="Xóa sạch tất cả tấm kính CỐ ĐỊNH đã đặt bằng 🧱 Đặt Kính (không xóa thảm bay theo)."},
     {icon="🔄", name="Tự Đặt Kính", cat="Di chuyển", ord=16.3, action="autoglass",
      desc="BẬT là tự động đặt kính CỐ ĐỊNH dưới chân khi bạn di chuyển — đi tới đâu đặt tới đó, khoảng cách = max(2, Rộng×0.7). TẮT thì chỉ đặt thủ công."},
+    {icon="🧱", name="Quản Lý Kính (trong Người Chơi)", cat="Di chuyển", ord=16.4, action="openglasspanel",
+     desc="Mở trang 👥 Người Chơi → khung 🧱 ĐẶT KÍNH: đặt nhiều tấm, danh sách tất cả kính đã đặt hiện trong menu để bấm 🗑 xóa lẻ, 📍 tới gần nhất, 🧹 xóa hết, 🔄 tự đặt. Không mất tính năng cũ."},
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
     {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
      desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
@@ -9299,6 +9301,21 @@ function S.RunHubAction(id)
         if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         return S.Move.autoGlass and "🔄 tự đặt kính: BẬT — di chuyển là tự đặt kính dưới chân theo khoảng cách thảm"
                                 or "🔄 tự đặt kính: TẮT"
+    elseif id == "openglasspanel" then
+        local ok = false
+        pcall(function() ok = S.OpenPlayerTab and S.OpenPlayerTab() or false end)
+        if ok then
+            -- cuộn xuống cuối để thấy khung kính (nếu có)
+            pcall(function()
+                if D.playerTab then
+                    D.playerTab.CanvasPosition = Vector2.new(0, 600)
+                end
+            end)
+            if S.GlassRefreshList then pcall(S.GlassRefreshList) end
+            return "🧱 đã mở trang 👥 Người Chơi → khung 🧱 ĐẶT KÍNH: đặt nhiều tấm, danh sách hiện trong menu để xóa lẻ (🗑), tới (📍), xóa hết, tự đặt"
+        else
+            return "⚠️ không mở được trang Người Chơi (thử bấm tab 👥 Người Chơi ở thanh bên)"
+        end
     elseif id == "runmode" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
@@ -9783,13 +9800,14 @@ do
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
     -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết các tính năng mới sửa)
-    -- v4.24: thêm ghi chú đặt kính
+    -- v4.24: thêm ghi chú đặt kính, v4.26: chuyển quản lý chi tiết vào 👥 Người Chơi
     New("TextLabel", {
         Size = UDim2.new(1, -16, 0, 60), Position = UDim2.new(0, 8, 0, 150),
         Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
              .. "gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game (như bản gốc). "
              .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
-             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. 🧱 Đặt Kính: đặt nhiều tấm kính CỐ ĐỊNH dưới chân để làm cầu/thang, 🔄 Tự Đặt thì đi tới đâu đặt tới đó. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
+             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. 🧱 Đặt Kính: đặt nhiều tấm kính CỐ ĐỊNH dưới chân để làm cầu/thang, 🔄 Tự Đặt thì đi tới đâu đặt tới đó. "
+             .. "Quản lý chi tiết (danh sách + xóa lẻ + tới) ở tab 👥 Người Chơi → khung 🧱 ĐẶT KÍNH. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
@@ -10278,17 +10296,28 @@ end
 do
     local tab = AddTab("Người Chơi", "👥", 4)      -- 4 = ngay sau 📚 Script Hub (3), trước ➕ (7)
     D.playerTab = tab
+    -- v4.26.1: hàm mở trang Người Chơi (để thẻ trong Script Hub có thể nhảy tới quản lý kính)
+    function S.OpenPlayerTab()
+        for i, tc in ipairs(tabContent) do
+            if tc == D.playerTab then
+                SwitchTab(i)
+                return true
+            end
+        end
+        return false
+    end
     New("TextLabel", {
         Name = "PlayerTitle",
         Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 8),
-        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI", BackgroundTransparency = 1,
+        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI & ĐẶT KÍNH",
+        BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab)
     New("TextLabel", {
         Name = "PlayerNote",
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 26),
-        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì."
+        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì · 🧱 = đặt kính dưới chân, quản lý xóa lẻ trong menu này."
              .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
