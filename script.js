@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.31",
+    Version = "4.32",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -8085,7 +8085,10 @@ function MV.Safe.Set(on)
         if SF._ncPrev ~= nil then
             local was = SF._ncPrev
             SF._ncPrev = nil
-            pcall(function() MV.SetNoclip(was) end)
+            local stillFlying = (MV._glassFlyActive == true) or (MV._playerFlyActive == true)
+            if not stillFlying then
+                pcall(function() MV.SetNoclip(was) end)
+            end
         end
         pcall(function() MV.Safe.SyncHud() end)
     end
@@ -8852,6 +8855,7 @@ MV._glassFlyActive = MV._glassFlyActive or false
 MV._glassFlyIdx = MV._glassFlyIdx or nil
 MV._glassFlyBV = MV._glassFlyBV or nil
 MV._glassFlyBG = MV._glassFlyBG or nil
+MV._glassFlyNcPrev = MV._glassFlyNcPrev or nil
 
 function MV.SetGlassFlySpeed(n)
     local v = tonumber(n)
@@ -8887,12 +8891,22 @@ function MV.StopGlassFly()
     pcall(function() if MV._glassFlyBV then MV._glassFlyBV:Destroy() end end)
     pcall(function() if MV._glassFlyBG then MV._glassFlyBG:Destroy() end end)
     MV._glassFlyBV, MV._glassFlyBG = nil, nil
-    -- chỉ trả lại humanoid nếu bay chính (🚀 Bay) không bật
     if not MV.fly then
         local h = MV.Hum()
         if h then
             pcall(function() h.PlatformStand = false end)
             pcall(function() h.AutoRotate = true end)
+        end
+    end
+    -- v4.32: trả lại xuyên tường nếu trước khi bay kính nó đang TẮT và không còn bay nào khác
+    if MV._glassFlyNcPrev ~= nil then
+        local was = MV._glassFlyNcPrev
+        MV._glassFlyNcPrev = nil
+        local stillFlying = (MV._playerFlyActive == true) or (MV.Safe and MV.Safe.on == true)
+        if not stillFlying then
+            if was == false then
+                pcall(function() MV.SetNoclip(false) end)
+            end
         end
     end
     return true
@@ -8948,6 +8962,10 @@ end
 
 function MV.FlyToGlass(idxOrPos)
     pcall(function() MV.StopPlayerFly() end)
+    -- v4.32: nhớ trạng thái xuyên tường trước khi bay
+    if MV._glassFlyNcPrev == nil and MV._playerFlyNcPrev == nil and (not MV.Safe or MV.Safe._ncPrev == nil) then
+        MV._glassFlyNcPrev = MV.noclip == true
+    end
     local targetPos = nil
     local idx = nil
     if type(idxOrPos) == "number" then
@@ -8988,6 +9006,7 @@ MV._playerFlyActive = MV._playerFlyActive or false
 MV._playerFlyPos = MV._playerFlyPos or nil
 MV._playerFlyBV = MV._playerFlyBV or nil
 MV._playerFlyBG = MV._playerFlyBG or nil
+MV._playerFlyNcPrev = MV._playerFlyNcPrev or nil
 
 function MV.SetPlayerFlySpeed(n)
     local v = tonumber(n)
@@ -9047,6 +9066,17 @@ function MV.StopPlayerFly()
         if h then
             pcall(function() h.PlatformStand = false end)
             pcall(function() h.AutoRotate = true end)
+        end
+    end
+    -- v4.32: trả lại xuyên tường nếu trước khi bay người nó đang TẮT và không còn bay nào khác
+    if MV._playerFlyNcPrev ~= nil then
+        local was = MV._playerFlyNcPrev
+        MV._playerFlyNcPrev = nil
+        local stillFlying = (MV._glassFlyActive == true) or (MV.Safe and MV.Safe.on == true)
+        if not stillFlying then
+            if was == false then
+                pcall(function() MV.SetNoclip(false) end)
+            end
         end
     end
     return true
@@ -9142,6 +9172,10 @@ function MV.FlyToPlayer(p)
     if p == player then return false, "không thể bay tới chính mình" end
     if not MV.Root() then return false, "chưa có nhân vật" end
     pcall(function() MV.StopGlassFly() end)
+    -- v4.32: nhớ trạng thái xuyên tường trước khi bay
+    if MV._playerFlyNcPrev == nil and MV._glassFlyNcPrev == nil and (not MV.Safe or MV.Safe._ncPrev == nil) then
+        MV._playerFlyNcPrev = MV.noclip == true
+    end
     MV._playerFlyTarget = p
     MV._playerFlyActive = true
     MV._playerFlyPos = nil
