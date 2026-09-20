@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.30",
+    Version = "4.31",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -9082,22 +9082,44 @@ function MV._PlayerFlyStep(dt)
     local dy = want.Y - pos.Y
     local dz = want.Z - pos.Z
     local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-    if dist < 2 then
-        MV.StopPlayerFly()
-        pcall(function() if D.hubStatus then D.hubStatus.Text = "✅ đã bay tới " .. tostring(targetPlayer.Name) end end)
-        return
-    end
     local speed = tonumber(MV.GetPlayerFlySpeed()) or 16
-    if dist < 3.5 then
+    -- v4.31: bay liên tục bám theo cho tới khi bấm dừng, không tự dừng khi <2 studs
+    -- nếu đã gần (<2) thì bám theo vận tốc của mục tiêu để không bị giật
+    local close = dist < 2
+    if close then
+        -- lấy vận tốc mục tiêu nếu có để bám theo mượt
+        local targetVel = Vector3.new(0,0,0)
+        pcall(function()
+            if r and r.Velocity then
+                targetVel = r.Velocity
+            end
+        end)
+        -- nếu mục tiêu đứng yên thì giữ nguyên vị trí (velocity = targetVel)
+        -- nếu vẫn muốn giảm tốc khi gần để không lố
+        speed = math.max(2, speed * 0.15)
+    elseif dist < 3.5 then
         speed = math.max(6, speed * 0.45)
     end
     -- v4.29: bay riêng, luôn xuyên tường, không bật 🚀 Bay chung
+    -- v4.31: bám liên tục
     pcall(function() MV.SetNoclip(true) end)
     local bv, bg = MV._EnsurePlayerFlyBV()
     if bv then
         pcall(function()
-            local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-            bv.Velocity = dir * speed
+            if close then
+                -- gần rồi: bám theo vận tốc mục tiêu + chỉnh nhẹ để giữ khoảng cách
+                local targetVel = Vector3.new(0,0,0)
+                pcall(function() if r and r.Velocity then targetVel = r.Velocity end end)
+                local dir = Vector3.new(0,0,0)
+                if dist > 0.1 then
+                    dir = Vector3.new(dx/dist, dy/dist, dz/dist)
+                end
+                -- kết hợp vận tốc mục tiêu + hướng chỉnh
+                bv.Velocity = targetVel + dir * speed
+            else
+                local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
+                bv.Velocity = dir * speed
+            end
         end)
     end
     if bg then
