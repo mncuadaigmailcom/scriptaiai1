@@ -685,11 +685,29 @@ _G.BananaCatHub_Connections = {}
 -- v4.14: nếu lần chạy TRƯỚC còn để camera ở chế độ Scriptable (đang 👣 bám theo người chơi) thì
 -- TRẢ LẠI NGAY cho game. Chạy lại hub giữa chừng KHÔNG BAO GIỜ để camera bị "đóng băng" —
 -- người dùng không phải vào lại game.
+-- v4.25.1: thêm trả Subject + snap CFrame về nhân vật để không bị kẹt sau khi qua màn mới
 pcall(function()
     local old = _G.BananaCatHub_SpecCam
     if old ~= nil then
         local cam = workspace.CurrentCamera
-        if cam then cam.CameraType = old end
+        if cam then
+            if old ~= Enum.CameraType.Scriptable then
+                pcall(function() cam.CameraType = old end)
+            else
+                pcall(function() cam.CameraType = Enum.CameraType.Custom end)
+            end
+            -- trả subject về nhân vật mình + snap CFrame
+            pcall(function()
+                local char = player and player.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if hum then cam.CameraSubject = hum end
+                if root then
+                    cam.CFrame = CFrame.new(root.Position + Vector3.new(0, 3.2, 12), root.Position + Vector3.new(0,1.5,0))
+                    cam.Focus = CFrame.new(root.Position)
+                end
+            end)
+        end
         _G.BananaCatHub_SpecCam = nil
     end
     pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end)
@@ -4753,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.25",
+    Version = "4.25.1",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -10455,25 +10473,66 @@ S.Spec = {
     -- v4.14: ghi NHỚ MỐC THỜI GIAN "vừa mới chạy/nhảy/rơi" thay vì so từng frame. Nhiều game
     -- teleport/dịch chuyển từng nhịp nên so frame sẽ nháy trạng thái (đang chạy -> đứng yên ngay).
     lastMove = 0, lastJump = 0, lastFall = 0,
-    _prev = nil, _oldType = nil, _bound = false, _ui = {},
+    _prev = nil, _oldType = nil, _oldSubject = nil, _bound = false, _ui = {},
 }
 local SP = S.Spec
 local function spRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
 
 -- Camera bám: nhớ KIỂU camera gốc của game (Custom/Follow/Observe...) để trả lại đúng cái cũ
+-- v4.25.1: FIX qua màn mới rồi tắt xem -> nhân vật tốc biến / camera kẹt chỗ khác
+-- Nguyên nhân: tắt spec chỉ trả CameraType, không trả CameraSubject + không snap CFrame về nhân vật
+-- -> camera vẫn ở vị trí cũ của target (màn cũ), còn nhân vật đã ở màn mới -> lệch.
+-- Sửa: lưu cả Subject, khi tắt thì trả Subject về Humanoid của mình + đặt CFrame gần nhân vật.
 function S.Spec.CamOn()
     local cam = workspace.CurrentCamera
     if not cam then return end
-    if SP._oldType == nil then pcall(function() SP._oldType = cam.CameraType end) end
-    _G.BananaCatHub_SpecCam = SP._oldType          -- để lần chạy sau (chạy lại hub) trả lại được
+    if SP._oldType == nil then
+        pcall(function()
+            local ct = cam.CameraType
+            if ct ~= Enum.CameraType.Scriptable then
+                SP._oldType = ct
+            else
+                SP._oldType = Enum.CameraType.Custom
+            end
+        end)
+    end
+    if SP._oldSubject == nil then
+        pcall(function() SP._oldSubject = cam.CameraSubject end)
+    end
+    if SP._oldType then _G.BananaCatHub_SpecCam = SP._oldType end
     pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
 end
 function S.Spec.CamOff()
     local cam = workspace.CurrentCamera
-    if cam and SP._oldType ~= nil then
-        pcall(function() cam.CameraType = SP._oldType end)
-    end
+    pcall(function()
+        if cam then
+            if SP._oldType and SP._oldType ~= Enum.CameraType.Scriptable then
+                cam.CameraType = SP._oldType
+            else
+                cam.CameraType = Enum.CameraType.Custom
+            end
+        end
+    end)
+    -- trả camera về nhân vật của mình (fix kẹt sau khi qua màn mới)
+    pcall(function()
+        if not cam then return end
+        local char = player and player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if hum then
+            cam.CameraSubject = hum
+        elseif SP._oldSubject then
+            pcall(function() cam.CameraSubject = SP._oldSubject end)
+        end
+        if root then
+            -- snap camera về gần nhân vật để không bị kẹt ở vị trí target cũ (màn cũ)
+            local pos = root.Position
+            cam.CFrame = CFrame.new(pos + Vector3.new(0, 3.2, 12), pos + Vector3.new(0, 1.5, 0))
+            cam.Focus = CFrame.new(pos)
+        end
+    end)
     SP._oldType = nil
+    SP._oldSubject = nil
     _G.BananaCatHub_SpecCam = nil
 end
 -- Họ đang LÀM GÌ (đây là thứ người dùng xin: "thấy người chơi đó đang làm gì")
@@ -10618,6 +10677,7 @@ function S.Spec.Status()
     return "👣 đang xem " .. tostring(SP.target.Name) .. " — " .. S.Spec.Acting(SP.target)
 end
 -- người đang xem thoát game: tự dọn (hoặc tự chuyển người nếu 👣 bật Tự chuyển)
+-- v4.25.1: FIX qua màn mới / respawn rồi tắt xem -> camera kẹt chỗ khác
 do
     trackConn(Players.PlayerRemoving:Connect(function(p)
         if SP.target == p then
@@ -10630,6 +10690,40 @@ do
             pcall(function() S.Spec.RefreshList() end)
         end
     end))
+    -- respawn / qua màn mới: nhân vật mới -> đảm bảo camera trả về đúng chỗ, không kẹt
+    trackConn(player.CharacterAdded:Connect(function()
+        task.spawn(function()
+            task.wait(0.5)
+            if not SP.on then
+                -- đang TẮT mà vừa qua màn mới / hồi sinh -> ép camera về nhân vật
+                pcall(function() S.Spec.CamOff() end)
+                pcall(function()
+                    local cam = workspace.CurrentCamera
+                    local char = player.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if cam and hum then
+                        cam.CameraSubject = hum
+                        cam.CameraType = Enum.CameraType.Custom
+                    end
+                end)
+            else
+                -- đang BẬT mà qua màn mới -> camera mới tạo ra, phải gắn lại Scriptable
+                pcall(function() S.Spec.CamOn() end)
+            end
+            pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        end)
+    end))
+    -- CurrentCamera bị game thay mới (qua màn, cutscene, respawn camera) -> gắn lại nếu đang xem
+    pcall(function()
+        trackConn(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+            task.spawn(function()
+                task.wait(0.1)
+                if SP.on and SP.follow then
+                    pcall(function() S.Spec.CamOn() end)
+                end
+            end)
+        end))
+    end)
 end
 
 -- ---------- BẢNG NỔI 👣 (hiện trên màn hình game, menu đóng vẫn thấy) ----------
