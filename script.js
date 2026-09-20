@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.25.1",
+    Version = "4.26",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -8742,6 +8742,48 @@ function MV.ClearPlacedGlasses()
     return n
 end
 
+-- v4.26: xóa 1 tấm kính cụ thể (dùng trong menu 👥 Người Chơi để xóa lẻ)
+function MV.RemoveGlassAt(idx)
+    idx = tonumber(idx)
+    if not idx or idx < 1 then return false, "chỉ số không hợp lệ" end
+    local list = MV._placedGlasses
+    if not list or not list[idx] then return false, "không có kính ở vị trí đó" end
+    local p = list[idx]
+    pcall(function() if p and p.Parent then p:Destroy() end end)
+    table.remove(list, idx)
+    if #list == 0 then MV._lastGlassPos = nil end
+    return true, #list
+end
+
+function MV.RemoveGlass(part)
+    if not part then return false end
+    local list = MV._placedGlasses
+    if not list then return false end
+    for i, p in ipairs(list) do
+        if p == part then
+            return MV.RemoveGlassAt(i)
+        end
+    end
+    return false, "không tìm thấy"
+end
+
+-- v4.26: lấy danh sách kính để hiện trong menu (trả về bảng copy an toàn)
+function MV.GetPlacedGlasses()
+    local out = {}
+    if MV._placedGlasses then
+        for i, p in ipairs(MV._placedGlasses) do
+            local ok, pos = pcall(function() return p.Position end)
+            local nm = tostring(p.Name or ("Kính " .. i))
+            if ok and pos then
+                out[#out+1] = { idx = i, name = nm, x = pos.X, y = pos.Y, z = pos.Z, part = p }
+            else
+                out[#out+1] = { idx = i, name = nm, x = 0, y = 0, z = 0, part = p }
+            end
+        end
+    end
+    return out
+end
+
 function MV.SetAutoGlass(on)
     MV.autoGlass = (on == true)
     return MV.autoGlass
@@ -9243,15 +9285,18 @@ function S.RunHubAction(id)
         if not S.Move.Root() then return "⚠️ chưa có nhân vật để đặt kính (đợi vào game xong hãy bấm)" end
         local ok, res = S.Move.PlaceGlass()
         S.Rebuild()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         return ok and ("🧱 đã đặt kính dưới chân · tổng " .. tostring(#(S.Move._placedGlasses or {})) .. " tấm · kích thước " .. string.format("%g×%g×%g", S.Move.carpetW, S.Move.carpetH, S.Move.carpetL))
                     or ("⚠️ " .. tostring(res or "không đặt được kính"))
     elseif id == "clearglass" then
         local n = S.Move.ClearPlacedGlasses()
         S.Rebuild()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         return "🧹 đã xóa " .. tostring(n) .. " tấm kính đã đặt"
     elseif id == "autoglass" then
         S.Move.SetAutoGlass(not S.Move.autoGlass)
         S.Rebuild()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         return S.Move.autoGlass and "🔄 tự đặt kính: BẬT — di chuyển là tự đặt kính dưới chân theo khoảng cách thảm"
                                 or "🔄 tự đặt kính: TẮT"
     elseif id == "runmode" then
@@ -9896,6 +9941,7 @@ do
         end
         st.Text = S.Move.Status()
         paintGlass()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
     end)
     clearBtn.Activated:Connect(function()
         ReleaseHubFocus()
@@ -9903,12 +9949,14 @@ do
         say("🧹 đã xóa " .. tostring(n) .. " tấm kính đã đặt", true)
         st.Text = S.Move.Status()
         paintGlass()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
     end)
     autoGlassBtn.Activated:Connect(function()
         ReleaseHubFocus()
         S.Move.SetAutoGlass(not S.Move.autoGlass)
         paintGlass()
         st.Text = S.Move.Status()
+        if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         say(S.Move.autoGlass and "🔄 tự đặt kính: BẬT — di chuyển là tự đặt kính dưới chân theo khoảng cách thảm"
                                or "🔄 tự đặt kính: TẮT", true)
     end)
@@ -11624,6 +11672,267 @@ do
     -- chốt chiều cao cuộn cho trang 👥 (2 khung + chỗ thở ở đáy)
     pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
+    end)
+end
+
+-- ---------- KHUNG 🧱 ĐẶT KÍNH (trong trang 👥 NGƯỜI CHƠI) ----------
+-- v4.26: đưa tính năng đặt kính vào phần người chơi, có thể đặt nhiều kính,
+-- xóa lẻ từng tấm, danh sách kính hiện trong menu để xóa, không mất tính năng cũ.
+do
+    local PH = 320
+    local P = New("Frame", {
+        Name = "HubGlass_Panel",
+        Size = UDim2.new(1, -16, 0, PH),
+        Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 3,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🧱 ĐẶT KÍNH DƯỚI CHÂN (nhiều tấm, quản lý xóa lẻ trong menu)",
+        BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+        Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local placeBtn = act("🧱 Đặt 1 Tấm", 8, 22, 84, C.BLUE)
+    local clearBtn = act("🧹 Xóa Hết", 98, 22, 74, C.RED)
+    local autoBtn = act("🔄 Tự: TẮT", 178, 22, 76, C.GRAY)
+    local tpNearBtn = act("📍 Tới Gần Nhất", 260, 22, 96, C.SURFACE3)
+
+    local statusLbl = New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 46),
+        Text = "🧱 0 tấm", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local searchIn = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 66),
+        Text = "", PlaceholderText = "🔍 Lọc kính (tên / tọa độ)...", ClearTextOnFocus = false,
+        PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(searchIn, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    local list = New("ScrollingFrame", {
+        Name = "GlassList", Size = UDim2.new(1, -16, 0, 180), Position = UDim2.new(0, 8, 0, 92),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P)
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 278),
+        Text = "💡 Bấm 🧱 Đặt để đặt 1 tấm kính CỐ ĐỊNH dưới chân (đặt nhiều lần thành cầu/thang). "
+             .. "🔄 Tự: đi tới đâu đặt tới đó. Danh sách dưới hiện tất cả kính đã đặt — bấm 🗑 để xóa lẻ, 📍 để tới.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        local cnt = S.Move._placedGlasses and #S.Move._placedGlasses or 0
+        statusLbl.Text = string.format("🧱 %d tấm kính đã đặt%s", cnt, (S.Move.autoGlass and " · 🔄 tự đặt BẬT" or ""))
+        autoBtn.Text = S.Move.autoGlass and "🔄 Tự: BẬT" or "🔄 Tự: TẮT"
+        autoBtn.BackgroundColor3 = S.Move.autoGlass and C.GREEN or C.GRAY
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        placeBtn.Text = cnt > 0 and ("🧱 Đặt (" .. cnt .. ")") or "🧱 Đặt 1 Tấm"
+        clearBtn.Text = cnt > 0 and ("🧹 Xóa Hết (" .. cnt .. ")") or "🧹 Xóa Hết"
+    end
+
+    -- làm mới danh sách kính
+    local function refreshGlassList()
+        if not (list and list.Parent) then return end
+        for _, c in ipairs(list:GetChildren()) do
+            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+        end
+        local term = tostring(searchIn.Text or ""):lower()
+        local glasses = S.Move.GetPlacedGlasses and S.Move.GetPlacedGlasses() or {}
+        local order = 0
+        local myRoot = S.Move.Root and S.Move.Root()
+        local myPos = myRoot and myRoot.Position or nil
+        for _, g in ipairs(glasses) do
+            local txt = string.format("%s (%.0f, %.0f, %.0f)", g.name, g.x, g.y, g.z)
+            if term == "" or txt:lower():find(term, 1, true) or g.name:lower():find(term, 1, true) then
+                order = order + 1
+                local distStr = ""
+                if myPos then
+                    local dx = g.x - myPos.X
+                    local dz = g.z - myPos.Z
+                    local d = math.sqrt(dx*dx + dz*dz)
+                    distStr = string.format("📏 %dm", math.floor(d+0.5))
+                end
+                local row = New("Frame", {
+                    Size = UDim2.new(1, 0, 0, 28), LayoutOrder = order,
+                    BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25,
+                    BorderSizePixel = 0, ZIndex = 8,
+                }, list)
+                Corner(row, UDim.new(0, 6))
+
+                local nameBtn = New("TextButton", {
+                    Size = UDim2.new(1, -130, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                    Text = string.format("%d. %s %s", g.idx, txt, distStr),
+                    BackgroundTransparency = 1, TextColor3 = C.DARK,
+                    Font = Enum.Font.GothamBold, TextSize = 8,
+                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                }, row)
+                nameBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    -- bấm tên = đi tới kính đó
+                    pcall(function()
+                        local r = S.Move.Root()
+                        if r then
+                            r.CFrame = CFrame.new(g.x, g.y + 3.5, g.z)
+                        end
+                    end)
+                    if D.hubStatus then flash(D.hubStatus, "📍 đã tới " .. g.name, 1.5, C.ACCENT) end
+                end)
+
+                local tpBtn = New("TextButton", {
+                    Size = UDim2.new(0, 36, 0, 20), Position = UDim2.new(1, -96, 0, 4),
+                    Text = "📍", BackgroundColor3 = C.BLUE, TextColor3 = D.BestText(C.BLUE),
+                    Font = Enum.Font.GothamBold, TextSize = 10, BorderSizePixel = 0, ZIndex = 9,
+                }, row)
+                Corner(tpBtn, UDim.new(0, 6))
+                D.Tactile(tpBtn, 0.08)
+                tpBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    pcall(function()
+                        local r = S.Move.Root()
+                        if r then
+                            r.CFrame = CFrame.new(g.x, g.y + 3.5, g.z)
+                        end
+                    end)
+                    if D.hubStatus then flash(D.hubStatus, "📍 đã tới " .. g.name, 1.5, C.ACCENT) end
+                end)
+
+                local delBtn = New("TextButton", {
+                    Size = UDim2.new(0, 50, 0, 20), Position = UDim2.new(1, -54, 0, 4),
+                    Text = "🗑 Xóa", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+                    Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
+                }, row)
+                Corner(delBtn, UDim.new(0, 6))
+                D.Tactile(delBtn, 0.08)
+                delBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    local ok = S.Move.RemoveGlassAt(g.idx)
+                    paint()
+                    refreshGlassList()
+                    if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+                    pcall(S.Rebuild)
+                    if D.hubStatus then
+                        flash(D.hubStatus, ok and ("🗑 đã xóa " .. g.name .. " · còn " .. tostring(#(S.Move._placedGlasses or {})) .. " tấm") or "⚠️ không xóa được", 1.8, ok and C.ACCENT or C.RED)
+                    end
+                end)
+            end
+        end
+        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end)
+        paint()
+    end
+
+    -- lưu hàm refresh để gọi từ nơi khác (sau khi đặt/xóa)
+    S.GlassRefreshList = refreshGlassList
+    if S.Move then S.Move._glassListRefresh = refreshGlassList end
+
+    placeBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, res = S.Move.PlaceGlass()
+        if ok then
+            if D.hubStatus then flash(D.hubStatus, "🧱 đã đặt kính dưới chân · tổng " .. tostring(#(S.Move._placedGlasses or {})) .. " tấm", 1.8, C.ACCENT) end
+        else
+            if D.hubStatus then flash(D.hubStatus, "⚠️ " .. tostring(res or "không đặt được kính"), 1.8, C.RED) end
+        end
+        paint()
+        refreshGlassList()
+        if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+        pcall(S.Rebuild)
+    end)
+
+    clearBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local n = S.Move.ClearPlacedGlasses()
+        paint()
+        refreshGlassList()
+        if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+        pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, "🧹 đã xóa " .. tostring(n) .. " tấm kính", 1.8, C.ACCENT) end
+    end)
+
+    autoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetAutoGlass(not S.Move.autoGlass)
+        paint()
+        refreshGlassList()
+        if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+        if D.hubStatus then
+            flash(D.hubStatus, S.Move.autoGlass and "🔄 tự đặt kính: BẬT — đi tới đâu đặt tới đó" or "🔄 tự đặt kính: TẮT", 1.8, C.ACCENT)
+        end
+    end)
+
+    tpNearBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local glasses = S.Move.GetPlacedGlasses and S.Move.GetPlacedGlasses() or {}
+        if #glasses == 0 then
+            if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có tấm kính nào để tới", 1.5, C.RED) end
+            return
+        end
+        local myRoot = S.Move.Root and S.Move.Root()
+        local myPos = myRoot and myRoot.Position or nil
+        local best = glasses[1]
+        local bestD = 1e9
+        if myPos then
+            for _, g in ipairs(glasses) do
+                local dx = g.x - myPos.X
+                local dz = g.z - myPos.Z
+                local d = dx*dx + dz*dz
+                if d < bestD then bestD = d; best = g end
+            end
+        end
+        pcall(function()
+            local r = S.Move.Root()
+            if r then r.CFrame = CFrame.new(best.x, best.y + 3.5, best.z) end
+        end)
+        if D.hubStatus then flash(D.hubStatus, "📍 đã tới gần nhất: " .. best.name, 1.5, C.ACCENT) end
+    end)
+
+    searchIn:GetPropertyChangedSignal("Text"):Connect(function()
+        S.Debounce("glassSearch", 0.2, refreshGlassList)
+    end)
+
+    paint()
+    refreshGlassList()
+
+    -- chốt chiều cao cuộn cho trang 👥 (3 khung + chỗ thở ở đáy)
+    pcall(function()
+        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 800) + 16) end
     end)
 end
 
