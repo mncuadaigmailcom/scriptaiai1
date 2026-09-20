@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.32",
+    Version = "4.33",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -8687,11 +8687,21 @@ function MV.CreateCarpet(y)
             local slack = MV.noclip and 0 or (tonumber(MV.carpetSlack) or 0.5)
             local vel = curR.AssemblyLinearVelocity
             local vy = MV.comp(vel, "Y", 0)
-            if curR.Position.Y < standingY - slack and vy <= 0.1 then
-                curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
-                if vy < 0 then
-                    curR.AssemblyLinearVelocity = Vector3.new(
-                        (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+            -- v4.33: chống rơi mượt hơn khi vừa noclip vừa chạy trên thảm (không khựng)
+            if curR.Position.Y < standingY - slack then
+                if vy <= 0.1 then
+                    curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
+                    if vy < 0 then
+                        curR.AssemblyLinearVelocity = Vector3.new(
+                            (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+                    end
+                end
+            elseif curR.Position.Y < standingY - 0.05 and MV.noclip then
+                if vy < -0.5 then
+                    pcall(function()
+                        curR.AssemblyLinearVelocity = Vector3.new(
+                            (vel and vel.X) or 0, math.max(0, -vy), (vel and vel.Z) or 0)
+                    end)
                 end
             end
         end
