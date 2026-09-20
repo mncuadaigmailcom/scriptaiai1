@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.29",
+    Version = "4.30",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7535,6 +7535,8 @@ MV.Safe = {
     showHud = true,
     _hud = nil,
     _joyBG = nil, _joyKnob = nil, _dragging = false,
+    -- v4.30: bay riêng như bay tới người (không dùng chung BC_FlyVel)
+    _bv = nil, _bg = nil,
 }
 local SF = MV.Safe
 
@@ -7875,13 +7877,30 @@ end
 -- (hoặc CÒN DÍNH nhân vật cũ) -> vòng lặp Bay thoát NGAY ở dòng
 -- `if not MV.fly or not curR or not MV._bv then return end` nên 🛡 KHÔNG BAO GIỜ chạy nữa.
 -- Nay 🛡 TỰ CHỮA LÀNH: part bay mất/hỏng/dính nhân vật cũ là dựng lại ngay trên nhân vật đang dùng.
+function MV.Safe._EnsureBV()
+    local r = MV.Root()
+    if not r then return nil, nil end
+    if SF._bv and SF._bv.Parent == r and SF._bg and SF._bg.Parent == r then
+        return SF._bv, SF._bg
+    end
+    pcall(function() if SF._bv then SF._bv:Destroy() end end)
+    pcall(function() if SF._bg then SF._bg:Destroy() end end)
+    local bv = New("BodyVelocity", { Name = "BC_SafeFlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.new(0,0,0) }, r)
+    local bg = New("BodyGyro", { Name = "BC_SafeFlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50 }, r)
+    SF._bv, SF._bg = bv, bg
+    local h = MV.Hum()
+    if h then
+        pcall(function() h.PlatformStand = true end)
+        pcall(function() h.AutoRotate = false end)
+    end
+    return bv, bg
+end
+
 function MV.Safe.Repair()
     local r = MV.Root()
     if not r then return false end
-    local ok1 = pcall(function() MV.SetFly(false) end)
-    local ok2 = pcall(function() MV.SetFly(true) end)
-    if not (ok1 and ok2) or MV._bv == nil or MV.Root() ~= r then
-        pcall(function() if MV.fly == false then MV.SetFly(true) end end)
+    local bv, bg = MV.Safe._EnsureBV()
+    if not bv or MV.Root() ~= r then
         return false
     end
     MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
@@ -7900,26 +7919,27 @@ end
 function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end
 function MV.Safe.Step(dt)
     if not SF.on then return end
-    SF._lastFrameAt = tick()                    -- v4.23: watchdog soi xem vòng lặp còn sống không
+    SF._lastFrameAt = tick()
     local r, h = MV.Root(), MV.Hum()
     if not r then
-        -- đang hồi sinh (nhân vật mới chưa mọc): dọn khiên cũ kẻo nó treo lại giữa map
         if SF._shield then pcall(MV.Safe.KillShield) end
         SF._root = nil
         return
     end
-    -- ĐỔI TRẬN / RESPAWN: nhân vật mới -> quên dữ liệu trận cũ + dựng khiên lại sạch sẽ
     if SF._root ~= r then
         SF._root = r
         pcall(MV.Safe.Reset)
         SF._shieldPos = nil
         if SF.shield then pcall(MV.Safe.KillShield) end
-        if MV.fly == false then pcall(function() MV.SetFly(true) end) end
+        pcall(function() MV.Safe._EnsureBV() end)
     end
-    -- part bay chết / CÒN DÍNH NHÂN VẬT CŨ / anti-cheat xoá -> dựng lại đúng nhân vật đang dùng
-    if MV.fly and not (MV._bv and MV._bv.Parent == r) then pcall(MV.Safe.Repair) end
-    local bv = MV._bv
+    -- v4.30: bay riêng, không phụ thuộc 🚀 Bay chung
+    if not (SF._bv and SF._bv.Parent == r) then
+        pcall(function() MV.Safe._EnsureBV() end)
+    end
+    local bv = SF._bv
     if not (bv and bv.Parent == r) then return end
+    local bg = SF._bg
     -- game hay reset 2 cờ này sau respawn/đổi trận -> giữ đúng trạng thái bay
     if h then
         if h.PlatformStand ~= true then pcall(function() h.PlatformStand = true end) end
@@ -8010,9 +8030,17 @@ function MV.Safe.Step(dt)
     if SF.nearest and SF.nearest < mvClamp(SF.radius, 1, 300, 25) * 0.4 then
         target = target + Vector3.new(0, spd * 0.75, 0)
     end
-    SF._myV = target                                        -- để lần quét sau tính tốc độ lao vào nhau
+    SF._myV = target
     pcall(function() bv.Velocity = target end)
-    -- 🔲 khiên trong suốt bám theo mình (vẽ vùng né cho thấy)
+    -- v4.30: gyro bay giống bay tới người: nhìn theo hướng bay
+    if bg and target.Magnitude > 0.1 then
+        pcall(function()
+            local lookPos = r.Position + Vector3.new(target.X, 0, target.Z)
+            if (lookPos - r.Position).Magnitude > 0.1 then
+                bg.CFrame = CFrame.new(r.Position, lookPos)
+            end
+        end)
+    end
     if SF.shield then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
     -- v4.24: cập nhật nhãn nút ảo mỗi ~0.3s cho nhẹ
     SF._hudAcc = (SF._hudAcc or 0) + dtv
@@ -8024,32 +8052,40 @@ end
 function MV.Safe.Set(on)
     SF.on = (on == true)
     if SF.on then
-        -- 🧱 nhớ trạng thái Xuyên Tường cũ rồi tự bật lên: lực đẩy mới đưa được mình XUYÊN QUA
-        -- vật cản (tường, sàn, cửa) mà không bị kẹt lại.
         if SF.noclip and SF._ncPrev == nil then
             SF._ncPrev = MV.noclip == true
             pcall(function() MV.SetNoclip(true) end)
         end
-        MV.SetFly(true)
+        -- v4.30: bay riêng, không dùng MV.SetFly chung, tạo BV riêng giống bay tới người
+        pcall(function() MV.Safe._EnsureBV() end)
         MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
-        SF._root = MV.Root()                     -- v4.23: nhớ nhân vật hiện tại (đổi trận là tự dựng lại)
-        pcall(MV._Watchdog)                      -- v4.23: watchdog phải chạy khi 🛡 bật (nó cứu 🛡 sau đổi trận)
+        SF._root = MV.Root()
+        pcall(MV._Watchdog)
         SF._lastFrameAt = tick()
-        pcall(MV.Safe.Bind)                      -- v4.23: vòng lặp RIÊNG của 🛡 (không nhờ 🚀 Bay nữa)
+        pcall(MV.Safe.Bind)
         pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
         pcall(function() MV.Safe.SyncHud() end)
     else
-        pcall(MV.Safe.Unbind)                    -- v4.23: gỡ vòng lặp riêng của 🛡
+        pcall(MV.Safe.Unbind)
         MV.Safe.Reset()
         pcall(function() MV.Safe.ClearVirt() end)
-        MV.SetFly(false)
+        -- v4.30: hủy BV riêng, không tắt bay chung nếu đang bật
+        pcall(function() if SF._bv then SF._bv:Destroy() end end)
+        pcall(function() if SF._bg then SF._bg:Destroy() end end)
+        SF._bv, SF._bg = nil, nil
+        if not MV.fly then
+            local h = MV.Hum()
+            if h then
+                pcall(function() h.PlatformStand = false end)
+                pcall(function() h.AutoRotate = true end)
+            end
+        end
         MV.Safe.KillShield()
         SF._root = nil
-        -- trả Xuyên Tường về ĐÚNG như trước khi bật 🛡 (đang tắt thì vẫn tắt)
         if SF._ncPrev ~= nil then
             local was = SF._ncPrev
             SF._ncPrev = nil
-            pcall(function() MV.SetNoclip(was) end)   -- SetNoclip đã tự bỏ qua nếu trùng trạng thái
+            pcall(function() MV.SetNoclip(was) end)
         end
         pcall(function() MV.Safe.SyncHud() end)
     end
