@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.27",
+    Version = "4.28",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -8908,6 +8908,128 @@ function MV.FlyToGlass(idxOrPos)
     return true, targetPos
 end
 
+-- ---------- v4.28: BAY TỚI NGƯỜI CHƠI (xuyên tường, chỉnh tốc độ, 0=auto lấy tốc độ game) ----------
+MV.playerFlySpeed = MV.playerFlySpeed or 0
+MV._playerFlyTarget = MV._playerFlyTarget or nil
+MV._playerFlyActive = MV._playerFlyActive or false
+MV._playerFlyPos = MV._playerFlyPos or nil
+
+function MV.SetPlayerFlySpeed(n)
+    local v = tonumber(n)
+    if v == nil then return false, "nhập số 0-500 (0=auto)" end
+    if v == 0 then
+        MV.playerFlySpeed = 0
+        return true, 0
+    end
+    MV.playerFlySpeed = mvClamp(v, 1, 500, MV.playerFlySpeed or 0)
+    return true, MV.playerFlySpeed
+end
+
+function MV.GetPlayerFlySpeed()
+    local s = tonumber(MV.playerFlySpeed) or 0
+    if s == 0 then
+        -- auto = lấy tốc độ mặc định của game: base WalkSpeed hoặc flySpeed
+        local base = tonumber(MV._baseWS) or 16
+        local flySp = tonumber(MV.flySpeed) or 60
+        -- nếu đang bay thì lấy flySpeed, không thì lấy base
+        if MV.fly then
+            return flySp
+        else
+            return base > 0 and base or 16
+        end
+    end
+    return s
+end
+
+function MV.StopPlayerFly()
+    MV._playerFlyActive = false
+    MV._playerFlyTarget = nil
+    MV._playerFlyPos = nil
+    pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
+    return true
+end
+
+function MV._PlayerFlyStep(dt)
+    if not MV._playerFlyActive then return end
+    local targetPlayer = MV._playerFlyTarget
+    if not targetPlayer or not targetPlayer.Parent then
+        MV.StopPlayerFly()
+        return
+    end
+    local c, r = nil, nil
+    pcall(function()
+        local char = targetPlayer.Character
+        if char then
+            r = char:FindFirstChild("HumanoidRootPart")
+            c = char
+        end
+    end)
+    if not r then
+        -- target chưa có nhân vật, đợi
+        return
+    end
+    local myRoot = MV.Root()
+    if not myRoot then
+        MV.StopPlayerFly()
+        return
+    end
+    local want = r.Position + Vector3.new(0, 3.5, 0)
+    MV._playerFlyPos = want
+    local pos = myRoot.Position
+    local dx = want.X - pos.X
+    local dy = want.Y - pos.Y
+    local dz = want.Z - pos.Z
+    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+    if dist < 2 then
+        MV.StopPlayerFly()
+        pcall(function() if D.hubStatus then D.hubStatus.Text = "✅ đã bay tới " .. tostring(targetPlayer.Name) end end)
+        return
+    end
+    local speed = tonumber(MV.GetPlayerFlySpeed()) or 16
+    if dist < 3.5 then
+        speed = math.max(6, speed * 0.45)
+    end
+    -- luôn bật noclip + fly để xuyên tường
+    pcall(function() MV.SetNoclip(true) end)
+    if not MV.fly then pcall(function() MV.SetFly(true) end) end
+    if MV.fly and MV._bv then
+        pcall(function()
+            local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
+            MV._bv.Velocity = dir * speed
+            if MV._bg then
+                local look = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z))
+                MV._bg.CFrame = look
+            end
+        end)
+    else
+        pcall(function()
+            local step = math.min(dist, speed * (tonumber(dt) or 0.05))
+            local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
+            myRoot.CFrame = CFrame.new(pos.X + dir.X*step, pos.Y + dir.Y*step, pos.Z + dir.Z*step)
+        end)
+    end
+end
+
+function MV.FlyToPlayer(p)
+    if not p or not p.Parent then return false, "người chơi không tồn tại" end
+    if p == player then return false, "không thể bay tới chính mình" end
+    if not MV.Root() then return false, "chưa có nhân vật" end
+    MV._playerFlyTarget = p
+    MV._playerFlyActive = true
+    MV._playerFlyPos = nil
+    -- tự bật fly + noclip để xuyên tường
+    pcall(function() MV.SetNoclip(true) end)
+    pcall(function() MV.SetFly(true) end)
+    pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
+    pcall(function()
+        RunService:BindToRenderStep("BC_PlayerFly", Enum.RenderPriority.Camera.Value - 1, function(dt)
+            pcall(function() MV._PlayerFlyStep(dt) end)
+        end)
+    end)
+    MV._Watchdog()
+    return true, p
+end
+
 -- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
 function MV.Nudge(dy)
     if MV.carpet then
@@ -9053,6 +9175,7 @@ end
 function MV.StopAll()
     if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Stop() end) end
     pcall(function() MV.StopGlassFly() end)
+    pcall(function() MV.StopPlayerFly() end)
     MV.SetFly(false)
     MV.SetCarpet(false)
     -- v4.27: không tự xóa kính khi tắt hết, để người dùng quản lý xóa lẻ trong 👥 Người Chơi
@@ -9122,6 +9245,15 @@ function MV.Status()
     if MV.autoGlass then t[#t + 1] = "🔄 tự đặt kính" end
     if MV._glassFlyActive then
         t[#t + 1] = string.format("🚀 bay tới kính %s %d", tostring(MV._glassFlyIdx or "?"), MV.glassFlySpeed or 60)
+    end
+    if MV._playerFlyActive then
+        local pn = MV._playerFlyTarget and tostring(MV._playerFlyTarget.Name) or "?"
+        local sp = MV.GetPlayerFlySpeed and MV.GetPlayerFlySpeed() or (MV.playerFlySpeed or 0)
+        if (tonumber(MV.playerFlySpeed) or 0) == 0 then
+            t[#t + 1] = string.format("🚀 bay tới người %s (auto %g)", pn, sp)
+        else
+            t[#t + 1] = string.format("🚀 bay tới người %s %g", pn, sp)
+        end
     end
     if #t == 0 then return "🚶 di chuyển: đang TẮT hết" end
     return "🚶 đang BẬT: " .. table.concat(t, " · ")
@@ -9279,6 +9411,10 @@ S.ScriptHubList = {
      desc="Bay mượt tới tấm kính đã đặt (chỉnh được tốc độ bay tới kính trong khung 🧱 ở tab 👥 Người Chơi). Bấm là bay tới kính gần nhất, danh sách kính trong 👥 để chọn bay tới từng tấm (nút 🚀)."},
     {icon="⏹", name="Dừng Bay Tới Kính", cat="Di chuyển", ord=16.6, action="stopglassfly",
      desc="Dừng việc bay tới kính (nếu đang bay tới tấm kính)."},
+    {icon="🚀", name="Bay Tới Người Chơi", cat="Di chuyển", ord=16.7, action="flyplayer",
+     desc="Bay mượt tới người chơi gần nhất (xuyên tường: tự bật 🧱 Xuyên tường + 🚀 Bay). Chỉnh tốc độ bay tới người trong khung 📍 ở tab 👥 Người Chơi (0=auto lấy tốc độ mặc định của game). Theo dõi mục tiêu di chuyển, dừng khi <2 studs."},
+    {icon="⏹", name="Dừng Bay Tới Người", cat="Di chuyển", ord=16.8, action="stopflyplayer",
+     desc="Dừng việc bay tới người chơi (nếu đang bay tới người)."},
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
     {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
      desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
@@ -9453,6 +9589,23 @@ function S.RunHubAction(id)
         if S.GlassRefreshList then pcall(S.GlassRefreshList) end
         S.Rebuild()
         return "⏹ đã dừng bay tới kính"
+    elseif id == "flyplayer" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
+        local target = nil
+        if S.Loc and S.Loc.Nearest then target = S.Loc.Nearest() end
+        if not target then return "⚠️ không có người chơi nào để bay tới" end
+        local ok, res = S.Move.FlyToPlayer(target)
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        if S.SyncLocPanel then pcall(S.SyncLocPanel) end
+        S.Rebuild()
+        return ok and string.format("🚀 đang bay tới người %s tốc độ %g (0=auto lấy tốc độ game) — bấm ⏹ Dừng bay tới người để dừng, theo dõi mục tiêu di chuyển, dừng khi <2 studs", tostring(target.Name), S.Move.GetPlayerFlySpeed and S.Move.GetPlayerFlySpeed() or S.Move.playerFlySpeed or 0)
+                    or ("⚠️ " .. tostring(res))
+    elseif id == "stopflyplayer" then
+        S.Move.StopPlayerFly()
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        if S.SyncLocPanel then pcall(S.SyncLocPanel) end
+        S.Rebuild()
+        return "⏹ đã dừng bay tới người chơi"
     elseif id == "runmode" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
@@ -9854,8 +10007,15 @@ end
 -- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
 -- v4.24: thêm ĐẶT KÍNH dưới chân (nhiều tấm cố định)
 -- v4.27: đổi thành BAY TỚI TẤM KÍNH, chỉnh được tốc độ bay tới kính
+-- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN ----------
+-- Nằm TRÊN CÙNG của danh sách thẻ (LayoutOrder = 0) và được đặt tên "HubMove_Panel"
+-- (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá nó khi lọc/tìm kiếm.
+-- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
+-- v4.24: thêm ĐẶT KÍNH dưới chân (nhiều tấm cố định)
+-- v4.27: đổi thành BAY TỚI TẤM KÍNH, chỉnh được tốc độ bay tới kính
+-- v4.28: thêm BAY TỚI NGƯỜI CHƠI (xuyên tường, chỉnh tốc độ 0=auto)
 do
-    local PH = 250
+    local PH = 300
     local P = New("Frame", {
         Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH),
@@ -9909,23 +10069,19 @@ do
 
     title("⚙ Tuỳ chỉnh di chuyển (áp dụng ngay, không cần bật lại)")
 
-    -- Hàng 1: tốc độ bay / tốc độ chạy / lực nhảy
     lab("🚀 Bay", 8, 22, 52)
     local flyIn = box(62, 22, 44, S.Move.flySpeed)
     lab("👟 Chạy", 114, 22, 50)
-    -- v4.12.2: ô này nhận 2 kiểu: "x3" = TỐC ĐỘ GAME ×3 (mặc định) · "50" = cố định 50
     local wsIn = box(166, 22, 40, (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul))
                                                              or tostring(S.Move.walkSpeed))
     lab("🦘 Nhảy", 214, 22, 46)
     local jpIn = box(262, 22, 40, S.Move.jumpPower)
     local ap1 = act("✔", 308, 22, 28, C.GREEN)
 
-    -- Hàng 2: kích thước thảm RỘNG × CAO × DÀI
     lab("🪩 Thảm Rộng×Cao×Dài", 8, 48, 116)
     local cwIn = box(128, 48, 40, S.Move.carpetW)
     local chIn = box(176, 48, 40, S.Move.carpetH)
     local clIn = box(224, 48, 40, S.Move.carpetL)
-    -- v4.12.1: ô thứ 4 = KHOẢNG CÁCH thảm tới bàn chân (0 = áp sát chân, 3 = kiểu bản gốc)
     local gapIn = New("TextBox", {
         Size = UDim2.new(0, 40, 0, 20), Position = UDim2.new(0, 272, 0, 48),
         Text = tostring(S.Move.carpetGap), PlaceholderText = "gap", ClearTextOnFocus = false,
@@ -9937,23 +10093,18 @@ do
     lab("↕ cách chân", 314, 48, 60)
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
-    -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết các tính năng mới sửa)
-    -- v4.24: thêm ghi chú đặt kính, v4.26: chuyển quản lý chi tiết vào 👥 Người Chơi
-    -- v4.27: thêm bay tới kính + chỉnh tốc độ
     New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 70), Position = UDim2.new(0, 8, 0, 172),
-        Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
-             .. "gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game (như bản gốc). "
+        Size = UDim2.new(1, -16, 0, 84), Position = UDim2.new(0, 8, 0, 208),
+        Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định); gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game. "
              .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
              .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. 🧱 Đặt Kính: đặt nhiều tấm kính CỐ ĐỊNH dưới chân để làm cầu/thang, 🔄 Tự Đặt thì đi tới đâu đặt tới đó. "
-             .. "🚀 Bay tới kính: bay mượt tới kính đã đặt, chỉnh tốc độ ở ô 🚀, danh sách chi tiết ở tab 👥 Người Chơi → khung 🧱 ĐẶT KÍNH & 🚀 BAY TỚI KÍNH. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
+             .. "🚀 Bay tới kính/người: bay mượt xuyên tường, chỉnh tốc độ ở ô 🚀, danh sách chi tiết ở tab 👥 Người Chơi. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
         ZIndex = 7,
     }, P)
 
-    -- Hàng 3: nâng/hạ (thảm hoặc bay) + tắt hết + nhãn trạng thái
     local upBtn  = act("⬆ Nâng", 8, 74, 62, C.BLUE)
     local dnBtn  = act("⬇ Hạ", 76, 74, 56, C.BLUE)
     local stopBtn = act("🛑 Tắt hết", 138, 74, 76, C.RED)
@@ -9968,7 +10119,6 @@ do
         ReleaseHubFocus()
         local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text)
         if f then S.Move.flySpeed = (f >= 1 and f <= 500) and f or S.Move.flySpeed end
-        -- ô 👟 Chạy: "x3"/"×3" = NHÂN THEO GAME · số trơn = CỐ ĐỊNH
         local wmul = tostring(wsIn.Text or ""):match("^[xX×]%s*([%d%.]+)")
         if wmul then
             S.Move.speedMode = "x"
@@ -9978,7 +10128,6 @@ do
             S.Move.walkSpeed = (w >= 1 and w <= 500) and w or S.Move.walkSpeed
         end
         if j then S.Move.jumpPower = (j >= 0 and j <= 500) and j or S.Move.jumpPower end
-        -- Text là THUỘC TÍNH CHUỖI: gán số -> Roblox văng lỗi 'string expected, got number'
         flyIn.Text = tostring(S.Move.flySpeed)
         wsIn.Text  = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
         jpIn.Text  = tostring(S.Move.jumpPower)
@@ -10022,11 +10171,6 @@ do
         st.Text = S.Move.Status()
     end)
 
-    -- Hàng 4 (v4.12.5): 2 công tắc cho GAME NẶNG (Evade...). TẮT đi = y hệt bản gốc aiaiaitao3:
-    -- hub không bao giờ đụng vào nhân vật -> hết giật/lag, thảm vẫn còn để đứng nhờ va chạm.
-    -- v4.22: nút 🧲 (nhãn ngắn cho vừa 168px cạnh 2 công tắc) + hàm vẽ lại
-    -- ⚠️ phải KHAI BÁO `local pcBtn` TRƯỚC paintPass(), không thì paintPass nhìn thấy biến TOÀN CỤC
-    -- trùng tên (nil) -> bấm nút là lỗi "attempt to index a nil value" (bộ test bắt được).
     local pcBtn
     local TXT_PASS_ON  = "🧲 Đẩy xuyên khi kẹt: BẬT"
     local TXT_PASS_OFF = "🧲 Đẩy xuyên khi kẹt: TẮT"
@@ -10064,27 +10208,28 @@ do
         say("🔲 viền sáng quanh thảm: " .. ((S.Move.carpetEdge ~= false) and "BẬT" or "TẮT"), true)
     end)
     paintHold(); paintEdge()
-    -- v4.22: cùng hàng 4 — 🧲 tự đẩy xuyên khi game chặn cứng (đi kèm 🧱 Xuyên Tường)
     pcBtn = act(TXT_PASS_ON, 234, 100, 168, C.GREEN)
     S.Move._passBtn = pcBtn
     pcBtn.Activated:Connect(function()
         ReleaseHubFocus()
-        S.Move.ncPass = (S.Move.ncPass == false)        -- đang TẮT -> BẬT, và ngược lại
+        S.Move.ncPass = (S.Move.ncPass == false)
         paintPass()
         say(S.Move.ncPass and "🧲 tự đẩy xuyên: BẬT (kẹt cứng là tự nhích xuyên qua)"
                            or "🧲 tự đẩy xuyên: TẮT (chỉ tắt va chạm như cũ)", true)
     end)
 
-    -- v4.24: Hàng 5 — ĐẶT KÍNH dưới chân (nhiều tấm cố định, không mất thảm bay theo)
     local placeBtn = act("🧱 Đặt Kính Dưới Chân", 8, 124, 132, C.BLUE)
     local clearBtn = act("🧹 Xóa Kính Đã Đặt", 146, 124, 118, C.RED)
     local autoGlassBtn = act("🔄 Tự Đặt Kính: TẮT", 270, 124, 132, C.GRAY)
-    -- v4.27: bay tới kính
     local flyGlassBtn = act("🚀 Bay tới kính", 8, 148, 110, C.PURPLE)
-    local stopFlyBtn = act("⏹ Dừng bay", 124, 148, 76, C.RED)
+    local stopFlyBtn = act("⏹ Dừng bay kính", 124, 148, 76, C.RED)
     local speedGlassBox = box(206, 148, 44, S.Move.glassFlySpeed or 60)
-    local applyGlassSpeedBtn = act("✔ Tốc độ bay", 256, 148, 100, C.GREEN)
-    lab("🚀 tốc độ bay tới kính", 362, 148, 120)
+    local applyGlassSpeedBtn = act("✔ Tốc độ bay kính", 256, 148, 110, C.GREEN)
+    local flyPlayerBtn = act("🚀 Bay tới người gần nhất", 8, 172, 150, C.ACCENT)
+    local stopPlayerFlyBtn = act("⏹ Dừng bay người", 164, 172, 110, C.RED)
+    local speedPlayerBox = box(280, 172, 44, S.Move.playerFlySpeed or 0)
+    local applyPlayerSpeedBtn = act("✔ Tốc độ bay người", 330, 172, 110, C.GREEN)
+    lab("0=auto", 380, 172, 40)
     local function paintGlass()
         local cnt = S.Move._placedGlasses and #S.Move._placedGlasses or 0
         placeBtn.Text = cnt > 0 and ("🧱 Đặt Kính (" .. cnt .. ")") or "🧱 Đặt Kính Dưới Chân"
@@ -10098,6 +10243,11 @@ do
         flyGlassBtn.BackgroundColor3 = flying and C.GREEN or C.PURPLE
         flyGlassBtn.TextColor3 = D.BestText(flyGlassBtn.BackgroundColor3)
         if speedGlassBox then speedGlassBox.Text = tostring(S.Move.glassFlySpeed or 60) end
+        local pFlying = S.Move._playerFlyActive == true
+        flyPlayerBtn.Text = pFlying and ("🚀 Đang bay tới " .. tostring(S.Move._playerFlyTarget and S.Move._playerFlyTarget.Name or "?")) or "🚀 Bay tới người gần nhất"
+        flyPlayerBtn.BackgroundColor3 = pFlying and C.GREEN or C.ACCENT
+        flyPlayerBtn.TextColor3 = D.BestText(flyPlayerBtn.BackgroundColor3)
+        if speedPlayerBox then speedPlayerBox.Text = tostring(S.Move.playerFlySpeed or 0) end
     end
     placeBtn.Activated:Connect(function()
         ReleaseHubFocus()
@@ -10171,11 +10321,50 @@ do
         paintGlass()
         say("🚀 tốc độ bay tới kính: " .. tostring(S.Move.glassFlySpeed), true)
     end)
+    flyPlayerBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local target = nil
+        if S.Loc and S.Loc.Nearest then target = S.Loc.Nearest() end
+        if not target then
+            say("⚠️ không có người chơi nào để bay tới", false)
+            return
+        end
+        local ok, res = S.Move.FlyToPlayer(target)
+        st.Text = S.Move.Status()
+        paintGlass()
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        say(ok and ("🚀 đang bay tới " .. tostring(target.Name) .. " tốc độ " .. tostring(S.Move.GetPlayerFlySpeed and S.Move.GetPlayerFlySpeed() or S.Move.playerFlySpeed or 0)) or ("⚠️ " .. tostring(res)), ok==true)
+    end)
+    stopPlayerFlyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.StopPlayerFly()
+        st.Text = S.Move.Status()
+        paintGlass()
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        say("⏹ đã dừng bay tới người", true)
+    end)
+    applyPlayerSpeedBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local v = tonumber(tostring(speedPlayerBox.Text or ""):match("%-?%d+%.?%d*"))
+        if v == nil then v = S.Move.playerFlySpeed or 0 end
+        S.Move.SetPlayerFlySpeed(v)
+        speedPlayerBox.Text = tostring(S.Move.playerFlySpeed or 0)
+        st.Text = S.Move.Status()
+        paintGlass()
+        local sp = S.Move.GetPlayerFlySpeed and S.Move.GetPlayerFlySpeed() or S.Move.playerFlySpeed or 0
+        if (tonumber(S.Move.playerFlySpeed) or 0) == 0 then
+            say(string.format("🚀 tốc độ bay tới người: auto (%g = tốc độ game)", sp), true)
+        else
+            say("🚀 tốc độ bay tới người: " .. tostring(sp), true)
+        end
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        if S.SyncLocPanel then pcall(S.SyncLocPanel) end
+    end)
     paintGlass()
-    S.Move._glassBtns = { place = placeBtn, clear = clearBtn, auto = autoGlassBtn, fly = flyGlassBtn, stop = stopFlyBtn, speedBox = speedGlassBox, paint = paintGlass }
+    S.Move._glassBtns = { place = placeBtn, clear = clearBtn, auto = autoGlassBtn, fly = flyGlassBtn, stop = stopFlyBtn, speedBox = speedGlassBox, paint = paintGlass,
+        flyPlayer = flyPlayerBtn, stopPlayer = stopPlayerFlyBtn, speedPlayerBox = speedPlayerBox }
 
 
-    -- nhãn trạng thái tự cập nhật mỗi khi dựng lại danh sách thẻ
     function S.RefreshMovePanel()
         pcall(function()
             st.Text = S.Move.Status()
@@ -10184,7 +10373,6 @@ do
             flyIn.Text = S.Move.flySpeed
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
             jpIn.Text = S.Move.jumpPower
-            -- v4.22: nút 🧲 đọc lại đúng trạng thái (respawn không làm lệch chữ so với thực tế)
             paintPass()
             if paintHold then pcall(paintHold) end
             if paintEdge then pcall(paintEdge) end
@@ -10193,7 +10381,8 @@ do
     end
 end
 
--- ============================================================================
+
+
 -- ========= v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của aiaiaitao3) ===
 -- ============================================================================
 -- Xuyên tường thấy người chơi: tên · 💗 bạn bè · ☠️ bị hạ gục (kèm ⏱ đếm giờ) · ❤️ máu ·
@@ -10521,8 +10710,9 @@ end
 -- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 -- Đặt tên "HubLoc_Panel" (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá
 -- khi lọc/tìm kiếm — y như khung ⚙ di chuyển. Mọi biến nằm trong `do ... end`.
+-- v4.28: thêm bay tới người chơi (xuyên tường, chỉnh tốc độ, 0=auto lấy tốc độ game)
 do
-    local PH = 268
+    local PH = 380
     local P = New("Frame", {
         Name = "HubLoc_Panel",
         Size = UDim2.new(1, -16, 0, PH),
@@ -10537,7 +10727,8 @@ do
 
     New("TextLabel", {
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "📍 ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường)", BackgroundTransparency = 1,
+        Text = "📍 ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường) + 🚀 BAY TỚI NGƯỜI",
+        BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
@@ -10562,9 +10753,13 @@ do
         }, P)
     end
 
-    local allBtn  = act("👁️ Tất Cả", 8, 22, 96, C.GRAY)
-    local soloBtn = act("🎯 Lẻ", 110, 22, 96, C.GRAY)
-    local stopBtn = act("🚫 Tắt", 212, 22, 76, C.SURFACE3)
+    local allBtn  = act("👁️ Tất Cả", 8, 22, 76, C.GRAY)
+    local soloBtn = act("🎯 Lẻ", 90, 22, 76, C.GRAY)
+    local stopBtn = act("🚫 Tắt", 172, 22, 56, C.SURFACE3)
+
+    -- v4.28: bay tới người - tốc độ + gần nhất + dừng bay (cùng hàng với tất cả/lẻ/tắt cho gọn)
+    local flyNearBtn = act("🚀 Gần nhất", 234, 22, 76, C.ACCENT)
+    local flyStopBtn = act("⏹️ Dừng bay", 316, 22, 76, C.SURFACE3)
 
     lab("📏 Xa nhất:", 8, 48, 58)
     local distIn = New("TextBox", {
@@ -10575,10 +10770,22 @@ do
         TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
     }, P)
     Corner(distIn, UDim.new(0, 6))
-    lab("m (0 = không giới hạn)", 122, 48, 170)
+    lab("m (0 = không giới hạn)", 122, 48, 120)
+
+    lab("🚀 Tốc độ bay tới người:", 8, 72, 122)
+    local flySpeedIn = New("TextBox", {
+        Size = UDim2.new(0, 56, 0, 20), Position = UDim2.new(0, 132, 0, 72),
+        Text = "0", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(flySpeedIn, UDim.new(0, 6))
+    lab("0=auto (lấy tốc độ game)", 194, 72, 160)
+    local flySpeedApply = act("✅ Đặt", 354, 72, 38, C.GREEN)
 
     local searchIn = New("TextBox", {
-        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 96),
         Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false,
         PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
         TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
@@ -10588,16 +10795,18 @@ do
     New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
 
     local list = New("ScrollingFrame", {
-        Name = "LocList", Size = UDim2.new(1, -16, 0, 132), Position = UDim2.new(0, 8, 0, 98),
+        Name = "LocList", Size = UDim2.new(1, -16, 0, 190), Position = UDim2.new(0, 8, 0, 122),
         BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
         CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, P)
     New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 
     New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 234),
+        Size = UDim2.new(1, -16, 0, 56), Position = UDim2.new(0, 8, 0, 316),
         Text = "💡 Bấm TÊN = chỉ định vị người đó. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục (⏱ đếm giờ) · "
-             .. "🟣 bạn bè bị hạ gục. 📏 Xa nhất: chỉ hiện người trong bán kính đó.",
+             .. "🟣 bạn bè bị hạ gục. 📏 Xa nhất: chỉ hiện người trong bán kính đó. "
+             .. "🚀 Bay tới = xuyên tường (tự bật 🧱 + 🚀), theo dõi mục tiêu di chuyển, dừng khi <2 studs. "
+             .. "Tốc độ 0 = auto lấy tốc độ mặc định của game.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
@@ -10610,9 +10819,22 @@ do
         soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ"
         soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY
         soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3)
+        -- v4.28: paint fly speed + fly buttons
+        local mv = _G.BananaCatHub_MV
+        local sp = mv and mv.playerFlySpeed or 0
+        if tonumber(sp) == 0 then
+            flySpeedIn.Text = "0"
+            flySpeedIn.PlaceholderText = tostring(mv and mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or 16)
+        else
+            flySpeedIn.Text = tostring(sp)
+        end
+        local active = mv and mv._playerFlyActive
+        flyNearBtn.BackgroundColor3 = active and C.GREEN or C.ACCENT
+        flyNearBtn.TextColor3 = D.BestText(flyNearBtn.BackgroundColor3)
+        flyNearBtn.Text = active and ("🚀 Đang bay " .. tostring(mv._playerFlyTarget and mv._playerFlyTarget.Name or "?")) or "🚀 Gần nhất"
     end
 
-    -- danh sách người chơi: mỗi người 1 hàng (tên + trạng thái + khoảng cách). Bấm tên = chọn.
+    -- danh sách người chơi: mỗi người 1 hàng (tên + trạng thái + khoảng cách + nút bay). Bấm tên = chọn.
     LOC.RefreshList = function()
         for _, c in ipairs(list:GetChildren()) do
             if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
@@ -10639,7 +10861,7 @@ do
                     if fr then sub[#sub + 1] = "💗 Bạn Bè" end
                     if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end
                     local b = New("TextButton", {
-                        Size = UDim2.new(1, -86, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                        Size = UDim2.new(1, -162, 1, 0), Position = UDim2.new(0, 6, 0, 0),
                         Text = (LOC.target == p and "🎯 " or "") .. nm
                              .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or ""),
                         BackgroundTransparency = 1, TextColor3 = col.txt,
@@ -10650,11 +10872,9 @@ do
                         ReleaseHubFocus()
                         if LOC.target == p then
                             LOC.SetSolo(false)
-                            -- v4.14: đang xem chính người này mà bỏ chọn -> trả camera về luôn
                             if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end
                         else
                             LOC.SetTarget(p)
-                            -- v4.14: 👣 đang bật thì bấm tên = BÁM THEO xem họ đang làm gì
                             if S.Spec and S.Spec.on then
                                 pcall(function() S.Spec.Set(p) end)
                                 pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
@@ -10666,12 +10886,45 @@ do
                     end)
                     local d = LOC.Dist(p)
                     New("TextLabel", {
-                        Size = UDim2.new(0, 76, 1, 0), Position = UDim2.new(1, -80, 0, 0),
+                        Size = UDim2.new(0, 56, 1, 0), Position = UDim2.new(1, -156, 0, 0),
                         Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
                         BackgroundTransparency = 1, TextColor3 = col.txt,
                         Font = Enum.Font.GothamMedium, TextSize = 9,
                         TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
                     }, row)
+                    -- v4.28: nút 🚀 Bay tới per-row
+                    local mv = _G.BananaCatHub_MV
+                    local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p
+                    local flyBtn = New("TextButton", {
+                        Size = UDim2.new(0, 70, 0, 20), Position = UDim2.new(1, -76, 0, 4),
+                        Text = isFlyingToThis and "⏹️ Dừng" or "🚀 Bay tới",
+                        BackgroundColor3 = isFlyingToThis and C.RED or C.ACCENT,
+                        TextColor3 = Color3.fromRGB(255,255,255),
+                        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10,
+                    }, row)
+                    Corner(flyBtn, UDim.new(0, 6))
+                    D.Shade(flyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+                    D.Tactile(flyBtn, 0.08)
+                    flyBtn.Activated:Connect(function()
+                        ReleaseHubFocus()
+                        local mv2 = _G.BananaCatHub_MV
+                        if not mv2 then return end
+                        if isFlyingToThis then
+                            pcall(function() mv2.StopPlayerFly() end)
+                        else
+                            pcall(function() mv2.FlyToPlayer(p) end)
+                        end
+                        if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+                        if D.hubStatus then
+                            if mv2._playerFlyActive then
+                                flash(D.hubStatus, "🚀 Bay tới " .. tostring(p.Name) .. " " .. tostring(mv2.GetPlayerFlySpeed and mv2.GetPlayerFlySpeed() or mv2.playerFlySpeed or 0), 1.8, C.ACCENT)
+                            else
+                                flash(D.hubStatus, "⏹️ Đã dừng bay tới " .. tostring(p.Name), 1.2, C.GRAY)
+                            end
+                        end
+                        if LOC.RefreshList then pcall(LOC.RefreshList) end
+                        S.Rebuild()
+                    end)
                 end
             end
         end
@@ -10717,16 +10970,86 @@ do
                  or "📏 không giới hạn khoảng cách"), 1.8, C.ACCENT)
         end
     end)
+    -- v4.28: tốc độ bay tới người + bay gần nhất + dừng bay
+    flySpeedApply.Activated:Connect(function()
+        ReleaseHubFocus()
+        local mv = _G.BananaCatHub_MV
+        if not mv then return end
+        local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
+        if n == nil then
+            if D.hubStatus then flash(D.hubStatus, "⚠️ Nhập số 0-500 (0=auto)", 1.5, C.RED) end
+            return
+        end
+        local ok, msg = mv.SetPlayerFlySpeed(n)
+        if not ok and D.hubStatus then
+            flash(D.hubStatus, "⚠️ " .. tostring(msg), 1.5, C.RED)
+        else
+            paint()
+            if D.hubStatus then
+                local sp = mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or mv.playerFlySpeed or 0
+                if (tonumber(mv.playerFlySpeed) or 0) == 0 then
+                    flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: auto (%g = tốc độ game)", sp), 1.8, C.ACCENT)
+                else
+                    flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: %g", sp), 1.5, C.GREEN)
+                end
+            end
+            if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+            S.Rebuild()
+        end
+    end)
+    flySpeedIn.FocusLost:Connect(function(enter)
+        if not enter then return end
+        ReleaseHubFocus()
+        local mv = _G.BananaCatHub_MV
+        if not mv then return end
+        local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
+        if n == nil then return end
+        local ok = mv.SetPlayerFlySpeed(n)
+        if ok then
+            paint()
+            S.Rebuild()
+        end
+    end)
+    flyNearBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local mv = _G.BananaCatHub_MV
+        if not mv then return end
+        local target = LOC.Nearest()
+        if not target then
+            if D.hubStatus then flash(D.hubStatus, "⚠️ Không có người chơi nào để bay tới", 1.5, C.RED) end
+            return
+        end
+        pcall(function() mv.FlyToPlayer(target) end)
+        paint()
+        if LOC.RefreshList then pcall(LOC.RefreshList) end
+        if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🚀 Bay tới gần nhất: " .. tostring(target.Name), 1.8, C.ACCENT) end
+    end)
+    flyStopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local mv = _G.BananaCatHub_MV
+        if mv then pcall(function() mv.StopPlayerFly() end) end
+        paint()
+        if LOC.RefreshList then pcall(LOC.RefreshList) end
+        if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "⏹️ Đã dừng bay tới người", 1.2, C.GRAY) end
+    end)
 
     if LOC.RefreshList then pcall(LOC.RefreshList) end
     S.SyncLocPanel = function()
         paint()
         distIn.Text = tostring(LOC.maxDist)
+        local mv = _G.BananaCatHub_MV
+        if mv then
+            flySpeedIn.Text = tostring(mv.playerFlySpeed or 0)
+        end
         if LOC.RefreshList then pcall(LOC.RefreshList) end
     end
 end
 
--- ============================================================================
+
 -- ===== v4.14: 👣 XEM NGƯỜI CHƠI (bám theo để xem họ đang làm gì) ============
 -- ============================================================================
 -- Bật 👣 rồi BẤM TÊN một người (trong khung 📍 hoặc khung 👣) -> camera rời khỏi bạn và
