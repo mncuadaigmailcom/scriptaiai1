@@ -4771,7 +4771,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.33",
+    Version = "4.34",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7099,6 +7099,15 @@ function MV._NcAssist()
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
         return
     end
+    -- v4.34: ĐANG CHẠY TRÊN THẢM (hoặc 🪩 thảm) thì 🧲 KHÔNG đẩy CFrame nữa.
+    -- Lý do khựng: 🧲 đo "đi được bao nhiêu stud/frame" rồi tự nhích CFrame khi thấy chậm hơn
+    -- tốc độ mong muốn; khi vừa 🧱 vừa 🏃 (thảm + chạy ×3) số đo đó lệch -> nó nhích liên tục,
+    -- cộng với thảm đỡ độ cao -> 2 chỗ cùng ghi vị trí người = GIẬT/KHỰNG.
+    -- Không cần nó nữa: 🧱 đã CanCollide = false nên vẫn xuyên tường bình thường.
+    if MV.carpet or MV.runMode then
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        return
+    end
     local h, r = MV.Hum(), MV.Root()
     if not h or not r then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
@@ -8657,7 +8666,7 @@ function MV.CreateCarpet(y)
     -- khi nó nằm sát mặt đất. SelectionBox chỉ là đường viền (không che tầm nhìn) và là CON của
     -- thảm nên tự biến mất khi thảm bị Destroy — không bao giờ rớt lại trong workspace.
     if MV.carpetEdge ~= false then MV._MakeEdge(MV._carpet) end
-    RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
+    RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function(dt)
         local curR, cp = MV.Root(), MV._carpet
         if not MV.carpet or not curR then return end
         if not cp or not cp.Parent then                     -- v4.12.2: bị xoá -> trải lại ngay
@@ -8683,25 +8692,58 @@ function MV.CreateCarpet(y)
         --   • rơi xuyên / bấm ⬆⬇ -> vượt 0.5 -> được đỡ hoặc kéo theo ngay
         --   • đang bật Xuyên Tường -> slack = 0 (như bản gốc): không rơi xuyên tẹo nào
         if MV.carpetHold ~= false then
-            local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
-            local slack = MV.noclip and 0 or (tonumber(MV.carpetSlack) or 0.5)
-            local vel = curR.AssemblyLinearVelocity
-            local vy = MV.comp(vel, "Y", 0)
-            -- v4.33: chống rơi mượt hơn khi vừa noclip vừa chạy trên thảm (không khựng)
-            if curR.Position.Y < standingY - slack then
-                if vy <= 0.1 then
-                    curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
-                    if vy < 0 then
-                        curR.AssemblyLinearVelocity = Vector3.new(
-                            (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+            local rideY  = MV.carpetY + (MV.carpetH / 2) + 3.0     -- độ cao người khi đứng trên mặt thảm
+            local vel    = curR.AssemblyLinearVelocity
+            local vx, vz = MV.comp(vel, "X", 0), MV.comp(vel, "Z", 0)
+            local vy     = MV.comp(vel, "Y", 0)
+            local ry     = curR.Position.Y
+            -- v4.34: đang BAY (🚀 / 🛡 / bay tới kính / tới người) -> NHƯỜNG HOÀN TOÀN cho bay
+            -- (trước đây thảm vẫn "đỡ" nên bay xuống bị chặn -> cũng là 1 kiểu khựng).
+            local flying = (MV.fly == true) or (MV._glassFlyActive == true)
+                or (MV._playerFlyActive == true) or (MV.Safe and MV.Safe.on == true)
+            if flying then
+                -- thôi, để bay tự lo độ cao
+            elseif MV.noclip then
+                -- ===== v4.34: 🧱 XUYÊN TƯỜNG + 🏃 CHẠY TRÊN THẢM — HẾT KHỰNG =====
+                -- LỖI CŨ: bật 🧱 là mọi part của người thành CanCollide = false -> không còn gì đỡ,
+                -- nên hub phải GIẬT CFrame người về mặt thảm MỖI FRAME (và 🧲 cũng tự nhích CFrame
+                -- mỗi frame khi thấy đi chậm) -> đúng hiện tượng "đi được nhưng bị khựng".
+                -- NAY: khi 🧱 + thảm, hub KHÔNG BAO GIỜ ghi CFrame người nữa. Chỉ ĐỠ BẰNG VẬN TỐC
+                -- (mềm, liên tục, không giật vị trí): thảm vẫn đỡ, chạy xuyên tường mượt.
+                -- Nhảy vẫn thoải mái: đang bay LÊN thì hub không đụng vào.
+                -- +0,35 stud: bù phần "lún mềm" của bộ đỡ bằng vận tốc, để chân đứng ĐÚNG mặt thảm.
+                -- Bộ đỡ KHÔNG BAO GIỜ kéo người xuống, nên ai đã được vật lý đỡ đúng mặt thảm thì
+                -- phần bù này không tác dụng gì (không bị bay lơ lửng).
+                local dy = (rideY + 0.35) - ry
+                if dy > 12 then
+                    -- thảm lệch HẲN khỏi người (respawn / game dịch chuyển) -> trải lại thảm dưới chân
+                    if (tick() - (MV._carpetFixAt or 0)) > 0.5 then
+                        MV._carpetFixAt = tick()
+                        local fy = MV.FootY()
+                        if fy then pcall(function() MV.CreateCarpet(fy) end) end
                     end
                 end
-            elseif curR.Position.Y < standingY - 0.05 and MV.noclip then
-                if vy < -0.5 then
-                    pcall(function()
-                        curR.AssemblyLinearVelocity = Vector3.new(
-                            (vel and vel.X) or 0, math.max(0, -vy), (vel and vel.Z) or 0)
-                    end)
+                local up
+                if dy > 0.6 and vy < 2 then
+                    -- ở DƯỚI mặt thảm khá rõ (thảm vừa được ⬆ nâng, hoặc người tụt xuống) -> nâng MỀM
+                    up = math.min(dy * 8, 10)
+                elseif dy > 0.05 and vy < 0.5 then
+                    -- đang ở DƯỚI mặt thảm mà KHÔNG bay lên -> ĐỠ MỀM (không giật vị trí, không vọt lên)
+                    up = math.min(dy * 16, 8)
+                end
+                if up and vy < up then
+                    pcall(function() curR.AssemblyLinearVelocity = Vector3.new(vx, up, vz) end)
+                end
+            else
+                -- ===== KHÔNG bật 🧱: y như bản gốc — chờ lún quá `slack` mới đỡ lên =====
+                --   • đứng yên trên thảm -> KHÔNG ghi gì (mượt y như bản gốc)
+                --   • rơi xuyên / bấm ⬆⬇ -> vượt slack (0,5) -> được đỡ hoặc kéo theo ngay
+                local slack = tonumber(MV.carpetSlack) or 0.5
+                if ry < rideY - slack and vy <= 0.1 then
+                    curR.CFrame = CFrame.new(curR.Position.X, rideY, curR.Position.Z)
+                    if vy < 0 then
+                        curR.AssemblyLinearVelocity = Vector3.new(vx, 0, vz)
+                    end
                 end
             end
         end
