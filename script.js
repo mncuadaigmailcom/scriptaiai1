@@ -7015,6 +7015,7 @@ S.Move = {
     _carpetRetries = 0,                           -- số lần thảm bị game xoá
 }
 local MV = S.Move
+_G.BananaCatHub_MV = S.Move  -- v4.28: expose for legacy refs (HubLoc fly)
 
 -- Đọc 1 thành phần vector an toàn: game THẬT trả Vector3 = userdata (KHÔNG phải bảng như mock), nên
 -- kiểu `type(v) == "table" and v.Y` cho ra 0/nil SAI trong game thật.
@@ -8874,6 +8875,7 @@ function MV._GlassFlyStep(dt)
 end
 
 function MV.FlyToGlass(idxOrPos)
+    pcall(function() MV.StopPlayerFly() end)
     local targetPos = nil
     local idx = nil
     if type(idxOrPos) == "number" then
@@ -9014,6 +9016,7 @@ function MV.FlyToPlayer(p)
     if not p or not p.Parent then return false, "người chơi không tồn tại" end
     if p == player then return false, "không thể bay tới chính mình" end
     if not MV.Root() then return false, "chưa có nhân vật" end
+    pcall(function() MV.StopGlassFly() end)
     MV._playerFlyTarget = p
     MV._playerFlyActive = true
     MV._playerFlyPos = nil
@@ -10820,7 +10823,7 @@ do
         soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY
         soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3)
         -- v4.28: paint fly speed + fly buttons
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         local sp = mv and mv.playerFlySpeed or 0
         if tonumber(sp) == 0 then
             flySpeedIn.Text = "0"
@@ -10893,7 +10896,7 @@ do
                         TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
                     }, row)
                     -- v4.28: nút 🚀 Bay tới per-row
-                    local mv = _G.BananaCatHub_MV
+                    local mv = S.Move
                     local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p
                     local flyBtn = New("TextButton", {
                         Size = UDim2.new(0, 70, 0, 20), Position = UDim2.new(1, -76, 0, 4),
@@ -10907,9 +10910,10 @@ do
                     D.Tactile(flyBtn, 0.08)
                     flyBtn.Activated:Connect(function()
                         ReleaseHubFocus()
-                        local mv2 = _G.BananaCatHub_MV
+                        local mv2 = S.Move
                         if not mv2 then return end
-                        if isFlyingToThis then
+                        local currentlyFlyingToThis = mv2._playerFlyActive and mv2._playerFlyTarget == p
+                        if currentlyFlyingToThis then
                             pcall(function() mv2.StopPlayerFly() end)
                         else
                             pcall(function() mv2.FlyToPlayer(p) end)
@@ -10973,7 +10977,7 @@ do
     -- v4.28: tốc độ bay tới người + bay gần nhất + dừng bay
     flySpeedApply.Activated:Connect(function()
         ReleaseHubFocus()
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         if not mv then return end
         local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
         if n == nil then
@@ -11000,7 +11004,7 @@ do
     flySpeedIn.FocusLost:Connect(function(enter)
         if not enter then return end
         ReleaseHubFocus()
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         if not mv then return end
         local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
         if n == nil then return end
@@ -11012,7 +11016,7 @@ do
     end)
     flyNearBtn.Activated:Connect(function()
         ReleaseHubFocus()
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         if not mv then return end
         local target = LOC.Nearest()
         if not target then
@@ -11028,7 +11032,7 @@ do
     end)
     flyStopBtn.Activated:Connect(function()
         ReleaseHubFocus()
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         if mv then pcall(function() mv.StopPlayerFly() end) end
         paint()
         if LOC.RefreshList then pcall(LOC.RefreshList) end
@@ -11041,7 +11045,7 @@ do
     S.SyncLocPanel = function()
         paint()
         distIn.Text = tostring(LOC.maxDist)
-        local mv = _G.BananaCatHub_MV
+        local mv = S.Move
         if mv then
             flySpeedIn.Text = tostring(mv.playerFlySpeed or 0)
         end
