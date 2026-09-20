@@ -7099,15 +7099,12 @@ function MV._NcAssist()
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
         return
     end
-    -- v4.34: ĐANG CHẠY TRÊN THẢM (hoặc 🪩 thảm) thì 🧲 KHÔNG đẩy CFrame nữa.
-    -- Lý do khựng: 🧲 đo "đi được bao nhiêu stud/frame" rồi tự nhích CFrame khi thấy chậm hơn
-    -- tốc độ mong muốn; khi vừa 🧱 vừa 🏃 (thảm + chạy ×3) số đo đó lệch -> nó nhích liên tục,
-    -- cộng với thảm đỡ độ cao -> 2 chỗ cùng ghi vị trí người = GIẬT/KHỰNG.
-    -- Không cần nó nữa: 🧱 đã CanCollide = false nên vẫn xuyên tường bình thường.
-    if MV.carpet or MV.runMode then
-        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
-        return
-    end
+    -- v4.34: ĐANG CHẠY TRÊN THẢM (🪩) thì 🧲 đi theo chế độ RẤT DÈ DẶT (bên dưới), vì:
+    -- Lỗi khựng: 🧲 đo "đi được bao nhiêu stud/frame" rồi tự nhích CFrame khi thấy chậm hơn tốc
+    -- độ mong muốn; khi vừa 🧱 vừa 🏃 (chạy ×3) số đo lệch -> nhích liên tục (~33 lần/4 giây)
+    -- = đi được nhưng bị KHỰNG. Nay trên thảm 🧲 chỉ nhích khi gần như ĐỨNG YÊN (kẹt cứng
+    -- thật sự, <12% tốc độ mong muốn, kéo dài 0,35 giây) và chỉ nhích 0,4 stud/frame cho êm.
+    local onCarpet = (MV.carpet == true) or (MV.runMode == true)
     local h, r = MV.Hum(), MV.Root()
     if not h or not r then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
@@ -7135,14 +7132,15 @@ function MV._NcAssist()
     local expect = math.min(spd, ws) * want * dt
     if want <= 0.1 then
         MV._passBlocked = 0                              -- không bấm gì -> không đẩy
-    elseif moved < expect * 0.35 then
+    elseif moved < expect * (onCarpet and 0.12 or 0.35) then
         MV._passBlocked = (MV._passBlocked or 0) + dt    -- bị chặn -> đếm thời gian kẹt
     else
         MV._passBlocked = (MV._passBlocked or 0) * 0.5   -- đi được -> quên dần
     end
-    if (MV._passBlocked or 0) < 0.2 or want <= 0.1 then return end
+    if (MV._passBlocked or 0) < (onCarpet and 0.35 or 0.2) or want <= 0.1 then return end
     local ux, uz = mx / want, mz / want
-    local stepLen = math.min(spd * dt * 1.15, 3)         -- 1 frame không nhích quá 3 stud
+    local stepLen = onCarpet and math.min(spd * dt * 0.5, 0.4)   -- trên thảm: nhích RẤT nhẹ
+                    or math.min(spd * dt * 1.15, 3)              -- 1 frame không nhích quá 3 stud
     local y = MV.comp(r.Position, "Y", nil)
     if y == nil then return end
     pcall(function() r.CFrame = CFrame.new(px + ux * stepLen, y, pz + uz * stepLen) end)
