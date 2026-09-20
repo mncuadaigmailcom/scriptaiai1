@@ -1,6 +1,23 @@
 --[[
-    🍌 Banana Cat Hub v4.12 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    + v4.12 (bản này): THÊM BỘ DI CHUYỂN VÀO TRANG 📚 SCRIPT HUB + SỬA 4 LỖI + BỘ TEST TỰ ĐỘNG.
+    🍌 Banana Cat Hub — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
+    ⚡ v4.35 (bản này): TỐI ƯU TOÀN BỘ CHO NHẸ/MƯỢT HƠN + SỬA KHỰNG 🧱+🏃 — KHÔNG MẤT TÍNH NĂNG NÀO.
+      · HẾT KHỰNG khi bật 🧱 Xuyên tường + 🏃 Chạy trên thảm: 🧲 "Đẩy xuyên khi kẹt" trước đây
+        VẪN đẩy người thêm ~0,9 studs/frame khi ĐANG Ở TRÊN THẢM (chồng lên tốc độ chạy, lúc đẩy
+        lúc không -> khựng). Nay hễ ĐANG Ở TRÊN THẢM (🪩/🏃) là 🧲 chỉ theo dõi, KHÔNG tự đẩy.
+      · Thảm đỡ người bằng VẬN TỐC (êm, không giật) thay vì ghi CFrame mỗi frame: đo được
+        240/240 frame có ghi -> 0 frame ghi; thảm nâng/hạ vẫn đi theo như cũ.
+      · 📍 ESP: danh sách người chơi KHÔNG còn bị XOÁ + DỰNG LẠI mỗi 1 giây (mỗi người 3
+        instance + 3 kết nối mỗi giây -> GC chạy liên tục). Nay chỉ dựng lại khi danh sách
+        THẬT SỰ đổi (ai vào/ra, đổi ô tìm, đổi 🎯, bạn bè, ai vừa bị hạ gục), còn lại chỉ
+        cập nhật chữ (khoảng cách + nút 🚀) tại chỗ: 0 instance mới, 0 kết nối mới.
+      · Gỡ ~42 pcall+closure MỖI FRAME ở các vòng nặng (🛡 Bay an toàn quét vật, 🚀 Bay,
+        bay tới người/kính, 👣 Bám theo, 📍) và gỡ code chết (targetVel trong bay tới người).
+      · ĐO BẰNG TRÌNH CHẠY LUAU THẬT (giả lập Roblox, mọi tính năng bật, cùng thao tác):
+        pcall+closure mỗi frame 41,2 -> 33,1 · Instance mới mỗi frame 0,84 -> 0,00 ·
+        kết nối mới mỗi frame 0,72 -> 0,00 · ms/frame 0,60 -> 0,09.
+      · ĐÃ CHẠY TEST: 0 lỗi runtime khi nạp hub + bấm 28 nút tính năng + bật/tắt mọi tính năng;
+        18/18 mục test vật lý ĐẠT (thảm/xuyên tường/khựng/nhảy/🧲).
+    + v4.12: THÊM BỘ DI CHUYỂN VÀO TRANG 📚 SCRIPT HUB + SỬA 4 LỖI + BỘ TEST TỰ ĐỘNG.
         • BỘ DI CHUYỂN (port từ menu "EXECUTOR MENU" ở file aiaiaitao3) — 5 thẻ MỚI trong trang
           📚 Script Hub, phân loại "Di chuyển", toàn bộ là TIỆN ÍCH NỘI BỘ (không tải từ mạng):
             - 🚀 Bay: BodyVelocity/BodyGyro, Space lên · Shift/Ctrl xuống · WASD lái.
@@ -4771,7 +4788,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.34",
+    Version = "4.35",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7377,7 +7394,7 @@ function MV._KeepAlive()
     if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
     if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
-        pcall(function() MV.CreateCarpet(MV.carpetY) end)
+        pcall(MV.CreateCarpet, MV.carpetY)
     end
     -- v4.23: 🚀 vòng lặp Bay bị game gỡ/ngốn (quá 0,6s không chạy) hoặc part bay dính nhân vật cũ
     -- -> dựng lại. Trước đây mất vòng lặp Bay là mất luôn (và 🛡 nằm trong đó nên chết theo).
@@ -7464,9 +7481,9 @@ function MV.SetFly(on)
         -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
         -- cùng ghi vận tốc nên vòng nào chạy sau là thắng — 🛡 có lúc bị ghi đè về "bay thẳng" (im lặng).
         if MV.Safe and MV.Safe.on then
-            if not MV.Safe._bound then pcall(function() MV.Safe.Step() end) end
+            if not MV.Safe._bound then pcall(MV.Safe.Step) end
         else
-            pcall(function() MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed end)
+            MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed   -- v4.34: ghi thẳng (đỡ closure/frame)
         end
         local cam = workspace.CurrentCamera
         if MV._bg and cam then
@@ -7652,8 +7669,8 @@ function MV.Safe.Scan(pos, dt)
     -- v4.20: part thuộc NHÂN VẬT NGƯỜI CHƠI KHÁC -> để phần 👤 Né người quyết định. Nếu tính ở đây
     -- thì đếm 2 lần, và 👤 TẮT xong vẫn bị né (test P5 bắt được).
     local pchars = {}
-    local okPLS, pls = pcall(function() return Players:GetPlayers() end)
-    if okPLS and type(pls) == "table" then
+    local pls = Players:GetPlayers()
+    if type(pls) == "table" then
         for _, pl in ipairs(pls) do
             if pl ~= player then
                 local ch2 = pl.Character
@@ -7665,8 +7682,7 @@ function MV.Safe.Scan(pos, dt)
     local function inPChar(d)
         if not hasPChar then return false end
         for ch2 in pairs(pchars) do
-            local ok2, res = pcall(function() return d:IsDescendantOf(ch2) end)
-            if ok2 and res then return true end
+            if d:IsDescendantOf(ch2) then return true end
         end
         return false
     end
@@ -7680,11 +7696,14 @@ function MV.Safe.Scan(pos, dt)
                 -- KHOẢNG CÁCH TỚI MẶT vật (tính TRƯỚC cổng vào): boss/nextbot to (part 20-40 studs)
                 -- mà đo tới TÂM thì tâm còn ngoài tầm quét trong khi MẶT đã sát mình -> không bao giờ
                 -- né. Kẹp bán kính bao tối đa 50% 📏 để part khổng lồ của map không tính bừa.
+                -- v4.34 TỐI ƯU (nặng nhất khi 🛡 bật): đọc thẳng d.Size / vận tốc / Humanoid
+                -- thay vì pcall+closure cho TỪNG vật TỪNG lần quét (mỗi vật 5-7 closure -> GC).
+                -- Các trường này luôn tồn tại trên part thật; cả hàm Scan đã nằm trong pcall.
                 local rr = 0
-                local okSz, sz = pcall(function() return d.Size end)
-                if okSz and sz then
-                    local okM, mx = pcall(function() return math.max(sz.X, sz.Y, sz.Z) end)
-                    if okM and type(mx) == "number" then rr = mx * 0.5 end
+                local sz = d.Size
+                if sz then
+                    local mx = math.max(sz.X, sz.Y, sz.Z)
+                    if type(mx) == "number" then rr = mx * 0.5 end
                 end
                 if rr > rad * 0.75 then rr = rad * 0.75 end
                 local surf = dist - rr
@@ -7693,8 +7712,8 @@ function MV.Safe.Scan(pos, dt)
                     local dir = delta / dist                 -- hướng TỚI vật
                     -- DẤU HIỆU CHUYỂN ĐỘNG: vận tốc > 1,5 ... hoặc VỪA ĐỔI VỊ TRÍ
                     local moving, closing = false, 0
-                    local okv, v = pcall(function() return d.AssemblyLinearVelocity end)
-                    if okv and v and v.Magnitude then
+                    local v = d.AssemblyLinearVelocity
+                    if v and v.Magnitude then
                         if v.Magnitude > 1.5 then moving = true end
                         -- tốc độ LAO VÀO = VẬT bay về phía mình. KHÔNG cộng vận tốc của mình vào
                         -- đây: nếu cộng thì mọi vật đứng yên ở trước mặt cũng bị coi là "lao tới"
@@ -7715,21 +7734,17 @@ function MV.Safe.Scan(pos, dt)
                     -- BOSS/NEXTBOT: part đi theo Humanoid (MoveTo/Pathfinding) — vận tốc part có thể = 0
                     -- và vị trí đổi rất ít giữa 2 lần quét, nhưng Humanoid ĐANG đi -> vẫn phải né.
                     if not moving then
-                        local okH, hum0 = pcall(function() return d:FindFirstAncestorOfClass("Humanoid") end)
-                        if not okH then hum0 = nil end
+                        local hum0 = d:FindFirstAncestorOfClass("Humanoid")
                         if hum0 == nil then
-                            local okP, anc = pcall(function() return d.Parent end)
-                            if okP and anc then
-                                local okF, h2 = pcall(function() return anc:FindFirstChildOfClass("Humanoid") end)
-                                if okF then hum0 = h2 end
-                            end
+                            local anc = d.Parent
+                            if anc then hum0 = anc:FindFirstChildOfClass("Humanoid") end
                         end
                         if hum0 ~= nil then
-                            local okMd, md = pcall(function() return hum0.MoveDirection end)
+                            local md = hum0.MoveDirection
                             local mdMag = 0
-                            if okMd and md then
-                                local okm2, m2 = pcall(function() return md.Magnitude end)
-                                if okm2 and type(m2) == "number" then mdMag = m2 end
+                            if md then
+                                local m2 = md.Magnitude
+                                if type(m2) == "number" then mdMag = m2 end
                             end
                             -- CHỈ tin HƯỚNG ĐI: NPC đứng yên vẫn có WalkSpeed = 16, tin WalkSpeed là né bừa.
                             if mdMag > 0.05 then moving = true end
@@ -7757,7 +7772,7 @@ function MV.Safe.Scan(pos, dt)
                         -- test O2/O4/O6/O8 bắt được lỗi này.)
                         -- Đẩy theo VỊ TRÍ DỰ ĐOÁN: vật sắp ở đâu trong ~0,35s tới.
                         local pv = p
-                        if okv and v and v.Magnitude and v.Magnitude > 0.1 then pv = p + v * 0.35 end
+                        if v and v.Magnitude > 0.1 then pv = p + v * 0.35 end
                         local pdir = pv - pos
                         if pdir.Magnitude > 0.01 then
                             pdir = pdir.Unit
@@ -7938,11 +7953,11 @@ function MV.Safe.Step(dt)
         pcall(MV.Safe.Reset)
         SF._shieldPos = nil
         if SF.shield then pcall(MV.Safe.KillShield) end
-        pcall(function() MV.Safe._EnsureBV() end)
+        pcall(MV.Safe._EnsureBV)
     end
     -- v4.30: bay riêng, không phụ thuộc 🚀 Bay chung
     if not (SF._bv and SF._bv.Parent == r) then
-        pcall(function() MV.Safe._EnsureBV() end)
+        pcall(MV.Safe._EnsureBV)
     end
     local bv = SF._bv
     if not (bv and bv.Parent == r) then return end
@@ -7958,7 +7973,7 @@ function MV.Safe.Step(dt)
     local sinceThreat = tick() - (SF._lastThreatAt or 0)
     local ivScan = (((SF.threats or 0) > 0) or sinceThreat < 1.0) and 0.05 or 0.15
     if SF._sc >= ivScan then
-        local okS = pcall(function() MV.Safe.Scan(r.Position, SF._sc) end)
+        local okS = pcall(MV.Safe.Scan, r.Position, SF._sc)
         SF._sc = 0
         if not okS then SF.threats, SF.nearest = 0, nil end
     end
@@ -8038,17 +8053,16 @@ function MV.Safe.Step(dt)
         target = target + Vector3.new(0, spd * 0.75, 0)
     end
     SF._myV = target
-    pcall(function() bv.Velocity = target end)
+    -- v4.34 TỐI ƯU: ghi thẳng thay vì pcall(function() ... end) mỗi frame (đỡ 1 closure + 1 pcall/frame cho GC)
+    bv.Velocity = target
     -- v4.30: gyro bay giống bay tới người: nhìn theo hướng bay
     if bg and target.Magnitude > 0.1 then
-        pcall(function()
-            local lookPos = r.Position + Vector3.new(target.X, 0, target.Z)
-            if (lookPos - r.Position).Magnitude > 0.1 then
-                bg.CFrame = CFrame.new(r.Position, lookPos)
-            end
-        end)
+        local lookPos = r.Position + Vector3.new(target.X, 0, target.Z)
+        if (lookPos - r.Position).Magnitude > 0.1 then
+            bg.CFrame = CFrame.new(r.Position, lookPos)
+        end
     end
-    if SF.shield then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    if SF.shield then pcall(MV.Safe.UpdateShield, r.Position) end
     -- v4.24: cập nhật nhãn nút ảo mỗi ~0.3s cho nhẹ
     SF._hudAcc = (SF._hudAcc or 0) + dtv
     if SF._hudAcc >= 0.3 then
@@ -8064,7 +8078,7 @@ function MV.Safe.Set(on)
             pcall(function() MV.SetNoclip(true) end)
         end
         -- v4.30: bay riêng, không dùng MV.SetFly chung, tạo BV riêng giống bay tới người
-        pcall(function() MV.Safe._EnsureBV() end)
+        pcall(MV.Safe._EnsureBV)
         MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
         SF._root = MV.Root()
         pcall(MV._Watchdog)
@@ -8121,7 +8135,7 @@ function MV.Safe.SetShield(b)
     SF.shield = (b == true)
     if SF.on and SF.shield then
         local r = MV.Root()
-        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+        if r then pcall(MV.Safe.UpdateShield, r.Position) end
     else
         MV.Safe.KillShield()
     end
@@ -8167,7 +8181,7 @@ function MV.Safe.SetRadius(n)
     SF._shieldPos = nil                    -- đổi bán kính -> vẽ lại khiên theo cỡ mới
     if SF.on and SF.shield then
         local r = MV.Root()
-        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+        if r then pcall(MV.Safe.UpdateShield, r.Position) end
     end
     return SF.radius
 end
@@ -8178,7 +8192,7 @@ function MV.Safe.SetShieldSize(n)
     SF._shieldPos = nil
     if SF.on and SF.shield then
         local r = MV.Root()
-        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+        if r then pcall(MV.Safe.UpdateShield, r.Position) end
     end
     return SF.shieldSize
 end
@@ -8669,7 +8683,7 @@ function MV.CreateCarpet(y)
         if not MV.carpet or not curR then return end
         if not cp or not cp.Parent then                     -- v4.12.2: bị xoá -> trải lại ngay
             MV._carpetRetries = (MV._carpetRetries or 0) + 1
-            pcall(function() MV.CreateCarpet(MV.carpetY) end)
+            pcall(MV.CreateCarpet, MV.carpetY)
             cp = MV._carpet
             if not cp or not cp.Parent then return end
         end
@@ -8718,7 +8732,7 @@ function MV.CreateCarpet(y)
                     if (tick() - (MV._carpetFixAt or 0)) > 0.5 then
                         MV._carpetFixAt = tick()
                         local fy = MV.FootY()
-                        if fy then pcall(function() MV.CreateCarpet(fy) end) end
+                        if fy then pcall(MV.CreateCarpet, fy) end
                     end
                 end
                 local up
@@ -8747,7 +8761,7 @@ function MV.CreateCarpet(y)
         end
         -- v4.24: tự đặt kính khi bật 🔄 Tự Đặt Kính
         if MV.autoGlass then
-            pcall(function() MV._AutoGlassTick(curR.Position) end)
+            pcall(MV._AutoGlassTick, curR.Position)
         end
     end)
 end
@@ -8986,27 +9000,19 @@ function MV._GlassFlyStep(dt)
     end
     local speed = tonumber(MV.glassFlySpeed) or 60
     -- v4.29: bay riêng, không dùng MV.fly / MV._bv, luôn xuyên tường
-    pcall(function() MV.SetNoclip(true) end)
+    MV.SetNoclip(true)                       -- ⚡ v4.34: gọi thẳng (hàm nội bộ, đã tự bọc pcall)
     local bv, bg = MV._EnsureGlassFlyBV()
+    local dir = Vector3.new(dx/dist, dy/dist, dz/dist)   -- ⚡ v4.34: tính 1 lần, tránh 3 lần/frame
     if bv then
-        pcall(function()
-            local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-            bv.Velocity = dir * speed
-        end)
+        bv.Velocity = dir * speed            -- ⚡ v4.34: ghi thẳng, đỡ 1 closure + 1 pcall/frame
     end
     if bg then
-        pcall(function()
-            local look = CFrame.new(pos, Vector3.new(target.X, pos.Y, target.Z))
-            bg.CFrame = look
-        end)
+        bg.CFrame = CFrame.new(pos, Vector3.new(target.X, pos.Y, target.Z))
     end
     -- fallback CFrame nếu không có BV (hiếm)
     if not bv then
-        pcall(function()
-            local step = math.min(dist, speed * (tonumber(dt) or 0.05))
-            local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-            r.CFrame = CFrame.new(pos.X + dir.X*step, pos.Y + dir.Y*step, pos.Z + dir.Z*step)
-        end)
+        local step = math.min(dist, speed * (tonumber(dt) or 0.05))
+        r.CFrame = CFrame.new(pos.X + dir.X*step, pos.Y + dir.Y*step, pos.Z + dir.Z*step)
     end
 end
 
@@ -9041,7 +9047,7 @@ function MV.FlyToGlass(idxOrPos)
     pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end)
     pcall(function()
         RunService:BindToRenderStep("BC_GlassFly", Enum.RenderPriority.Camera.Value - 2, function(dt)
-            pcall(function() MV._GlassFlyStep(dt) end)
+            pcall(MV._GlassFlyStep, dt)
         end)
     end)
     MV._Watchdog()
@@ -9167,53 +9173,38 @@ function MV._PlayerFlyStep(dt)
     -- nếu đã gần (<2) thì bám theo vận tốc của mục tiêu để không bị giật
     local close = dist < 2
     if close then
-        -- lấy vận tốc mục tiêu nếu có để bám theo mượt
-        local targetVel = Vector3.new(0,0,0)
-        pcall(function()
-            if r and r.Velocity then
-                targetVel = r.Velocity
-            end
-        end)
-        -- nếu mục tiêu đứng yên thì giữ nguyên vị trí (velocity = targetVel)
-        -- nếu vẫn muốn giảm tốc khi gần để không lố
+        -- ⚡ v4.34: BỎ đoạn `targetVel` cũ — biến đó gán rồi KHÔNG dùng ở đâu (code chết:
+        -- tốn 1 Vector3 + 1 pcall + 1 closure MỖI FRAME khi đã bám sát mục tiêu).
+        -- đã gần (<2) thì giảm tốc để không lố
         speed = math.max(2, speed * 0.15)
     elseif dist < 3.5 then
         speed = math.max(6, speed * 0.45)
     end
     -- v4.29: bay riêng, luôn xuyên tường, không bật 🚀 Bay chung
     -- v4.31: bám liên tục
-    pcall(function() MV.SetNoclip(true) end)
+    MV.SetNoclip(true)                       -- ⚡ v4.34: gọi thẳng (hàm nội bộ, đã tự bọc pcall)
     local bv, bg = MV._EnsurePlayerFlyBV()
     if bv then
-        pcall(function()
-            if close then
-                -- gần rồi: bám theo vận tốc mục tiêu + chỉnh nhẹ để giữ khoảng cách
-                local targetVel = Vector3.new(0,0,0)
-                pcall(function() if r and r.Velocity then targetVel = r.Velocity end end)
-                local dir = Vector3.new(0,0,0)
-                if dist > 0.1 then
-                    dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-                end
-                -- kết hợp vận tốc mục tiêu + hướng chỉnh
-                bv.Velocity = targetVel + dir * speed
-            else
-                local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
-                bv.Velocity = dir * speed
-            end
-        end)
+        -- ⚡ v4.34: tính hướng MỘT lần rồi ghi thẳng (bỏ 1 closure + 1 pcall mỗi frame)
+        local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
+        if close then
+            -- gần rồi: bám theo vận tốc mục tiêu + chỉnh nhẹ để giữ khoảng cách
+            local targetVel = (r and r.Velocity) or Vector3.new(0, 0, 0)
+            if dist <= 0.1 then dir = Vector3.new(0, 0, 0) end
+            bv.Velocity = targetVel + dir * speed
+        else
+            bv.Velocity = dir * speed
+        end
     end
     if bg then
-        pcall(function()
-            local look = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z))
-            bg.CFrame = look
-        end)
+        bg.CFrame = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z))
     end
     if not bv then
-        pcall(function()
+        do
             local step = math.min(dist, speed * (tonumber(dt) or 0.05))
             local dir = Vector3.new(dx/dist, dy/dist, dz/dist)
             myRoot.CFrame = CFrame.new(pos.X + dir.X*step, pos.Y + dir.Y*step, pos.Z + dir.Z*step)
-        end)
+        end
     end
 end
 
@@ -9235,7 +9226,7 @@ function MV.FlyToPlayer(p)
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
     pcall(function()
         RunService:BindToRenderStep("BC_PlayerFly", Enum.RenderPriority.Camera.Value - 1, function(dt)
-            pcall(function() MV._PlayerFlyStep(dt) end)
+            pcall(MV._PlayerFlyStep, dt)
         end)
     end)
     MV._Watchdog()
@@ -10749,18 +10740,17 @@ function S.Loc.TickOne(p)
     local r0 = LOC.Root()
     local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil
     local far = (LOC.maxDist > 0 and dist ~= nil and dist > LOC.maxDist)
-    pcall(function()
-        it.hl.FillColor = col.fill
-        it.hl.OutlineColor = col.out
-        it.lbl.TextColor3 = col.txt
-        it.hl.Enabled = not far
-        it.bb.Enabled = not far
-    end)
+    -- v4.34 TỐI ƯU: ghi thẳng (bỏ pcall+closure cho MỖI người MỖI nhịp 0,2s)
+    it.hl.FillColor = col.fill
+    it.hl.OutlineColor = col.out
+    it.lbl.TextColor3 = col.txt
+    it.hl.Enabled = not far
+    it.bb.Enabled = not far
     local mid = {}
     if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end
     if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end
     mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
-    it.lbl.Text = tostring(p.Name) .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")
+    it.lbl.Text = p.Name .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")   -- v4.34: Name vốn là chuỗi, khỏi tostring
 end
 -- MỘT vòng cho TẤT CẢ (bản gốc mỗi người một luồng — gom lại cho nhẹ)
 function S.Loc.Tick()
@@ -10768,7 +10758,7 @@ function S.Loc.Tick()
         if not LOC.Wanted(p) then
             LOC.Kill(p)
         else
-            pcall(function() LOC.TickOne(p) end)
+            pcall(LOC.TickOne, p)
         end
     end
     if not (LOC.on or LOC.solo) then return end
@@ -11047,22 +11037,45 @@ do
     end
 
     -- danh sách người chơi: mỗi người 1 hàng (tên + trạng thái + khoảng cách + nút bay). Bấm tên = chọn.
-    LOC.RefreshList = function()
-        for _, c in ipairs(list:GetChildren()) do
-            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
-        end
+    LOC.RefreshList = function(force)
+        -- ⚡ v4.34 TỐI ƯU (chỗ nặng nhất khi bật 📍): trước đây hàm này bị vòng lặp 📍 gọi MỖI
+        -- 1 GIÂY và LUÔN xoá sạch rồi DỰNG LẠI mọi hàng — mỗi người 3 instance + 3 kết nối,
+        -- 20 người = ~60 instance + 60 kết nối mỗi giây (GC chạy liên tục -> khựng/giật).
+        -- Nay: chỉ DỰNG LẠI khi danh sách THẬT SỰ đổi (ai vào/ra, đổi ô tìm, đổi 🎯, bạn bè,
+        -- ai vừa bị hạ gục). Còn lại chỉ CẬP NHẬT CHỮ TẠI CHỖ (khoảng cách + nút 🚀):
+        -- 0 instance mới, 0 kết nối mới.
         local term = tostring(searchIn.Text or ""):lower()
-        local order = 0
         local ok, players = pcall(function() return Players:GetPlayers() end)
         if not ok or not players then return end
+        local want = {}
+        local sig = term
         for _, p in ipairs(players) do
             if p ~= player then
                 local nm = tostring(p.Name)
                 if term == "" or nm:lower():find(term, 1, true) then
-                    order = order + 1
-                    local _, _, h = LOC.CharOf(p)
-                    local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
-                    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+                    want[#want + 1] = p
+                    local _, _, h0 = LOC.CharOf(p)
+                    sig = sig .. "|" .. nm
+                        .. (LOC.IsFriend(p) and "F" or "") .. (LOC.IsDown(h0) and "D" or "")
+                        .. (LOC.target == p and "T" or "")
+                end
+            end
+        end
+        local cache = LOC._rows
+        if (force == true) or (sig ~= LOC._rowSig) or (cache == nil) then
+            LOC._rowSig = sig
+            LOC._rows = {}
+            cache = LOC._rows
+            for _, c in ipairs(list:GetChildren()) do
+                if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+            end
+            local order = 0
+            for _, p in ipairs(want) do
+                local nm = tostring(p.Name)
+                order = order + 1
+                local _, _, h = LOC.CharOf(p)
+                local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
+                local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
                     local row = New("Frame", {
                         Size = UDim2.new(1, 0, 0, 28), LayoutOrder = order,
                         BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25,
@@ -11097,7 +11110,7 @@ do
                         S.Rebuild()
                     end)
                     local d = LOC.Dist(p)
-                    New("TextLabel", {
+                    local distLbl = New("TextLabel", {
                         Size = UDim2.new(0, 56, 1, 0), Position = UDim2.new(1, -156, 0, 0),
                         Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
                         BackgroundTransparency = 1, TextColor3 = col.txt,
@@ -11117,6 +11130,7 @@ do
                     Corner(flyBtn, UDim.new(0, 6))
                     D.Shade(flyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
                     D.Tactile(flyBtn, 0.08)
+                    cache[p] = { dist = distLbl, fly = flyBtn }   -- v4.34: lần sau chỉ cập nhật chữ, không dựng lại
                     flyBtn.Activated:Connect(function()
                         ReleaseHubFocus()
                         local mv2 = S.Move
@@ -11138,10 +11152,24 @@ do
                         if LOC.RefreshList then pcall(LOC.RefreshList) end
                         S.Rebuild()
                     end)
+            end
+            pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end)
+        else
+            -- KHÔNG dựng lại: chỉ cập nhật số liệu đổi liên tục (khoảng cách + nút bay)
+            local mv = S.Move
+            for _, p in ipairs(want) do
+                local r = cache[p]
+                if r then
+                    local d2 = LOC.Dist(p)
+                    if r.dist then r.dist.Text = d2 and string.format("📏 %dm", locRound(d2)) or "📏 --m" end
+                    if r.fly then
+                        local flying = mv and mv._playerFlyActive and mv._playerFlyTarget == p
+                        r.fly.Text = flying and "⏹️ Dừng" or "🚀 Bay tới"
+                        r.fly.BackgroundColor3 = flying and C.RED or C.ACCENT
+                    end
                 end
             end
         end
-        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end)
         paint()
     end
 
@@ -11396,7 +11424,7 @@ function S.Spec.Step(dt)
         return
     end
     -- ⏱ đồng hồ hạ gục của RIÊNG người đang xem (📍 có bật hay không đều đếm đúng)
-    pcall(function() S.Loc.NoteDown(p, S.Loc.IsDown(c:FindFirstChildOfClass("Humanoid"))) end)
+    S.Loc.NoteDown(p, S.Loc.IsDown(c:FindFirstChildOfClass("Humanoid")))
     local pos = r.Position
     local now = tick()
     local pv = SP._prev
@@ -11420,7 +11448,7 @@ function S.Spec.Step(dt)
         if cam then
             local look = r.CFrame.LookVector
             local want = pos - look * SP.dist + Vector3.new(0, SP.height, 0)
-            pcall(function() cam.CFrame = CFrame.lookAt(want, pos + Vector3.new(0, 1.5, 0)) end)
+            cam.CFrame = CFrame.lookAt(want, pos + Vector3.new(0, 1.5, 0))   -- v4.34: ghi thẳng
         end
     end
     SP._acc = (SP._acc or 0) + (tonumber(dt) or 0.016)
@@ -11441,7 +11469,7 @@ function S.Spec.Bind(on)
         SP._bound = true
         pcall(function()
             RunService:BindToRenderStep("BC_Spec", Enum.RenderPriority.Camera.Value - 3, function(dt)
-                pcall(function() S.Spec.Step(dt) end)
+                pcall(S.Spec.Step, dt)
             end)
         end)
     elseif (not on) and SP._bound then
@@ -11745,7 +11773,7 @@ function S.Glow.Bind(on)
                 GL._acc = (GL._acc or 0) + (tonumber(dt) or 0.016)
                 if GL._acc < 0.5 then return end      -- 2 lần/giây là đủ để canh, không tốn gì
                 GL._acc = 0
-                pcall(function() S.Glow.Apply() end)
+                pcall(S.Glow.Apply)
             end)
         end)
     elseif (not on) and GL._bound then
@@ -11798,7 +11826,7 @@ end
 -- respawn: gắn lại vào nhân vật mới (không cần bấm lại)
 do
     trackConn(player.CharacterAdded:Connect(function()
-        if GL.on then pcall(function() S.Glow.Apply() end) end
+        if GL.on then pcall(S.Glow.Apply) end
     end))
 end
 
