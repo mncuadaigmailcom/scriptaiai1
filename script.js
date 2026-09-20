@@ -7013,6 +7013,13 @@ S.Move = {
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
     _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
+    -- v4.36 🚀 Bay lite (Safe-lite 99%): tự bay + né vật moving bằng camera pitch
+    flyAuto = true, flyNoclip = true, _flyNcPrev = nil,
+    flySteer = 4, flyLookTime = 1.0, flyLookMul = 1.6, flyRadius = 25,
+    _flySeen = {}, _flyCache = nil, _flySc = 0, _flyListAcc = 0,
+    _flyRep = Vector3.new(0,0,0), _flyThreats = 0, _flyNearest = nil,
+    _flyLastRep = nil, _flyLastThreatAt = 0, _flyHoldAt = 0,
+    _flyMyV = Vector3.new(0,0,0), _flyMovers = 0, _flyMvCount = 0, _flyVirtX = 0, _flyVirtZ = 0, _flyVirtY = 0,
     -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
     -- speedMode="num" -> ép cứng = walkSpeed. Gõ "x3" hay "50" vào ô 👟 Chạy trong khung ⚙.
     speedMode = "x", speedMul = 3, appliedWS = nil,
@@ -7437,71 +7444,301 @@ function MV._StopFly()
     end
     pcall(function() RunService:UnbindFromRenderStep("Fly") end)
 end
+-- ============================================================================
+-- v4.36: 🚀 Bay lite helper — né vật chuyển động (bỏ circle/shield/né người)
+-- Dùng lại logic scan của 🛡 nhưng bỏ sfPlayers/circle/shield, giữ nguyên
+-- moving/closing/tHit/boost/dự đoán 0.35s. Scan cố định 25m, lookMul 1.6, lookTime 1.0
+-- ============================================================================
+local function flyIsPart(d)
+    if not d then return false end
+    local ok, cls = pcall(function() return d.ClassName end)
+    if not ok then return false end
+    return cls == "Part" or cls == "MeshPart" or cls == "WedgePart" or cls == "CornerWedgePart" or cls == "TrussPart"
+end
+local function flyIgnore(d, char)
+    if not d then return true end
+    local n = d.Name
+    if n == "BC_FlyVel" or n=="BC_FlyGyro" or n=="BC_FlyFloor" or n=="BC_Carpet" or n=="BC_Shield1" or n=="BC_Shield2" or n=="BC_Shield3" or n=="BC_Shield4" then return true end
+    if d.CanCollide == false and d.Transparency and d.Transparency > 0.9 then
+        local sz = d.Size
+        if sz and sz.Magnitude and sz.Magnitude < 2 then return true end
+    end
+    if char and d:IsDescendantOf(char) then return true end
+    if d:IsDescendantOf(MV._floor or workspace) and d.Name=="BC_FlyFloor" then return true end
+    return false
+end
+local function flyCandidates(pos, dt, reach)
+    -- giống sfCandidates: dùng GetPartBoundsInRadius/OverlapParams, cache list 0.2s
+    MV._flyListAcc = (MV._flyListAcc or 0) + (dt or 0.016)
+    if MV._flyCache and MV._flyListAcc < 0.2 then return MV._flyCache end
+    MV._flyListAcc = 0
+    local list = {}
+    local ok, res = pcall(function()
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        local char = MV.Char()
+        if char then op.FilterDescendantsInstances = {char} end
+        return workspace:GetPartBoundsInRadius(pos, reach + 30, op)
+    end)
+    if ok and type(res)=="table" then list = res end
+    MV._flyCache = list
+    return list
+end
+function MV.FlyScan(pos, dt)
+    local char = MV.Char()
+    local rad = mvClamp(MV.flyRadius or 25, 1, 300, 25)
+    local reach = rad * mvClamp(MV.flyLookMul or 1.6, 1, 4, 1.6)
+    local lookT = mvClamp(MV.flyLookTime or 1.0, 0.1, 3, 1.0)
+    local myV = MV._flyMyV or Vector3.new(0,0,0)
+    local rep = Vector3.new(0,0,0)
+    local n, near = 0, nil
+    local now = tick()
+    local seen = {}
+    MV._flyMvCount = 0
+    -- v4.36 bỏ 👤 né người: bỏ qua part của người chơi khác
+    local pchars = {}
+    local pls = Players:GetPlayers()
+    if type(pls) == "table" then
+        for _, pl in ipairs(pls) do
+            if pl ~= player then
+                local ch2 = pl.Character
+                if ch2 ~= nil and ch2 ~= char then pchars[ch2] = true end
+            end
+        end
+    end
+    local hasPChar = (next(pchars) ~= nil)
+    local function inPChar(d)
+        if not hasPChar then return false end
+        for ch2 in pairs(pchars) do
+            if d:IsDescendantOf(ch2) then return true end
+        end
+        return false
+    end
+    for _, d in ipairs(flyCandidates(pos, dt, reach)) do
+        if flyIsPart(d) and not flyIgnore(d, char) and not inPChar(d) then
+            local p = d.Position
+            if p then
+                local delta = p - pos
+                local dist = delta.Magnitude
+                local rr = 0
+                local sz = d.Size
+                if sz then
+                    local mx = math.max(sz.X, sz.Y, sz.Z)
+                    if type(mx)=="number" then rr = mx * 0.5 end
+                end
+                if rr > rad * 0.75 then rr = rad * 0.75 end
+                local surf = dist - rr
+                if surf < 0 then surf = 0 end
+                if surf <= reach and dist > 0.01 then
+                    local dir = delta / dist
+                    local moving, closing = false, 0
+                    local v = d.AssemblyLinearVelocity
+                    if v and v.Magnitude then
+                        if v.Magnitude > 1.5 then moving = true end
+                        closing = -(v.X*dir.X + v.Y*dir.Y + v.Z*dir.Z)
+                    end
+                    local old = MV._flySeen and MV._flySeen[d]
+                    if old then
+                        local dd = (p - old.p).Magnitude
+                        local ddt = math.max(now - old.t, 0.02)
+                        if dd > 0.35 or (dd/ddt) > 1.5 then moving = true end
+                        if closing <= 0.5 and dd > 0.1 then closing = math.max(closing, dd/ddt) end
+                    end
+                    if not moving then
+                        local hum0 = d:FindFirstAncestorOfClass("Humanoid")
+                        if hum0 == nil then
+                            local anc = d.Parent
+                            if anc then hum0 = anc:FindFirstChildOfClass("Humanoid") end
+                        end
+                        if hum0 ~= nil then
+                            local md = hum0.MoveDirection
+                            local mdMag = 0
+                            if md then
+                                local m2 = md.Magnitude
+                                if type(m2)=="number" then mdMag = m2 end
+                            end
+                            if mdMag > 0.05 then moving = true end
+                        end
+                    end
+                    if moving and surf <= reach then MV._flyMvCount = (MV._flyMvCount or 0) + 1 end
+                    seen[d] = {p=p, t=now}
+                    local danger = (surf <= rad and moving)
+                    local tHit = nil
+                    if closing > 0.5 then
+                        tHit = (surf - rad*0.35)/closing
+                        if tHit <= lookT then danger = true end
+                    end
+                    if danger then
+                        n = n + 1
+                        if near==nil or surf < near then near = surf end
+                        local w = mvClamp(1 - (surf/(rad*mvClamp(MV.flyLookMul or 1.6, 1,4,1.6))), 0.2, 1)
+                        local myDot = mvClamp(myV.X*dir.X + myV.Y*dir.Y + myV.Z*dir.Z, 0, 200)
+                        local boost = 1 + mvClamp(closing, 0, 200)/60 + myDot/240
+                        local pv = p
+                        if v and v.Magnitude > 0.1 then pv = p + v * 0.35 end
+                        local pdir = pv - pos
+                        if pdir.Magnitude > 0.01 then
+                            pdir = pdir.Unit
+                            if (pdir.X*dir.X + pdir.Y*dir.Y + pdir.Z*dir.Z) < 0 then pdir = dir end
+                        else pdir = dir end
+                        rep = rep - pdir * (0.35 + w*w*3) * boost
+                    end
+                end
+            end
+        end
+    end
+    MV._flySeen = seen
+    MV._flyRep = rep
+    MV._flyMovers = MV._flyMvCount or 0
+    MV._flyMvCount = nil
+    MV._flyThreats, MV._flyNearest = n, near
+    if n > 0 then
+        MV._flyHoldAt = now
+        MV._flyLastThreatAt = now
+        if rep.Magnitude > 0 then MV._flyLastRep = rep end
+    end
+    return n, near, rep
+end
+function MV._FlyStep(dt)
+    if not MV.fly then return end
+    local r, h = MV.Root(), MV.Hum()
+    if not r then return end
+    local bv = MV._bv
+    if not (bv and bv.Parent == r) then return end
+    local bg = MV._bg
+    if h then
+        if h.PlatformStand ~= true then pcall(function() h.PlatformStand = true end) end
+        if h.AutoRotate ~= false then pcall(function() h.AutoRotate = false end) end
+    end
+    local dtv = tonumber(dt) or 0.016
+    MV._flySc = (MV._flySc or 0) + dtv
+    local sinceThreat = tick() - (MV._flyLastThreatAt or 0)
+    local ivScan = (((MV._flyThreats or 0) > 0) or sinceThreat < 1) and 0.05 or 0.15
+    if MV._flySc >= ivScan then
+        local okS = pcall(MV.FlyScan, r.Position, MV._flySc)
+        MV._flySc = 0
+        if not okS then MV._flyThreats, MV._flyNearest = 0, nil end
+    end
+    -- direction: camera pitch 100% (LookVector nguyên, không ép Y=0)
+    local cam = workspace.CurrentCamera
+    local look = cam and cam.CFrame.LookVector or Vector3.new(0,0,-1)
+    local right = cam and cam.CFrame.RightVector or Vector3.new(1,0,0)
+    local move = Vector3.new(0,0,0)
+    local w = UserInputService:IsKeyDown(Enum.KeyCode.W)
+    local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
+    local s = UserInputService:IsKeyDown(Enum.KeyCode.S)
+    local d = UserInputService:IsKeyDown(Enum.KeyCode.D)
+    local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+    local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+    local vX = tonumber(MV._flyVirtX) or tonumber(MV.Safe and MV.Safe._virtX) or 0
+    local vZ = tonumber(MV._flyVirtZ) or tonumber(MV.Safe and MV.Safe._virtZ) or 0
+    local vY = tonumber(MV._flyVirtY) or tonumber(MV.Safe and MV.Safe._virtY) or 0
+    local virtBusy = (math.abs(vX) > 0.01 or math.abs(vZ) > 0.01)
+    if virtBusy then
+        -- virt X,Z là hướng XZ thế giới; chuyển sang camera look/right để giữ pitch? dùng như WASD
+        -- Để đơn giản: virt trộn look/right (giữ cảm giác joystick)
+        move = look * (-vZ) + right * vX
+        if math.abs(vY) > 0.01 then move = move + Vector3.new(0, vY, 0) end
+    else
+        if w then move = move + look end
+        if s then move = move - look end
+        if a then move = move - right end
+        if d then move = move + right end
+        if math.abs(vY) > 0.01 then move = move + Vector3.new(0, vY, 0)
+        else
+            if up then move = move + Vector3.new(0,1,0) end
+            if down then move = move - Vector3.new(0,1,0) end
+        end
+    end
+    local busy = move.Magnitude >= 0.01
+    -- idle auto theo camera nếu bật flyAuto
+    if not busy and (MV.flyAuto ~= false) then
+        move = look
+    end
+    local spd = mvClamp(MV.flySpeed, 1, 2000, 50)
+    local target
+    if move.Magnitude > 0 then target = move.Unit * spd else target = Vector3.new(0,0,0) end
+    -- né vật moving
+    local rep = MV._flyRep
+    if (rep == nil or rep.Magnitude < 0.01) and MV._flyLastRep ~= nil then
+        local el = tick() - (MV._flyLastThreatAt or 0)
+        if el < 0.9 then rep = MV._flyLastRep * (1 - el/0.9) end
+    end
+    if rep and rep.Magnitude > 0 then
+        local steer = mvClamp(MV.flySteer or 4, 1, 10, 4)
+        target = target + rep * (spd * (0.25 + 0.09 * steer))
+        local cap = spd * 2
+        if target.Magnitude > cap then target = target.Unit * cap end
+    end
+    if MV._flyNearest and MV._flyNearest < mvClamp(MV.flyRadius or 25, 1, 300, 25) * 0.4 then
+        target = target + Vector3.new(0, spd*0.75, 0)
+    end
+    MV._flyMyV = target
+    bv.Velocity = target
+    if bg and target.Magnitude > 0.1 then
+        local horiz = Vector3.new(target.X, 0, target.Z)
+        if horiz.Magnitude > 0.1 then
+            pcall(function() bg.CFrame = CFrame.new(r.Position, r.Position + horiz) end)
+        else
+            -- bay thẳng đứng: nhìn theo pitch
+            pcall(function() bg.CFrame = CFrame.new(r.Position, r.Position + look) end)
+        end
+    end
+end
 function MV.SetFly(on)
+
     on = (on == true)
     local r = MV.Root()
     if on and not r then return false, "chưa có nhân vật để bay" end
-    -- v4.12.4: y hệt bản gốc (TogFly gọi StopFlyRun) — bật BAY thì thoát chế độ CHẠY TRÊN THẢM
     if on and MV.runMode then MV.SetRunMode(false) end
     MV.fly = on
-    if not on then MV._StopFly(); MV._Watchdog(); MV.SyncHud(); return false end
-    local h = MV.Hum()
-    MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(4000, 4000, 4000) }, r)
-    MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(4000, 4000, 4000) }, r)
-    if h then h.AutoRotate = false; h.PlatformStand = true end
-    if not MV._floor then
-        MV._floor = New("Part", {
-            Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
-            Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
-            Anchored = true, CanCollide = false,
-        }, workspace)
+    if not on then
+        MV._StopFly()
+        -- trả lại noclip cũ nếu từng tự bật
+        if MV._flyNcPrev ~= nil then
+            local prev = MV._flyNcPrev
+            MV._flyNcPrev = nil
+            pcall(function() MV.SetNoclip(prev == true) end)
+        end
+        MV._flySeen, MV._flyCache, MV._flySc, MV._flyListAcc = {}, nil, 0, 0
+        MV._flyRep, MV._flyThreats, MV._flyNearest = Vector3.new(0,0,0), 0, nil
+        MV._flyLastRep, MV._flyLastThreatAt, MV._flyHoldAt = nil, 0, 0
+        MV._flyMyV, MV._flyMovers = Vector3.new(0,0,0), 0
+        MV._Watchdog(); MV.SyncHud(); return false
     end
+    -- auto bật xuyên tường như 🛡 (nhớ trạng thái cũ)
+    if MV.flyNoclip ~= false and MV._flyNcPrev == nil then
+        MV._flyNcPrev = MV.noclip == true
+        pcall(function() MV.SetNoclip(true) end)
+    end
+    local h = MV.Hum()
+    -- v4.36: MaxForce 1e9 cho bay chắc như 🛡, bỏ floor 3.5 cũ
+    if MV._bv then pcall(function() MV._bv:Destroy() end) end
+    if MV._bg then pcall(function() MV._bg:Destroy() end) end
+    MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.new(0,0,0) }, r)
+    MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), CFrame = r.CFrame }, r)
+    if h then h.AutoRotate = false; h.PlatformStand = true end
+    -- bỏ BC_FlyFloor cũ nếu còn
+    if MV._floor then pcall(function() MV._floor:Destroy() end) end
+    MV._floor = nil
+    -- reset fly scan cache
+    MV._flySeen, MV._flyCache, MV._flySc, MV._flyListAcc = {}, nil, 0, 0
+    MV._flyRep, MV._flyThreats, MV._flyNearest = Vector3.new(0,0,0), 0, nil
+    MV._flyLastRep, MV._flyLastThreatAt, MV._flyHoldAt = nil, 0, 0
+    MV._flyMyV = Vector3.new(0,0,0)
+    MV._Watchdog()
     RunService:BindToRenderStep("Fly", 1, function()
-        MV._flyFrameAt = tick()                 -- v4.23: watchdog soi vòng lặp 🚀 Bay còn sống không
-        local curR, curH = MV.Root(), MV.Hum()
+        MV._flyFrameAt = tick()
+        local curR = MV.Root()
         if not MV.fly or not curR or not MV._bv then return end
-        local d = (curH and curH.MoveDirection) or Vector3.zero
-        -- v4.24: NÚT ẢO — nếu joystick ảo đang giữ thì dùng nó
-        if MV.Safe and (math.abs(tonumber(MV.Safe._virtX) or 0) > 0.01 or math.abs(tonumber(MV.Safe._virtZ) or 0) > 0.01) then
-            d = Vector3.new(tonumber(MV.Safe._virtX) or 0, 0, tonumber(MV.Safe._virtZ) or 0)
-        end
-        local t = curR.CFrame:VectorToWorldSpace(d)
-        if t.Magnitude > 0 then t = t.Unit end
-        local up   = UserInputService:IsKeyDown(Enum.KeyCode.Space)
-        local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-                  or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        local vv
-        if MV.Safe and math.abs(tonumber(MV.Safe._virtY) or 0) > 0.01 then
-            vv = tonumber(MV.Safe._virtY) or 0
-        else
-            vv = (up and 1 or 0) - (down and 1 or 0)
-        end
-        -- v4.23: BỌC pcall TỪNG PHẦN — game/anti-cheat xoá part bay, camera nil, nhân vật đổi giữa
-        -- frame... trước đây 1 lỗi ở đây là vòng lặp chết ngay frame đó (và 🛡 chết theo vì nằm cuối).
-        -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
-        -- cùng ghi vận tốc nên vòng nào chạy sau là thắng — 🛡 có lúc bị ghi đè về "bay thẳng" (im lặng).
+        -- nếu 🛡 đang bật thì nhường cho 🛡 (tránh đánh nhau vận tốc)
         if MV.Safe and MV.Safe.on then
             if not MV.Safe._bound then pcall(MV.Safe.Step) end
-        else
-            MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed   -- v4.34: ghi thẳng (đỡ closure/frame)
+            return
         end
-        local cam = workspace.CurrentCamera
-        if MV._bg and cam then
-            pcall(function()
-                MV._bg.CFrame = CFrame.new(curR.Position, curR.Position + cam.CFrame.LookVector)
-            end)
-        end
+        local ok, err = pcall(MV._FlyStep, 0.016)
+        -- giữ floor nil
         if MV._floor and not MV._floor.Parent then MV._floor = nil end
-        if not MV._floor then
-            pcall(function()
-                MV._floor = New("Part", {
-                    Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
-                    Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
-                    Anchored = true, CanCollide = false,
-                }, workspace)
-            end)
-        end
-        if MV._floor then pcall(function() MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end) end
     end)
     MV.SyncHud()
     return true
@@ -10218,7 +10455,7 @@ end
 -- v4.27: đổi thành BAY TỚI TẤM KÍNH, chỉnh được tốc độ bay tới kính
 -- v4.28: thêm BAY TỚI NGƯỜI CHƠI (xuyên tường, chỉnh tốc độ 0=auto)
 do
-    local PH = 300
+    local PH = 324
     local P = New("Frame", {
         Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH),
@@ -10297,7 +10534,7 @@ do
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
     New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 84), Position = UDim2.new(0, 8, 0, 208),
+        Size = UDim2.new(1, -16, 0, 84), Position = UDim2.new(0, 8, 0, 232),
         Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định); gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game. "
              .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
              .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. 🧱 Đặt Kính: đặt nhiều tấm kính CỐ ĐỊNH dưới chân để làm cầu/thang, 🔄 Tự Đặt thì đi tới đâu đặt tới đó. "
@@ -10383,8 +10620,50 @@ do
         pcBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
         pcBtn.TextColor3 = D.BestText(pcBtn.BackgroundColor3)
     end
-    local holdBtn = act("🛟 Chống rơi: BẬT", 8, 100, 108, C.GREEN)
-    local edgeBtn = act("🔲 Viền thảm: BẬT", 122, 100, 108, C.GREEN)
+    -- v4.36 🚀 Bay lite: 2 nút mới ngay dưới hàng Nudge
+    local flyAutoBtn = act("➡ Tự-bay: BẬT", 8, 100, 108, C.GREEN)
+    local flyNclipBtn = act("🧱 Xuyên-khi-bay: BẬT", 122, 100, 150, C.GREEN)
+    local function paintFlyLite()
+        local aOn = (S.Move.flyAuto ~= false)
+        flyAutoBtn.Text = aOn and "➡ Tự-bay: BẬT" or "➡ Tự-bay: TẮT"
+        flyAutoBtn.BackgroundColor3 = aOn and C.GREEN or C.GRAY
+        flyAutoBtn.TextColor3 = D.BestText(flyAutoBtn.BackgroundColor3)
+        local nOn = (S.Move.flyNoclip ~= false)
+        flyNclipBtn.Text = nOn and "🧱 Xuyên-khi-bay: BẬT" or "🧱 Xuyên-khi-bay: TẮT"
+        flyNclipBtn.BackgroundColor3 = nOn and C.GREEN or C.GRAY
+        flyNclipBtn.TextColor3 = D.BestText(flyNclipBtn.BackgroundColor3)
+    end
+    flyAutoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.flyAuto = (S.Move.flyAuto == false)
+        paintFlyLite()
+        say("➡ Tự-bay 🚀: " .. ((S.Move.flyAuto ~= false) and "BẬT (không bấm vẫn bay theo camera)" or "TẮT (chỉ bay khi bấm W/A/S/D/Space)"), true)
+    end)
+    flyNclipBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.flyNoclip = (S.Move.flyNoclip == false)
+        -- nếu đang bay thì áp dụng ngay
+        if S.Move.fly then
+            if S.Move.flyNoclip ~= false then
+                if S.Move._flyNcPrev == nil then S.Move._flyNcPrev = S.Move.noclip == true end
+                pcall(function() S.Move.SetNoclip(true) end)
+            else
+                if S.Move._flyNcPrev ~= nil then
+                    local prev = S.Move._flyNcPrev; S.Move._flyNcPrev=nil
+                    pcall(function() S.Move.SetNoclip(prev==true) end)
+                else
+                    pcall(function() S.Move.SetNoclip(false) end)
+                end
+            end
+        end
+        paintFlyLite()
+        if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+        say("🧱 Xuyên-khi-bay 🚀: " .. ((S.Move.flyNoclip ~= false) and "BẬT (bay là tự xuyên)" or "TẮT"), true)
+    end)
+    paintFlyLite()
+    S.Move._flyLiteBtns = {auto=flyAutoBtn, nclip=flyNclipBtn, paint=paintFlyLite}
+    local holdBtn = act("🛟 Chống rơi: BẬT", 8, 124, 108, C.GREEN)
+    local edgeBtn = act("🔲 Viền thảm: BẬT", 122, 124, 108, C.GREEN)
     local function paintHold()
         local on = (S.Move.carpetHold ~= false)
         holdBtn.Text = on and "🛟 Chống rơi: BẬT" or "🛟 Chống rơi: TẮT"
@@ -10411,7 +10690,7 @@ do
         say("🔲 viền sáng quanh thảm: " .. ((S.Move.carpetEdge ~= false) and "BẬT" or "TẮT"), true)
     end)
     paintHold(); paintEdge()
-    pcBtn = act(TXT_PASS_ON, 234, 100, 168, C.GREEN)
+    pcBtn = act(TXT_PASS_ON, 234, 124, 168, C.GREEN)
     S.Move._passBtn = pcBtn
     pcBtn.Activated:Connect(function()
         ReleaseHubFocus()
@@ -10421,18 +10700,18 @@ do
                            or "🧲 tự đẩy xuyên: TẮT (chỉ tắt va chạm như cũ)", true)
     end)
 
-    local placeBtn = act("🧱 Đặt Kính Dưới Chân", 8, 124, 132, C.BLUE)
-    local clearBtn = act("🧹 Xóa Kính Đã Đặt", 146, 124, 118, C.RED)
-    local autoGlassBtn = act("🔄 Tự Đặt Kính: TẮT", 270, 124, 132, C.GRAY)
-    local flyGlassBtn = act("🚀 Bay tới kính", 8, 148, 110, C.PURPLE)
-    local stopFlyBtn = act("⏹ Dừng bay kính", 124, 148, 76, C.RED)
-    local speedGlassBox = box(206, 148, 44, S.Move.glassFlySpeed or 60)
-    local applyGlassSpeedBtn = act("✔ Tốc độ bay kính", 256, 148, 110, C.GREEN)
-    local flyPlayerBtn = act("🚀 Bay tới người gần nhất", 8, 172, 150, C.ACCENT)
-    local stopPlayerFlyBtn = act("⏹ Dừng bay người", 164, 172, 110, C.RED)
-    local speedPlayerBox = box(280, 172, 44, S.Move.playerFlySpeed or 0)
-    local applyPlayerSpeedBtn = act("✔ Tốc độ bay người", 330, 172, 110, C.GREEN)
-    lab("0=auto", 380, 172, 40)
+    local placeBtn = act("🧱 Đặt Kính Dưới Chân", 8, 148, 132, C.BLUE)
+    local clearBtn = act("🧹 Xóa Kính Đã Đặt", 146, 148, 118, C.RED)
+    local autoGlassBtn = act("🔄 Tự Đặt Kính: TẮT", 270, 148, 132, C.GRAY)
+    local flyGlassBtn = act("🚀 Bay tới kính", 8, 172, 110, C.PURPLE)
+    local stopFlyBtn = act("⏹ Dừng bay kính", 124, 172, 76, C.RED)
+    local speedGlassBox = box(206, 172, 44, S.Move.glassFlySpeed or 60)
+    local applyGlassSpeedBtn = act("✔ Tốc độ bay kính", 256, 172, 110, C.GREEN)
+    local flyPlayerBtn = act("🚀 Bay tới người gần nhất", 8, 196, 150, C.ACCENT)
+    local stopPlayerFlyBtn = act("⏹ Dừng bay người", 164, 196, 110, C.RED)
+    local speedPlayerBox = box(280, 196, 44, S.Move.playerFlySpeed or 0)
+    local applyPlayerSpeedBtn = act("✔ Tốc độ bay người", 330, 196, 110, C.GREEN)
+    lab("0=auto", 380, 196, 40)
     local function paintGlass()
         local cnt = S.Move._placedGlasses and #S.Move._placedGlasses or 0
         placeBtn.Text = cnt > 0 and ("🧱 Đặt Kính (" .. cnt .. ")") or "🧱 Đặt Kính Dưới Chân"
@@ -10573,12 +10852,13 @@ do
             st.Text = S.Move.Status()
             cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
             gapIn.Text = tostring(S.Move.carpetGap)
-            flyIn.Text = S.Move.flySpeed
+            flyIn.Text = tostring(S.Move.flySpeed)
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
-            jpIn.Text = S.Move.jumpPower
+            jpIn.Text = tostring(S.Move.jumpPower)
             paintPass()
             if paintHold then pcall(paintHold) end
             if paintEdge then pcall(paintEdge) end
+            if S.Move._flyLiteBtns and S.Move._flyLiteBtns.paint then pcall(S.Move._flyLiteBtns.paint) end
             if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end
         end)
     end
