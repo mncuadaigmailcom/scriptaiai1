@@ -118,7 +118,7 @@ return function()
     local guiClasses={Frame=true,ScrollingFrame=true,TextButton=true,TextLabel=true,TextBox=true,ImageLabel=true,ImageButton=true}
     local partClasses={Part=true,MeshPart=true,WedgePart=true}
     local eventNames={ChildAdded=true,ChildRemoved=true,DescendantAdded=true,AncestryChanged=true,Destroying=true,
-        Activated=true,InputBegan=true,InputEnded=true,InputChanged=true,MouseEnter=true,MouseLeave=true,
+        OnTeleport=true,Activated=true,InputBegan=true,InputEnded=true,InputChanged=true,MouseEnter=true,MouseLeave=true,
         MouseButton1Down=true,MouseButton1Up=true,Focused=true,FocusLost=true,CharacterAdded=true,CharacterRemoving=true}
     function methods:IsA(cls)
         return self.ClassName==cls or cls=="Instance" or (cls=="BasePart" and partClasses[self.ClassName]==true)
@@ -201,6 +201,9 @@ return function()
             m.propertyErrors[#m.propertyErrors+1]=err; error(err)
         end
         local old=obj._props[key]
+        if obj.ClassName=="Humanoid" and key=="WalkSpeed" and m.floatWalkSpeed then
+            local bytes=buffer.create(4); buffer.writef32(bytes,0,value); value=buffer.readf32(bytes,0)
+        end
         if obj.ClassName=="Humanoid" then
             m.humanoidWrites[key]=(m.humanoidWrites[key] or 0)+1
             if key=="WalkSpeed" and m.rejectWalkSpeed then error("mock WalkSpeed write rejected") end
@@ -241,7 +244,7 @@ return function()
         if cls=="ScrollingFrame" then props.ScrollingEnabled=true end
         if partClasses[cls] then
             props.Position=V.zero; props.CFrame=CF.new(); props.Size=V.new(2,2,1)
-            props.CanCollide=true; props.AssemblyLinearVelocity=V.zero; props.Velocity=V.zero
+            props.CanCollide=true; props.Anchored=false; props.AssemblyLinearVelocity=V.zero; props.Velocity=V.zero
         elseif cls=="Humanoid" then
             props.PlatformStand=false; props.AutoRotate=true; props.WalkSpeed=16; props.JumpPower=50
             props.JumpHeight=7.2; props.Health=100; props.MaxHealth=100; props.MoveDirection=V.zero; props.HipHeight=2
@@ -299,7 +302,9 @@ return function()
     local services={Workspace=workspace,CoreGui=m.new("CoreGui",game)}
     function game:GetService(name) return assert(services[name],"unmocked service "..name) end
     function game:HttpGet() m.httpCalls+=1; error("network execution forbidden in tests") end
-    game.PlaceId=1; game.JobId="mock-server"
+    game.PlaceId=1; game.GameId=42; game.JobId="mock-server"
+    m.gameLoaded=true
+    function game:IsLoaded() return m.gameLoaded end
     local players=m.new("Players",game)
     services.Players=players; players.PlayerAdded=signal(); players.PlayerRemoving=signal()
     local player=m.new("Player",players)
@@ -349,7 +354,8 @@ return function()
     end}
     services.HttpService={JSONEncode=function() return "{}" end,JSONDecode=function() error("no JSON fixture") end,
         RequestAsync=function() m.httpCalls+=1; error("network execution forbidden in tests") end}
-    services.TeleportService={Teleport=function() end,TeleportToPlaceInstance=function() end}
+    services.TeleportService={Teleport=function() end,TeleportToPlaceInstance=function() end,TeleportInitFailed=signal()}
+    m.teleport=services.TeleportService
     services.MarketplaceService={GetProductInfo=function() return {Name="Mock Place"} end}
     services.GuiService={GetGuiInset=function() return V.zero,V.zero end}
     function workspace:Raycast() return nil end

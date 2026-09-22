@@ -201,7 +201,7 @@ test("touch slider tracks its initiating finger and ignores a second touch or mo
 end)
 
 test("slider rounds to tenths without rounding beyond a fractional game cap",function(m,h,GS,MV,E)
-    MV.Hum().WalkSpeed=7.23
+    MV.Hum().WalkSpeed=0; MV.Hum().WalkSpeed=7.23; frames(m,45) -- new playing phase
     local b=show(h); GS.Set(true)
     local held=pointer(h,E,"Touch",1); b.slider.InputBegan:Fire(held)
     near(GS.value,7.23); near(MV.Hum().WalkSpeed,7.23)
@@ -237,17 +237,17 @@ test("keyboard input and invisible slider cannot start a drag",function(m,h,GS,M
     assert(h.D.hubList.ScrollingEnabled)
 end)
 
-test("observed game cap tracks speed changes while off; peak is informational only",function(m,h,GS,MV,E)
+test("default follows native speed while the cap retains the higher observed WalkSpeed",function(m,h,GS,MV,E)
     MV.Hum().WalkSpeed=32; near(GS.limit,32); near(GS.value,32); near(GS.observedMax,32)
-    MV.Hum().WalkSpeed=12; near(GS.limit,12); near(GS.value,12); near(GS.observedMax,32)
-    local ok,value,clamped=GS.SetValue(25); assert(ok and clamped); near(value,12)
-    assert(GS.Set(true)); near(MV.Hum().WalkSpeed,12)
+    MV.Hum().WalkSpeed=12; near(GS.limit,32); near(GS.value,12); near(GS.observedMax,32)
+    local ok,value,clamped=GS.SetValue(25); assert(ok and not clamped); near(value,25)
+    assert(GS.Set(true)); near(MV.Hum().WalkSpeed,25)
     assert(h.S.groundSpeedControls.observed.Text:find("32",1,true))
 end)
 
-test("500 is only a technical control ceiling, never a claimed anti-cheat threshold",function(m,h,GS,MV,E)
-    MV.Hum().WalkSpeed=1200; near(GS.gameSpeed,1200); near(GS.limit,500); near(GS.observedMax,1200)
-    GS.SetValue(10000); GS.Set(true); near(MV.Hum().WalkSpeed,500)
+test("large native speeds are bounded by their observed peak, not an arbitrary 500",function(m,h,GS,MV,E)
+    MV.Hum().WalkSpeed=1200; near(GS.gameSpeed,1200); near(GS.limit,1200); near(GS.observedMax,1200)
+    GS.SetValue(10000); GS.Set(true); near(MV.Hum().WalkSpeed,1200)
     GS.Set(false); near(MV.Hum().WalkSpeed,1200)
 end)
 
@@ -262,7 +262,7 @@ end)
 
 test("game lock at zero is respected, not replaced by a Roblox default",function(m,h,GS,MV,E)
     MV.Hum().WalkSpeed=0
-    local ok,err=GS.Set(true); assert(not ok and err and not GS.on)
+    assert(GS.Set(true) and GS.on and GS.pending)
     near(GS.limit,0); near(MV.Hum().WalkSpeed,0)
     local b=show(h); assert(not b.slider.Active and not b.value.TextEditable)
     b.slider.InputBegan:Fire(pointer(h,E,"Touch",1)); near(MV.Hum().WalkSpeed,0)
@@ -273,15 +273,16 @@ for _,invalid in ipairs({-1,math.huge,-math.huge,0/0}) do
     test("invalid game WalkSpeed "..tostring(invalid).." disables control without guessing",function(m,h,GS,MV,E)
         MV.Hum().WalkSpeed=invalid
         assert(GS.gameSpeed==nil and GS.limit==nil and GS.value==nil)
-        assert(not GS.Set(true) and not GS.SetValue(12) and not GS.UseGameSpeed())
+        assert(GS.Set(true) and GS.pending and not GS.SetValue(12))
+        assert(GS.UseGameSpeed()); assert(GS.value==nil) -- selectable default, still no writes
         assert(not h.S.groundSpeedControls.slider.Active and h.S.groundSpeedControls.value.Text=="")
     end)
 end
 
 test("unknown or zero game observation recovers to a truthful ready status",function(m,h,GS,MV,E)
-    MV.Hum().WalkSpeed=0/0; MV.Hum().WalkSpeed=18
+    MV.Hum().WalkSpeed=0/0; MV.Hum().WalkSpeed=18; frames(m,45)
     assert(GS.limit==18 and not GS.reason:find("Chưa đọc",1,true))
-    MV.Hum().WalkSpeed=0; MV.Hum().WalkSpeed=20
+    MV.Hum().WalkSpeed=0; MV.Hum().WalkSpeed=20; frames(m,45)
     assert(GS.limit==20 and not GS.reason:find("= 0",1,true))
 end)
 
@@ -304,7 +305,8 @@ end)
 for _,value in ipairs({5,16,32,0}) do
     test("game correction to "..value.." automatically yields and never fights back",function(m,h,GS,MV,E)
         GS.SetValue(8); GS.Set(true); MV.Hum().WalkSpeed=value
-        assert(not GS.on and GS._applied==nil); near(GS.limit,value); near(GS.gameSpeed,value)
+        assert(GS.on==(value==0) and GS.pending==(value==0) and GS._applied==nil)
+        near(GS.limit,value==0 and 0 or math.max(16,value)); near(GS.gameSpeed,value)
         local writes=m.humanoidWrites.WalkSpeed; frames(m,300)
         assert(m.humanoidWrites.WalkSpeed==writes); near(MV.Hum().WalkSpeed,value)
         GS.Set(false); near(MV.Hum().WalkSpeed,value)
@@ -314,14 +316,15 @@ end
 test("deferred external write is sampled before applying a user value",function(m,h,GS,MV,E)
     m.deferPropertySignals=true; GS.SetValue(8); GS.Set(true)
     MV.Hum().WalkSpeed=5; GS.SetValue(12)
-    assert(not GS.on); near(GS.limit,5); near(GS.value,5); near(MV.Hum().WalkSpeed,5)
+    assert(not GS.on); near(GS.limit,16); near(GS.value,12); near(MV.Hum().WalkSpeed,5)
     m:advance(0.02); frames(m,60); near(MV.Hum().WalkSpeed,5)
 end)
 
 test("deferred correction to zero cannot be undone by a late UI apply",function(m,h,GS,MV,E)
     m.deferPropertySignals=true; GS.SetValue(8); GS.Set(true)
-    MV.Hum().WalkSpeed=0; GS.SetValue(12); m:advance(0.02)
-    assert(not GS.on); near(GS.limit,0); near(GS.value,0); near(MV.Hum().WalkSpeed,0)
+    MV.Hum().WalkSpeed=0; assert(not GS.SetValue(12)); m:advance(0.02)
+    assert(GS.on and GS.pending); near(GS.requested,8)
+    near(GS.limit,0); near(GS.value,0); near(MV.Hum().WalkSpeed,0)
 end)
 
 test("game correction ends a slider drag and refreshes the card as well as the panel",function(m,h,GS,MV,E)
@@ -338,7 +341,7 @@ end)
 test("missed property signal is detected by the heartbeat fallback without enforcement",function(m,h,GS,MV,E)
     GS.SetValue(8); GS.Set(true)
     MV.Hum()._props.WalkSpeed=6 -- deliberately bypass the mock signal
-    frames(m,15); assert(not GS.on); near(GS.limit,6); near(MV.Hum().WalkSpeed,6)
+    frames(m,15); assert(not GS.on); near(GS.limit,16); near(MV.Hum().WalkSpeed,6)
 end)
 
 test("write rejection stops cleanly rather than retrying every frame",function(m,h,GS,MV,E)
@@ -355,7 +358,7 @@ test("a game which immediately rewrites an attempted speed owns the final value"
         if not rewriting and hum.WalkSpeed~=13 then rewriting=true; hum.WalkSpeed=13; rewriting=false end
     end)
     GS.SetValue(7); assert(not GS.Set(true)); assert(not GS.on)
-    near(hum.WalkSpeed,13); near(GS.gameSpeed,13); near(GS.limit,13)
+    near(hum.WalkSpeed,13); near(GS.gameSpeed,13); near(GS.limit,16)
     local writes=m.humanoidWrites.WalkSpeed; frames(m,60); assert(m.humanoidWrites.WalkSpeed==writes)
 end)
 
@@ -377,7 +380,7 @@ end)
 test("reset-to-game clears user selection and follows the next observed baseline",function(m,h,GS,MV,E)
     local b=show(h); GS.SetValue(8); GS.Set(true); b.reset.Activated:Fire()
     assert(GS.requested==nil and GS.on); near(MV.Hum().WalkSpeed,16); near(GS.value,16)
-    MV.Hum().WalkSpeed=24; assert(not GS.on); near(GS.value,24)
+    MV.Hum().WalkSpeed=24; assert(GS.on and not GS.pending); near(GS.value,24)
     GS.Set(true); near(MV.Hum().WalkSpeed,24)
 end)
 
@@ -475,19 +478,21 @@ test("non-movement features stay available independently",function(m,h,GS,MV,E)
     assert(GS.on); near(MV.Hum().WalkSpeed,8)
 end)
 
-test("missing or dead character cannot enable ground control",function(m,h,GS,MV,E)
-    MV.Hum().Health=0; assert(not GS.Set(true) and not GS.on)
+test("missing or dead character accepts waiting intent, never writes an unavailable actor",function(m,h,GS,MV,E)
+    MV.Hum().Health=0; local writes=m.humanoidWrites.WalkSpeed
+    assert(GS.Set(true) and GS.on and GS.pending)
     m.player.Character=nil; GS.Sample()
-    assert(GS.limit==nil and GS.value==nil and not GS.Set(true))
+    assert(GS.limit==nil and GS.value==nil and GS.Set(true) and GS.pending)
+    assert(m.humanoidWrites.WalkSpeed==writes)
 end)
 
 test("active mode waits across an absent character then reads a fresh lower cap",function(m,h,GS,MV,E)
     MV.Hum().WalkSpeed=32; GS.SetValue(20); GS.Set(true); local old=MV.Hum()
     m.player.Character=nil; frames(m,15)
-    assert(GS.on and GS.limit==nil and GS.observedMax==nil and GS.Status():find("chờ",1,true))
+    assert(GS.on and GS.limit==nil and GS.observedMax==nil and GS.Status():find("Chờ",1,true))
     near(old.WalkSpeed,32)
     local char,root,hum=m:character(); hum.WalkSpeed=10
-    m.player.CharacterAdded:Fire(char); frames(m,30)
+    m.player.CharacterAdded:Fire(char); frames(m,60)
     assert(GS.on and GS._hum==hum); near(GS.limit,10); near(GS.observedMax,10)
     near(GS.value,10); near(hum.WalkSpeed,10)
     GS.Set(false); near(hum.WalkSpeed,10)
@@ -496,7 +501,7 @@ end)
 test("direct live-character replacement restores and detaches the old humanoid",function(m,h,GS,MV,E)
     MV.Hum().WalkSpeed=30; GS.SetValue(8); GS.Set(true)
     local old=MV.Hum(); local conn=GS._humConn
-    local char,root,hum=m:character(); hum.WalkSpeed=24; frames(m,15)
+    local char,root,hum=m:character(); hum.WalkSpeed=24; frames(m,60)
     assert(GS.on and GS._hum==hum and not conn.Connected)
     near(old.WalkSpeed,30); near(hum.WalkSpeed,8); near(GS.limit,24); near(GS.observedMax,24)
     old.WalkSpeed=99; near(GS.limit,24)
@@ -508,15 +513,16 @@ test("respawn with Humanoid arriving after the character model is handled",funct
     local char=m.new("Model",E.workspace); m.player.Character=char
     m.player.CharacterAdded:Fire(char); frames(m,30); assert(GS.on and GS.limit==nil)
     local root=m.new("Part",char); root.Name="HumanoidRootPart"
-    local hum=m.new("Humanoid",char); hum.WalkSpeed=28; frames(m,15)
+    local hum=m.new("Humanoid",char); hum.WalkSpeed=28; frames(m,60)
     assert(GS.on and GS._hum==hum); near(GS.limit,28); near(hum.WalkSpeed,8)
 end)
 
-test("death preserves intent without further property writes and respawn re-observes",function(m,h,GS,MV,E)
+test("death releases owned speed once, preserves intent and re-observes on respawn",function(m,h,GS,MV,E)
     GS.SetValue(8); GS.Set(true); MV.Hum().Health=0
-    local writes=m.humanoidWrites.WalkSpeed; frames(m,30)
-    assert(GS.on and m.humanoidWrites.WalkSpeed==writes and GS.Status():find("chờ",1,true))
-    local char,root,hum=m:character(); hum.WalkSpeed=23; frames(m,15)
+    frames(m,15); local writes=m.humanoidWrites.WalkSpeed; frames(m,30)
+    assert(GS.on and GS.pending and m.humanoidWrites.WalkSpeed==writes and GS.Status():find("Chờ",1,true))
+    near(MV.Hum().WalkSpeed,16)
+    local char,root,hum=m:character(); hum.WalkSpeed=23; frames(m,60)
     assert(GS.on); near(GS.limit,23); near(hum.WalkSpeed,8)
 end)
 
@@ -524,7 +530,8 @@ test("zero on a new character is never overridden during pending auto-resume",fu
     GS.SetValue(8); GS.Set(true)
     local char,root,hum=m:character(); hum.WalkSpeed=0; frames(m,30)
     near(GS.limit,0); near(GS.value,0); near(hum.WalkSpeed,0)
-    hum.WalkSpeed=14; frames(m,15); assert(not GS.on); near(hum.WalkSpeed,14)
+    hum.WalkSpeed=14; frames(m,60); assert(GS.on and not GS.pending)
+    near(GS.defaultSpeed,14); near(GS.limit,14); near(hum.WalkSpeed,8)
 end)
 
 test("ground mode can be stopped in a respawn gap without re-enabling later",function(m,h,GS,MV,E)
@@ -565,8 +572,10 @@ test("destroying the hub restores owned speed and disconnects its observers",fun
     near(MV.Hum().WalkSpeed,16); MV.Hum().WalkSpeed=25; frames(m,30); near(MV.Hum().WalkSpeed,25)
 end)
 
-test("unparented hub also restores speed instead of silently retaining the override",function(m,h,GS,MV,E)
+test("permanently unparented hub restores speed then closes after its bounded grace period",function(m,h,GS,MV,E)
     GS.SetValue(8); GS.Set(true); h.gui.Parent=nil; frames(m,15)
+    assert(GS.on and GS.pending); near(MV.Hum().WalkSpeed,16)
+    m:advance(11); m:frame(0.25)
     assert(not GS.on and not GS._heartbeat and not GS._humConn); near(MV.Hum().WalkSpeed,16)
 end)
 
@@ -601,7 +610,7 @@ test("old character speed events cannot cancel intent after Character already ch
     GS.SetValue(8); GS.Set(true); local old=MV.Hum()
     local char,root,hum=m:character(); hum.WalkSpeed=24
     old.WalkSpeed=0 -- a late death/reset event, before the 5 Hz observer runs
-    frames(m,15)
+    frames(m,60)
     assert(GS.on and GS._hum==hum); near(GS.limit,24); near(hum.WalkSpeed,8)
     near(old.WalkSpeed,0)
 end)
@@ -610,7 +619,7 @@ test("deferred old-character correction cannot be mistaken for the new game's ca
     GS.SetValue(8); GS.Set(true); local old=MV.Hum(); m.deferPropertySignals=true
     old.WalkSpeed=0
     local char,root,hum=m:character(); hum.WalkSpeed=24
-    m:advance(0.01); frames(m,15)
+    m:advance(0.01); frames(m,60)
     assert(GS.on and GS._hum==hum); near(GS.limit,24); near(hum.WalkSpeed,8)
     near(old.WalkSpeed,0)
 end)
