@@ -10842,9 +10842,10 @@ do
     Corner(thumb, UDim.new(1, 0)); Stroke(thumb, C.ACCENT3, 1)
     local range = label("GroundSpeedRange", "", 158, 16, C.ACCENT)
     local status = label("GroundSpeedStatus", "", 176, 20)
-    label("GroundSpeedWarning", "⚠ KHÔNG bay, KHÔNG xuyên tường, KHÔNG nút ảo — vẫn va chạm, trọng lực và nhảy bình thường. "
-        .. "Hướng đi theo camera nhờ điều khiển gốc của game. Tốc độ do bạn nhập; server có thể không nhận. "
-        .. "Game đổi WalkSpeed khi đang chỉnh → tự dừng, không ép lại.", 198, 30, C.YELLOW)
+    label("GroundSpeedWarning", "⚠ KHÔNG bay, KHÔNG xuyên tường, KHÔNG nút ảo — vẫn va chạm và nhảy bình thường. "
+        .. "Nhảy lên cao vẫn RỚT XUỐNG theo trọng lực game; hub không giữ trên không. "
+        .. "Hướng đi theo camera nhờ điều khiển gốc. Tốc độ do bạn nhập; server có thể không nhận. "
+        .. "Game đổi WalkSpeed khi đang chỉnh → tự dừng, không ép lại.", 198, 40, C.YELLOW)
 
     local function text(obj, value) if obj.Text ~= value then obj.Text = value end end
     local function fmt(n) return n ~= nil and string.format("%g", n) or "—" end

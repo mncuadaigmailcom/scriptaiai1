@@ -9,6 +9,7 @@ Theo yêu cầu người dùng, bộ tốc độ chạy cũ (đọc mức quan s
 - Chỉ ghi `Humanoid.WalkSpeed`. **Không** bay, **không** xuyên tường, **không** HUD/nút ảo, không BodyVelocity/CFrame/vận tốc cưỡng bức.
 - Hướng đi theo camera nhờ **điều khiển gốc của game** (WASD/joystick mặc định của Roblox đã đi theo camera trên mặt phẳng ngang) — cảm giác giống Bay theo camera nhưng vẫn **va chạm, trọng lực và nhảy bình thường**.
 - Tốc độ nhập được **mọi số hữu hạn ≥ 0** (ô số); thanh kéo hiển thị 0–500.
+- Nhảy lên cao vẫn **rớt xuống theo trọng lực game**: hub không ghi CFrame/vận tốc/trọng lực lúc trên không (có test riêng).
 - Bật khi nhân vật chưa sẵn sàng (sảnh/chết/thiếu root) → trạng thái **Chờ vào trận**, tự áp lại khi sẵn sàng; không mở khoá hộ game.
 - Game đổi WalkSpeed khi đang chỉnh → **tự dừng, không ép lại**. Tắt sẽ trả tốc độ còn do hub giữ.
 - Xung đột loại trừ với Bay/NoClip/thảm/boost… như trước; các tính năng đó vẫn bật lại được.
@@ -32,9 +33,9 @@ Quy trình:
 ## Các suite
 
 - `flight.luau`: **74 test** hồi quy Bay theo camera, Bay An Toàn, NoClip độc lập, HUD, xung đột tính năng, 7 trang/32 thẻ.
-- `speedmove.luau`: **44 test** cho Tốc Độ: bật/tắt/khôi phục, mọi giá trị hợp lệ và giá trị sai bị từ chối, slider chuột/cảm ứng, nhập số/Enter, game ghi đè thì dừng, chờ sảnh/chết/neo, handoff với Bay/boost, chỉ ghi WalkSpeed, không HUD/vật lý bay, drag không tự bật lại, reload/dọn kết nối.
+- `speedmove.luau`: **46 test** cho Tốc Độ: bật/tắt/khôi phục, mọi giá trị hợp lệ và giá trị sai bị từ chối, slider chuột/cảm ứng, nhập số/Enter, game ghi đè thì dừng, chờ sảnh/chết/neo, handoff với Bay/boost, chỉ ghi WalkSpeed, không HUD/vật lý bay, drag không tự bật lại, reload/dọn kết nối.
 
-**Kết quả v4.40: 118/118 test đạt**, kèm biên dịch full hub và kiểm tra diff giữ CRLF.
+**Kết quả v4.40: 120/120 test đạt**, kèm biên dịch full hub và kiểm tra diff giữ CRLF.
 
 ## Những gì test KHÔNG chứng minh
 

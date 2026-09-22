@@ -378,5 +378,40 @@ test("a pending selection survives respawn without being rewritten to zero",func
 end)
 
 
+test("jumping high then falling follows game gravity; the hub applies no airborne force",function(m,h,GS,MV,E)
+    GS.SetValue(80); GS.Set(true)
+    local hum,root=MV.Hum(),MV.Root()
+    local gravity=E.workspace.Gravity; local cfWrites=m.cfWrites; local cf=root.CFrame
+    m.humanoidWrites={}
+    m.input.JumpRequest:Fire()
+    hum:ChangeState(E.Enum.HumanoidStateType.Jumping)
+    frames(m,30)
+    hum:ChangeState(E.Enum.HumanoidStateType.Freefall)
+    frames(m,90)
+    -- hub KHÔNG đụng vận tốc/CFrame/trọng lực lúc trên không; chỉ giữ WalkSpeed đã chọn
+    for key in pairs(m.humanoidWrites) do assert(key=="WalkSpeed","unexpected airborne write: "..key) end
+    assert(m.cfWrites==cfWrites and root.CFrame==cf,"hub must not move the character while falling")
+    near(E.workspace.Gravity,gravity); assert(not hum.PlatformStand and hum.AutoRotate)
+    assert(not MV._bv and not MV._bg and not MV._wd,"no flight physics allowed")
+    assert(GS.on,"falling must not disable the speed feature")
+    near(hum.WalkSpeed,80)
+    hum:ChangeState(E.Enum.HumanoidStateType.Running)
+    frames(m,30); near(hum.WalkSpeed,80)
+end)
+
+test("repeated jumps keep collisions and the landing surface intact",function(m,h,GS,MV,E)
+    GS.SetValue(60); GS.Set(true)
+    local root,hum=MV.Root(),MV.Hum()
+    for _=1,3 do
+        m.input.JumpRequest:Fire(); hum:ChangeState(E.Enum.HumanoidStateType.Jumping); frames(m,15)
+        hum:ChangeState(E.Enum.HumanoidStateType.Freefall); frames(m,15)
+        hum:ChangeState(E.Enum.HumanoidStateType.Running); frames(m,15)
+    end
+    assert(root.CanCollide and not MV.noclip)
+    near(hum.WalkSpeed,60); near(hum.JumpPower,50)
+    assert(GS.on)
+end)
+
+
 print(string.format("\n%d passed / %d failed — Tốc Độ (v4.40) in a deterministic mock; no real Roblox physics or server checks.",passed,failed))
 assert(failed==0,"speed feature regression tests failed")
