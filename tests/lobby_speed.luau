@@ -218,16 +218,16 @@ test("late round configuration is sampled after settling, not the temporary init
     MV.Hum().WalkSpeed=32; GS.SetValue(20); GS.Set(true)
     local char,root,hum=m:character() -- early native default is 16
     m:frame(0.1); near(hum.WalkSpeed,16); assert(GS.pending)
-    hum.WalkSpeed=24; m:frame(0.2); near(hum.WalkSpeed,24); assert(GS.pending)
+    hum.WalkSpeed=24; m:frame(0.1); near(hum.WalkSpeed,24); assert(GS.pending)
     frames(m,60); near(GS.defaultSpeed,24); near(GS.limit,24); near(hum.WalkSpeed,20)
     GS.Set(false); near(hum.WalkSpeed,24)
 end)
 
-test("a new native speed restarts the settling window instead of applying an old cap",function(m,h,GS,MV,E)
+test("positive native speed changes do not restart the actor-readiness window",function(m,h,GS,MV,E)
     GS.SetValue(8); GS.Set(true); MV.Hum().WalkSpeed=0
     MV.Hum().WalkSpeed=18; m:frame(0.2)
     MV.Hum().WalkSpeed=22; m:frame(0.2)
-    assert(GS.pending); near(MV.Hum().WalkSpeed,22)
+    assert(not GS.pending); near(MV.Hum().WalkSpeed,8) -- actor was ready for 0.4s, speed need not stand still
     frames(m,60); assert(not GS.pending); near(GS.defaultSpeed,22); near(MV.Hum().WalkSpeed,8)
 end)
 
@@ -421,7 +421,7 @@ test("queued loader starts a fresh complete hub in a separate mocked server with
     local nextGS=nextE._G.BananaCatHub_MV.GroundSpeed
     assert(nextGS and not nextGS.on and not nextGS.pending and nextGS.teleportAuto)
     near(nextGS.defaultSpeed,22); near(nextGS.limit,22); assert(nextGS~=GS)
-    assert(nextE._G.BananaCatHubAPI.Version=="4.38")
+    assert(nextE._G.BananaCatHubAPI.Version=="4.39")
     assert(nextM.fixtureFetches==1 and nextM:count("HubGroundSpeed_Panel")==1)
     assert(nextM:find("HubFly_Panel") and nextM:find("HubSafe_Panel") and nextM:find("HubMove_Panel"))
     nextGS.Set(true); assert(nextGS.on); near(nextM.player.Character.Humanoid.WalkSpeed,22)

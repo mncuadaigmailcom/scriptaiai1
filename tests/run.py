@@ -37,10 +37,10 @@ def main() -> None:
     # The test-only return exposes real locals without adding a test API to the hub.
     source += "\nreturn {S=S, D=D, Store=Store, main=main, gui=gui, tabs=tabs, tabContent=tabContent}\n"
     mock = (TESTS / "roblox_mock.luau").read_text(encoding="utf-8")
-    suites = sys.argv[1:] or ["flight", "ground_speed", "lobby_speed"]
+    suites = sys.argv[1:] or ["flight", "ground_speed", "lobby_speed", "dynamic_speed"]
     for suite in suites:
-        if suite not in {"flight", "ground_speed", "lobby_speed"}:
-            raise SystemExit("Suites: flight, ground_speed, lobby_speed (omit to run all)")
+        if suite not in {"flight", "ground_speed", "lobby_speed", "dynamic_speed"}:
+            raise SystemExit("Suites: flight, ground_speed, lobby_speed, dynamic_speed (omit to run all)")
         tests = (TESTS / f"{suite}.luau").read_text(encoding="utf-8")
         bundle = "local createMock = (function()\n" + mock + "\nend)()\n"
         bundle += "local hubSource = " + quote(source) + "\n" + tests

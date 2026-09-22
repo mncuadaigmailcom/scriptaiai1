@@ -1,6 +1,22 @@
-# Kiểm thử tốc độ chạy, sảnh → trận và Bay — v4.38
+# Kiểm thử tốc độ động, vượt mức tự chọn, sảnh → trận và Bay — v4.39
 
 `script.js` là **Luau**, không phải JavaScript. Hub vẫn là một file độc lập để không thay đổi cách nạp hiện có.
+
+## Sửa số tốc độ trống khi chơi Evade / game cập nhật tốc độ liên tục
+
+Báo cáo Evade của người dùng dẫn đến việc kiểm tra và **tái lập lỗi trong mã v4.38**: mỗi lần WalkSpeed đổi, bộ đếm “ổn định 0,3 giây” lại bắt đầu từ đầu. Một game ghi WalkSpeed mỗi frame có thể khiến trạng thái chờ không bao giờ kết thúc. Khi chờ, code cũ còn xoá cả số mặc định/đỉnh đang hiển thị.
+
+v4.39:
+
+- Chờ **nhân vật/root sẵn sàng liên tục**, không yêu cầu số WalkSpeed đứng yên. Gia tốc hoặc sprint thay đổi mỗi frame không còn làm kẹt vô hạn.
+- **Đọc được số thì hiển thị ngay**, kể cả lúc chưa cho phép áp dụng tốc độ. Số trong thời gian dựng rig là tạm; không đem đỉnh tạm đó làm trần khi pha chơi chính thức sẵn sàng.
+- Đưa **Mặc định (WS) / Cao nhất đã thấy** lên ngay dưới tiêu đề, trước các nút và thanh kéo. Không cần cuộn qua slider mới thấy số.
+- Hỗ trợ một Humanoid nằm lồng trong `player.Character`, cùng root của nó. Không quét toàn Workspace để chọn đại NPC/người chơi khác. Nhiều Humanoid không rõ chủ thể thì báo lý do thay vì đoán.
+- Bay/NoClip không còn làm bảng đọc số trống sau respawn. Khi boost cũ đang bật, chỉ dùng nền đã lưu và ghi rõ nguồn; không lấy tốc độ đã nhân thành max game.
+- Có dòng **WS hiện tại / Đo ngang / loại Humanoid / nguồn số** để chẩn đoán. Vận tốc ngang là `AssemblyLinearVelocity` trên mặt XZ, **không phải mặc định hoặc tối đa game** và không dùng để mở trần.
+- Nếu không có Humanoid hoặc game dùng bộ điều khiển riêng, hiển thị “chưa đọc được / chưa có mẫu” và lý do, không bịa các số 16/32/2000. Đặc biệt, một nhân vật đang chuyển động nhưng WalkSpeed bằng 0 không chứng minh rằng ghi WalkSpeed sẽ điều khiển được nó.
+
+**Chưa có kiểm thử trên server Evade thật.** Test mô phỏng các dạng lỗi trên, không phải bản sao đã xác minh của bộ điều khiển Evade. Không hard-code “tốc độ tối đa Evade”. Nếu vẫn lỗi, cần ảnh hai số đầu khung, dòng trạng thái/chẩn đoán và phiên bản hub để phân biệt thiếu nhân vật, game khoá hay bộ di chuyển riêng.
 
 ## Tốc độ chạy — Mặc định / Cao nhất đã thấy
 
@@ -14,11 +30,22 @@ Mở **📚 Script Hub → 🏃 TỐC ĐỘ CHẠY**:
 
 **Không còn chụp trần 500 lên game vốn có WalkSpeed cao hơn.** Ví dụ native `1200`, cao nhất đã quan sát `1600`: Mặc định vẫn là `1200`, trần chọn là `1600`, không tự giảm về `500`. Sai số float32 của thuộc tính trong engine được tính đến để không nhận nhầm làm game từ chối.
 
+### Mới: 🔓 Vượt mức đã quan sát (tùy chọn, mặc định TẮT)
+
+1. Bật **🔓 Vượt mức** trong khung tốc độ. Chỉ bật công tắc này **không tự tăng tốc độ**.
+2. Nếu cần, sửa **Trần mở rộng** rồi nhấn **Enter / ✔ nhỏ** cạnh ô đó. Mặc định `2000`; chấp nhận số hữu hạn `1–1.000.000`. Đây là cấu hình kỹ thuật của hub, **không phải tốc độ game cho phép**.
+3. Nhập tốc độ muốn dùng ở ô **Tốc độ**, bấm **✔ Áp dụng / Enter**, rồi bật chế độ chạy nếu đang tắt. Cũng có thể dùng slider.
+4. Trần slider khi mở = **max(mức quan sát, trần mở rộng)**. Ví dụ chỉ quan sát được 32, trần mở rộng 200: có thể gửi yêu cầu WalkSpeed 100 hoặc 150; đỉnh quan sát vẫn là 32, không bị sửa thành 150.
+5. Nút **Cao nhất** vẫn chọn **cao nhất đã quan sát**, không chọn trần tự đặt. **Mặc định** trả về nền game.
+6. Tắt 🔓 thì kẹp ngay về phạm vi quan sát và bỏ số cao đang lưu. Nếu đang chờ spawn/game khoá 0, trở về lựa chọn Mặc định thay vì lưu số cao ẩn hoặc biến lựa chọn thành 0. Giảm trần cũng bỏ lựa chọn vượt quá trần mới.
+
+**Đây chỉ là mở giới hạn chọn số trong hub, không phải bypass giới hạn máy chủ.** Game ghi đè hoặc từ chối thì controller dừng, không reapply mỗi frame. Không tự unanchor, mở khoá WalkSpeed 0, bay hoặc xuyên tường. Chuyển server/reload hub không tự cấp lại quyền vượt mức; cần bật lại bằng tay.
+
 ### Giới hạn thông tin — không phải bảo đảm chống ban
 
 Client **không biết tốc độ tối đa thật hoặc ngưỡng anti-cheat của server**. “Cao nhất” ở đây chỉ là **cao nhất đã thấy**, không phải một mức được bảo đảm cho phép ở mọi thời điểm. Thay đổi WalkSpeed vẫn có thể vi phạm luật game.
 
-- Chưa thấy mức cao hơn `16` thì chỉ chọn được tối đa `16`; không tự bịa mức `500` hoặc `2000`. Có thể để **Mặc định** rồi dùng sprint/chạy nhanh **gốc của game** để quan sát thêm.
+- Khi **🔒 Vượt mức TẮT**, chưa thấy mức cao hơn `16` thì chỉ chọn được tối đa `16`; không tự bịa mức `500` hoặc `2000` là max game. Có thể để **Mặc định** rồi dùng sprint/chạy nhanh **gốc của game** để quan sát thêm.
 - Chỉ quan sát WalkSpeed khi các chế độ can thiệp khác của hub không hoạt động; không lấy vận tốc bay/rơi/teleport hoặc `SpeedMeter.max` để suy ra trần. Không nhận nhầm giá trị do chính controller ghi (kể cả property event deferred).
 - Đang dùng **số tự chọn / Cao nhất**, game sửa WalkSpeed sang một mức dương khác: **tự dừng, nhường game**, không ép lại mỗi frame. Chế độ **Mặc định** chỉ theo cập nhật gốc của game.
 - Game khoá WalkSpeed `0`, nhân vật chết/thiếu part/đang neo hoặc game chưa tải: chuyển sang **Chờ**, không đoán giới hạn, không mở khoá hộ game. Trần được đọc lại khi pha chơi mới sẵn sàng.
@@ -29,7 +56,7 @@ Client **không biết tốc độ tối đa thật hoặc ngưỡng anti-cheat 
 Có thể bấm **Bật ngay khi đang chờ**. Nút hiện **⏳ Chờ vào trận**, giữ ý định bật thay vì từ chối rồi bắt bấm lại:
 
 1. Đợi game tải, nhân vật vào Workspace, Humanoid sống, RootPart tồn tại và không còn Anchored, WalkSpeed hợp lệ/dương.
-2. Quan sát giá trị/root ổn định ít nhất `0.3 giây` sau chuyển pha, rồi mới áp dụng; không lấy `16` tạm lúc spawn làm giới hạn trận.
+2. Đợi **actor/root sẵn sàng liên tục** ít nhất `0.3 giây` sau chuyển pha, rồi mới áp dụng giá trị game mới nhất. WalkSpeed được phép thay đổi trong lúc đợi; không mang đỉnh tạm lúc dựng rig làm giới hạn trận.
 3. Bắt lại Character, Humanoid, root đến muộn hoặc đổi trực tiếp; không dùng event chết/reset của nhân vật cũ để tắt nhân vật mới. Rigs đổi tên root được hỗ trợ qua `Humanoid.RootPart`.
 4. **Dừng**, bấm lại công tắc hoặc chuyển sang chế độ di chuyển khác sẽ huỷ ý định đang chờ. Một lần Enter muộn khi game đang khoá không biến lựa chọn cũ thành tốc độ `0`.
 5. GUI bị gỡ Parent tạm thời rồi gắn lại không làm controller chết ngay. Nếu mất Parent liên tục **10 giây**, controller hoàn trả và dọn kết nối; GUI thực sự bị Destroy được dọn ngay.
@@ -43,7 +70,7 @@ Teleport thực sự tạo client/Lua VM mới; controller ở sảnh không t�
 - Tùy chọn **↪ Qua server: tự nạp hub** mặc định **TẮT**. Muốn dùng, bật trước khi rời sảnh.
 - Nhận diện các API executor phổ biến: `queue_on_teleport`, `queueonteleport`, `syn.queue_on_teleport`, `fluxus.queue_on_teleport`. Loại trừ hàm bù chỉ lưu trong RAM của hub, kể cả sau reload.
 - Không có API hoặc queue báo lỗi: hiện rõ **cần chạy lại link script sau khi vào server chơi**; không báo thành công giả.
-- Loader chỉ tải lại **chính file hub của repository này**, đợi game/LocalPlayer/PlayerGui tối đa 60 giây, kiểm tra place/experience đích và chống nạp trùng. Cả tải/biên dịch/chạy lỗi đều có thông báo, không giữ cờ đang nạp vĩnh viễn.
+- Loader dùng URL có phiên bản để tránh cache URL bản cũ, chỉ tải lại **chính file hub của repository này**, đợi game/LocalPlayer/PlayerGui tối đa 60 giây, kiểm tra place/experience đích và chống nạp trùng. Cả tải/biên dịch/chạy lỗi đều có thông báo, không giữ cờ đang nạp vĩnh viễn.
 - **Ở server mới, tốc độ bắt đầu TẮT**: không mang tốc độ, trần hay trạng thái bay/NoClip cũ sang. Hub đọc mặc định mới; người dùng bấm Bật khi muốn. Việc queue thực sự được thực thi phụ thuộc executor, không được mock xác nhận.
 - Nếu teleport thất bại, trạng thái chờ ở client cũ có thể phục hồi sau khi ổn định. Một payload đã gửi vào executor **không thể thu hồi từ hub**; tắt tùy chọn chỉ ngăn lần gửi tiếp theo. Payload cũ không bật tốc độ và sẽ bỏ qua sai place/experience.
 
@@ -92,6 +119,7 @@ Có thể chọn riêng một suite:
 python3 tests/run.py flight
 python3 tests/run.py ground_speed
 python3 tests/run.py lobby_speed
+python3 tests/run.py dynamic_speed
 ```
 
 Runner:
@@ -107,9 +135,10 @@ Các file:
 - `roblox_mock.luau`: vector/CFrame, cây Instance, sự kiện tức thời/deferred, scheduler, input và render bindings; đếm ghi Humanoid và hỗ trợ mô phỏng từ chối ghi WalkSpeed.
 - `flight.luau`: **74 test hồi quy Bay và các tính năng cũ**.
 - `ground_speed.luau`: **93 test tốc độ chạy**, giữ các hồi quy và cập nhật kỳ vọng cho trần quan sát / trạng thái chờ mới.
-- `lobby_speed.luau`: **65 test mặc định/cao nhất, chuyển pha, float32 và queue/loader**.
+- `lobby_speed.luau`: **65 test mặc định/cao nhất, chuyển pha, float32 và queue/loader**; cập nhật kỳ vọng bộ đếm để không chờ WalkSpeed đứng yên.
+- `dynamic_speed.luau`: **52 test đọc số động, nested rig, chẩn đoán và vượt mức opt-in**.
 
-**Kết quả v4.38: 232/232 test đạt**, cùng biên dịch full hub và kiểm tra diff giữ CRLF.
+**Kết quả v4.39: 284/284 test đạt**, cùng biên dịch full hub và kiểm tra diff giữ CRLF.
 
 ## Phạm vi kiểm tra
 
@@ -138,6 +167,16 @@ Test đã bắt và giúp sửa: kẹt cuộn khi ẩn panel/ScreenGui; thông b
 
 Các test đã tái lập thêm lỗi trần 500 làm mất tốc độ mặc định thực ở game nhanh; kiểm tra sai số float32 khi tăng phạm vi; và bảo vệ việc lựa chọn đang chờ không bị ghi thành 0 bởi một thao tác nhập muộn.
 
+### Tốc độ thay đổi liên tục / vượt mức
+
+- Năm ca đã tái lập thất bại trước sửa: gia tốc mỗi frame sau sảnh, đọc số lúc warm-up, đọc WS khi neo, đổi nhân vật lúc một chế độ khác đang bật, và Humanoid nằm lồng.
+- Immediate/deferred events, số thay đổi khi đang tắt, readiness bị gián đoạn, giá trị tạm của rig, nguồn boost, nhân vật khác/không rõ chủ thể.
+- Vận tốc ngang hữu hạn/không hữu hạn và chuyển động khi WS 0; không dùng số đo chuyển động làm game max.
+- Mở trần phải opt-in; số/slider mouse/touch có thể yêu cầu cao hơn đỉnh quan sát, preset vẫn giữ ý nghĩa gốc, chỉnh trần/nhập sai số/focus.
+- Self-write vượt mức không làm bẩn baseline/đỉnh; khoá lại/giảm trần không giữ số cao ẩn; chờ spawn hoặc WS 0 không biến lựa chọn thành 0.
+- Game từ chối vẫn dừng; không physics writes/nút ảo; mode handoff, StopAll, đóng panel và reload giữ chức năng cũ, hoàn trả và dọn listener.
+- Biên dịch full hub còn bắt được giới hạn 200 register sau khi thêm UI: đã tách constructor panel sang scope hàm riêng.
+
 ### Bay và hồi quy
 
 - Góc camera 0°, ±60°, ±90°, đổi yaw, quay camera lúc đang bay, hướng nhân vật khác hướng camera.
@@ -158,12 +197,13 @@ Các test đã tái lập thêm lỗi trần 500 làm mất tốc độ mặc đ
 
 Checklist trong môi trường/game cho phép kiểm tra:
 
-1. Mở khung 🏃, kéo thanh bằng chuột/điện thoại; gõ số thập phân, số vượt trần và bấm Áp dụng/Enter. Hai điều khiển phải đồng bộ; đừng nhầm trần quan sát với tốc độ tối đa thật.
-2. Bật chạy, dùng điều khiển gốc; quay camera/nhìn lên xuống: vẫn đi trên mặt đất, giữ va chạm và trọng lực, nhảy theo game; không có nút bay/joystick ảo mới.
-3. Nhả kéo ngoài khung, dùng nhiều ngón, ẩn menu/chuyển tab/chuyển cửa sổ: không kẹt kéo hoặc mất khả năng cuộn.
-4. Chọn **Mặc định**, dùng sprint gốc để quan sát mức cao hơn, rồi thử Max/nhập số giữa mặc định và đỉnh. Ở mode số/Max, game sửa tốc độ dương phải tự dừng; game khoá 0 phải chờ, không mở khoá hộ.
-5. Bấm Bật trong sảnh, vào trận; thử countdown, chết/hồi sinh, Humanoid/root đến muộn. Phải tự đọc lại mặc định khi sẵn sàng; Dừng trong lúc chờ phải huỷ việc tự tiếp tục.
-6. Nếu game teleport sang server khác, bật tùy chọn ↪ trước khi rời sảnh. Kiểm tra executor thực sự nạp lại hub; ở server mới tốc độ phải TẮT với trần mới. Nếu không hỗ trợ queue thì nạp lại link bằng tay.
-7. Thử chuyển 🏃 ↔ các chế độ bay/thảm/NoClip/boost; tính năng cũ vẫn bật lại được, nhưng không điều khiển nhân vật đồng thời với chạy mặt đất.
-8. Hồi quy Bay: nhìn xuống khoảng 60° rồi giữ W/đẩy joystick phải bay xuống theo hướng nhìn; nhìn lên làm tương tự. Thả input phải đứng lơ lửng, không né hoặc tự bay vòng.
-9. Trong Bay, kiểm tra A/D, Space/Shift/Ctrl, công tắc NoClip độc lập, HUD đa chạm, ẩn/hiện HUD, hồi sinh và chuyển Bay ↔ Bay An Toàn/kính/người.
+1. Vào trận, kiểm tra hai số ngay đầu khung 🏃. Thử đứng yên/sprint; số vẫn phải cập nhật dù tốc độ thay đổi liên tục. Nếu không có dữ liệu, chụp cả dòng trạng thái/chẩn đoán, không chỉ ảnh slider.
+2. Thử 🔒/🔓, đặt trần mở rộng, nhập số và kéo thanh; tắt 🔓 phải kẹp về quan sát, không giữ lựa chọn cao để bật lại bất ngờ. Nếu game từ chối thì phải báo dừng, không hứa bypass.
+3. Bật chạy, dùng điều khiển gốc; quay camera/nhìn lên xuống: vẫn đi trên mặt đất, giữ va chạm và trọng lực, nhảy theo game; không có nút bay/joystick ảo mới.
+4. Nhả kéo ngoài khung, dùng nhiều ngón, ẩn menu/chuyển tab/chuyển cửa sổ: không kẹt kéo hoặc mất khả năng cuộn.
+5. Chọn **Mặc định**, dùng sprint gốc để quan sát mức cao hơn, rồi thử Max/nhập số giữa mặc định và đỉnh. Ở mode số/Max, game sửa tốc độ dương phải tự dừng; game khoá 0 phải chờ, không mở khoá hộ.
+6. Bấm Bật trong sảnh, vào trận; thử countdown, chết/hồi sinh, Humanoid/root đến muộn. Phải tự đọc lại mặc định khi sẵn sàng; Dừng trong lúc chờ phải huỷ việc tự tiếp tục.
+7. Nếu game teleport sang server khác, bật tùy chọn ↪ trước khi rời sảnh. Kiểm tra executor thực sự nạp lại hub; ở server mới tốc độ phải TẮT với trần mới. Nếu không hỗ trợ queue thì nạp lại link bằng tay.
+8. Thử chuyển 🏃 ↔ các chế độ bay/thảm/NoClip/boost; tính năng cũ vẫn bật lại được, nhưng không điều khiển nhân vật đồng thời với chạy mặt đất.
+9. Hồi quy Bay: nhìn xuống khoảng 60° rồi giữ W/đẩy joystick phải bay xuống theo hướng nhìn; nhìn lên làm tương tự. Thả input phải đứng lơ lửng, không né hoặc tự bay vòng.
+10. Trong Bay, kiểm tra A/D, Space/Shift/Ctrl, công tắc NoClip độc lập, HUD đa chạm, ẩn/hiện HUD, hồi sinh và chuyển Bay ↔ Bay An Toàn/kính/người.
