@@ -1,6 +1,12 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    🚀 v4.36: BAY THEO CAMERA — WASD/joystick theo cả góc lên/xuống; thả input là đứng lơ lửng.
+    💨 v4.37: TỐC ĐỘ THEO CAMERA — cùng kiểu điều khiển 🚀 trên mặt đất, không mất tính năng cũ.
+      · WASD/joystick theo hướng camera (mặt phẳng XZ). Nhìn xuống 60° + tiến tới vẫn chạy ngang.
+      · KHÔNG xuyên tường, KHÔNG nút ảo, nhảy bình thường (Space của game), rơi theo trọng lực game.
+      · BodyVelocity chỉ ép trục XZ (MaxForce.Y = 0) — không PlatformStand, không BodyGyro, không sàn bay.
+      · Khung 💨 riêng trong 📚 Script Hub + thẻ 💨; 🚀 Bay / 🧱 / 🦘 / 🏃 / 🛡 giữ nguyên.
+      · Test: tests/test-camspeed.js (node tests/run.js).
+    🚀 v4.36 (lịch sử): BAY THEO CAMERA — WASD/joystick theo cả góc lên/xuống; thả input là đứng lơ lửng.
       · Cùng kiểu BodyVelocity/BodyGyro như 🛡, KHÔNG tự bay, né tránh, vòng tròn hay khiên.
       · Khung 🚀 riêng trong 📚 Script Hub: Bay · 🧱 Xuyên tường độc lập · tốc độ · nút ảo.
       · HUD joystick + ⬆⬇ + ẩn/dừng, giữ đúng từng ngón chạm; không sửa camera hoặc CFrame người.
@@ -778,6 +784,7 @@ end
 
 pcall(function() RunService:UnbindFromRenderStep("Fly") end)
 pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
+pcall(function() RunService:UnbindFromRenderStep("BC_Speed") end)
 
 -- ==================== v4.5: HỆ MÀU "MIDNIGHT GOLD" — giao diện tối, hiện đại ====================
 -- CHỈ đổi màu/chất liệu, KHÔNG đổi layout hay logic -> mọi tính năng giữ nguyên 100%.
@@ -1375,7 +1382,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.36 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.37 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -4806,7 +4813,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.36",
+    Version = "4.37",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7029,6 +7036,7 @@ end
 S.Move = {
     fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
+    sprint = false, sprintSpeed = 50,        -- v4.37: 💨 tốc độ theo camera (mặt đất, không xuyên tường)
     _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
     -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
@@ -7410,10 +7418,18 @@ end
 function MV._NeedWatch()
     -- v4.23: + 🛡 Bay An Toàn (phải tự sống qua respawn/đổi trận kể cả khi game gỡ vòng lặp render)
     return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode
-            or (MV.Safe and MV.Safe.on)) == true
+            or MV.sprint or (MV.Safe and MV.Safe.on)) == true
 end
 function MV._KeepAlive()
     if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
+    if MV.sprint then
+        pcall(MV._EnsureSpeed)
+        if not MV._speedBound or (tick() - (MV._speedFrameAt or 0)) > 0.6 then
+            MV._speedBound = false
+            pcall(MV._BindSpeed)
+            pcall(MV._SpeedFrame)
+        end
+    end
     if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         pcall(MV.CreateCarpet, MV.carpetY)
@@ -7783,6 +7799,158 @@ function MV.SyncFlyHud()
     if S.SyncFlyPanel then S.SyncFlyPanel() end
 end
 end -- 🚀 BAY THEO CAMERA
+
+-- ---------- 💨 TỐC ĐỘ THEO CAMERA (v4.37) ----------
+-- Giống 🚀: WASD/joystick theo hướng camera. Khác 🚀: CHỈ mặt phẳng XZ.
+-- Không lực Y (nhảy/rơi = trọng lực game), không PlatformStand, không BodyGyro,
+-- không sàn bay, không nút ảo, không tự bật xuyên tường.
+do
+local CS = { focused = true }
+MV.CamSpeed = CS
+
+function MV._DestroySpeedParts()
+    if MV._sv then MV._sv:Destroy(); MV._sv = nil end
+end
+function MV._EnsureSpeed()
+    local r, h = MV.Root(), MV.Hum()
+    if not MV.sprint then return nil end
+    -- 🚀/🛡 đang chiếm mover 3 trục: không gắn BV tốc độ để tránh hai lực.
+    if MV.fly or (MV.Safe and MV.Safe.on) then
+        MV._DestroySpeedParts()
+        CS.root = nil
+        return nil
+    end
+    if not r or not h or h.Health <= 0 then
+        MV._DestroySpeedParts()
+        CS.root = nil
+        return nil
+    end
+    if CS.root ~= r then
+        MV._DestroySpeedParts()
+        CS.root = r
+    end
+    if not MV._sv or MV._sv.Parent ~= r then
+        if MV._sv then MV._sv:Destroy() end
+        -- MaxForce.Y = 0: nhảy bình thường + rơi theo trọng lực game.
+        MV._sv = New("BodyVelocity", {
+            Name = "BC_SpeedVel", MaxForce = Vector3.new(1e9, 0, 1e9), Velocity = Vector3.zero,
+        }, r)
+    else
+        local mf = MV._sv.MaxForce
+        if mf and (mf.Y ~= 0) then
+            MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9)
+        end
+    end
+    return r, h
+end
+
+-- Cùng quy ước 🚀: X = phải, Z = lùi (W => Z âm). KHÔNG đọc Space/Shift — nhảy của game.
+function MV._ReadSpeedInput(cf, h)
+    if not CS.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
+    local x, z = 0, 0
+    local w = UserInputService:IsKeyDown(Enum.KeyCode.W)
+    local s = UserInputService:IsKeyDown(Enum.KeyCode.S)
+    local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
+    local d = UserInputService:IsKeyDown(Enum.KeyCode.D)
+    if w or s or a or d then
+        x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0)
+    elseif h then
+        local md = h.MoveDirection
+        local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+        if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end
+        local forward = Vector3.new(right.Z, 0, -right.X)
+        x, z = md:Dot(right), -md:Dot(forward)
+    end
+    return Vector3.new(x, 0, z)
+end
+function MV.SpeedVelocity(cf, input, speed)
+    local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+    local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+    if look.Magnitude < 0.001 then
+        if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end
+        look = Vector3.new(right.Z, 0, -right.X)
+    else
+        look = look.Unit
+    end
+    if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end
+    local direction = right * input.X - look * input.Z
+    direction = Vector3.new(direction.X, 0, direction.Z)
+    local magnitude = direction.Magnitude
+    if magnitude < 0.001 then return Vector3.zero end
+    if magnitude > 1 then direction = direction / magnitude end
+    return direction * mvClamp(speed, 1, 2000, 50)
+end
+function MV._SpeedStep()
+    if not MV.sprint then return end
+    MV._speedFrameAt = tick()
+    local r, h = MV._EnsureSpeed()
+    if not r or not MV._sv then return end
+    local cam = workspace.CurrentCamera
+    if not cam then
+        MV._sv.MaxForce = Vector3.new(0, 0, 0)
+        MV._sv.Velocity = Vector3.zero
+        return
+    end
+    local vel = MV.SpeedVelocity(cam.CFrame, MV._ReadSpeedInput(cam.CFrame, h), MV.sprintSpeed)
+    -- Luôn khóa lực Y = 0 dù có input hay không.
+    if vel.Magnitude < 0.001 then
+        MV._sv.MaxForce = Vector3.new(0, 0, 0)
+        MV._sv.Velocity = Vector3.zero
+    else
+        MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9)
+        MV._sv.Velocity = Vector3.new(vel.X, 0, vel.Z)
+    end
+end
+function MV._SpeedFrame()
+    local ok, err = pcall(MV._SpeedStep)
+    if not ok then
+        CS.lastError = tostring(err)
+        pcall(function() if MV._sv then MV._sv.Velocity = Vector3.zero end end)
+        if tick() - (CS.errorAt or -math.huge) > 2 then
+            CS.errorAt = tick()
+            warn("[BananaCatHub] 💨 Tốc độ: " .. CS.lastError)
+        end
+    end
+end
+function MV._BindSpeed()
+    if MV._speedBound or not MV.sprint then return end
+    RunService:UnbindFromRenderStep("BC_Speed")
+    RunService:BindToRenderStep("BC_Speed", Enum.RenderPriority.Camera.Value + 1, MV._SpeedFrame)
+    MV._speedBound = true
+    MV._speedFrameAt = tick()
+end
+function MV._StopSpeed()
+    RunService:UnbindFromRenderStep("BC_Speed")
+    MV._speedBound = false
+    MV._DestroySpeedParts()
+    CS.root = nil
+end
+function MV.SetSprint(on)
+    on = (on == true)
+    if on then
+        local r, h = MV.Root(), MV.Hum()
+        if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để chạy" end
+        MV.sprint = true
+        MV._EnsureSpeed()
+        MV._BindSpeed()
+        MV._SpeedFrame()
+    else
+        MV.sprint = false
+        MV._StopSpeed()
+    end
+    MV._Watchdog()
+    if S.SyncSpeedPanel then S.SyncSpeedPanel() end
+    return MV.sprint
+end
+function MV.SetSprintSpeed(n)
+    n = tonumber(n)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end
+    MV.sprintSpeed = mvClamp(n, 1, 2000, 50)
+    if S.SyncSpeedPanel then S.SyncSpeedPanel() end
+    return true, MV.sprintSpeed
+end
+end -- 💨 TỐC ĐỘ THEO CAMERA
+
 
  -- ============================================================================
 -- ===== v4.17: 🛡 BAY AN TOÀN (tự bay + NÉ vật có dấu hiệu chuyển động) =======
@@ -9667,6 +9835,7 @@ function MV.StopAll()
     MV.SetNoclip(false)
     MV.SetInfJump(false)
     MV.SetSpeed(false)
+    MV.SetSprint(false)      -- v4.37: tắt 💨 tốc độ theo camera
     MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
     MV._Watchdog()
     MV.SyncHud()
@@ -9679,6 +9848,7 @@ S.MoveActionState = {
     noclip  = function() return S.Move.noclip  end,
     infjump = function() return S.Move.infJump end,
     speed   = function() return S.Move.speed   end,
+    camspeed= function() return S.Move.sprint  end,
     carpet  = function() return S.Move.carpet  end,
     runmode = function() return S.Move.runMode end,
     -- v4.13: nhóm 📍 Định Vị cũng dùng chung bảng này (tên bảng giữ nguyên để không phá code cũ).
@@ -9703,6 +9873,10 @@ function MV.Refresh()
         MV._EnsureFly()
         MV._BindFly()
     end
+    if MV.sprint then
+        MV._EnsureSpeed()
+        MV._BindSpeed()
+    end
     if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         MV.CreateCarpet(MV.carpetY)
@@ -9715,6 +9889,7 @@ function MV.Status()
     if MV.fly then t[#t + 1] = string.format("🚀 bay %d", MV.flySpeed) end
     if MV.noclip then t[#t + 1] = "🧱 xuyên tường" end
     if MV.infJump then t[#t + 1] = "🦘 nhảy vô hạn" end
+    if MV.sprint then t[#t + 1] = string.format("💨 tốc độ %d", MV.sprintSpeed) end
     if MV.speed then
         if MV.speedMode == "x" then
             t[#t + 1] = string.format("👟 chạy ×%g (game %g)", MV.speedMul, MV._baseWS or 16)
@@ -9877,6 +10052,8 @@ S.ScriptHubList = {
     -- gọi thẳng hàm của hub -> không tải gì từ mạng, không bao giờ "chạy không được".
     {icon="🚀", name="Bay", cat="Di chuyển", ord=12, action="fly",
      desc="Bay như 🛡 nhưng điều khiển TAY theo camera: nhìn xuống 60° + tiến tới = xuống 60°. WASD/joystick; thả phím đứng lơ lửng. Space lên · Shift/Ctrl xuống. Không tự bay/né/vòng tròn/khiên; 🧱 bật/tắt riêng ở khung 🚀."},
+    {icon="💨", name="Tốc độ theo camera", cat="Di chuyển", ord=12.2, action="camspeed",
+     desc="Chạy trên mặt đất 100% kiểu 🚀: WASD/joystick theo hướng camera. KHÔNG xuyên tường, nhảy bình thường, rơi theo trọng lực game, không nút ảo. Chỉnh tốc độ ở khung 💨."},
     {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
      desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
@@ -9988,6 +10165,14 @@ function S.RunHubAction(id)
         S.Rebuild()
         return S.Move.fly and ("🚀 Bay theo camera: BẬT — WASD/joystick · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed))
                             or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
+    elseif id == "camspeed" then
+        local wanted = not S.Move.sprint
+        local okS, on, err = pcall(S.Move.SetSprint, wanted)
+        if not okS then return "⚠️ lỗi tốc độ: " .. tostring(on) end
+        if wanted and not on then return "⚠️ " .. tostring(err) end
+        S.Rebuild()
+        return S.Move.sprint and ("💨 Tốc độ theo camera: BẬT — WASD/joystick mặt đất · nhảy bình thường · rơi theo game · tốc độ " .. tostring(S.Move.sprintSpeed))
+                               or "💨 Tốc độ theo camera: TẮT — trọng lực/nhảy trả về game"
     elseif id == "noclip" then
         if not S.Move.noclip and not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetNoclip(not S.Move.noclip) end)
@@ -10481,6 +10666,7 @@ function S.RebuildHubList()
         list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6 + panelH)
     end)
     if S.SyncFlyPanel then pcall(S.SyncFlyPanel) end          -- v4.36: Bay + xuyên tường độc lập
+    if S.SyncSpeedPanel then pcall(S.SyncSpeedPanel) end      -- v4.37: 💨 tốc độ theo camera
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
     if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
@@ -10574,6 +10760,84 @@ do
     S.SyncFlyPanel()
 end
 -- ---------- HẾT KHUNG 🚀 BAY THEO CAMERA ----------
+
+-- ---------- v4.37: KHUNG 💨 TỐC ĐỘ THEO CAMERA (không xuyên tường, không nút ảo) ----------
+do
+    local P = New("Frame", {
+        Name = "HubSpeed_Panel", Size = UDim2.new(1, 0, 0, 130), LayoutOrder = -2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "💨 TỐC ĐỘ THEO CAMERA — mặt đất, nhảy/rơi theo game", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("SpeedToggle", "💨 Tốc độ: TẮT", 8, 24, 132, C.GRAY)
+    local stop = button("SpeedStop", "⏹ Dừng", 146, 24, 80, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(0, 128, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ (1–2000)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "SprintSpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 140, 0, 54),
+        Text = tostring(MV.sprintSpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("SpeedApply", "✔ Áp dụng", 202, 54, 92, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 82),
+        Text = "WASD / joystick game: chạy theo hướng camera trên mặt đất. Nhảy = Space của game. "
+            .. "Rơi theo trọng lực game. Không xuyên tường, không nút ảo.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "SpeedPanelStatus", Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 112),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncSpeedPanel()
+        onBtn.Text = "💨 Tốc độ: " .. (MV.sprint and "BẬT" or "TẮT")
+        D.SetBg(onBtn, MV.sprint and C.GREEN or C.GRAY)
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.sprintSpeed) end
+        status.Text = MV.sprint
+            and ("💨 Đang chạy theo camera · tốc độ " .. tostring(MV.sprintSpeed) .. " · nhảy/rơi theo game")
+            or "💨 Đã tắt · va chạm tường + nhảy + trọng lực = của game"
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("camspeed"), C.YELLOW) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetSprintSpeed(value)
+        if ok then D.Say("💨 Tốc độ chạy: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncSpeedPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetSprint(false); S.Rebuild()
+        D.Say("💨 Tốc độ theo camera: TẮT", C.YELLOW)
+    end)
+    S.speedBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncSpeedPanel()
+end
+-- ---------- HẾT KHUNG 💨 TỐC ĐỘ THEO CAMERA ----------
+
 
 -- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN ----------
 -- Nằm TRÊN CÙNG của danh sách thẻ (LayoutOrder = 0) và được đặt tên "HubMove_Panel"
@@ -13545,7 +13809,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.36 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.37 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
