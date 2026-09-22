@@ -1,6 +1,13 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    ⚡ v4.35 (bản này): TỐI ƯU TOÀN BỘ CHO NHẸ/MƯỢT HƠN + SỬA KHỰNG 🧱+🏃 — KHÔNG MẤT TÍNH NĂNG NÀO.
+    🚀 v4.36: BAY THEO CAMERA — WASD/joystick theo cả góc lên/xuống; thả input là đứng lơ lửng.
+      · Cùng kiểu BodyVelocity/BodyGyro như 🛡, KHÔNG tự bay, né tránh, vòng tròn hay khiên.
+      · Khung 🚀 riêng trong 📚 Script Hub: Bay · 🧱 Xuyên tường độc lập · tốc độ · nút ảo.
+      · HUD joystick + ⬆⬇ + ẩn/dừng, giữ đúng từng ngón chạm; không sửa camera hoặc CFrame người.
+      · Sửa watchdog task.spawn chạy ngay, phục hồi mover/respawn và tránh hai bộ bay tranh lực.
+      · Giữ nguyên 🛡 Bay An Toàn, thảm, kính, ESP, camera xem người chơi và các trang cũ.
+      · Test tái lập nằm trong tests/ (Luau + Roblox mock); vẫn cần kiểm tra vật lý trong game thật.
+    ⚡ v4.35 (lịch sử): TỐI ƯU TOÀN BỘ CHO NHẸ/MƯỢT HƠN + SỬA KHỰNG 🧱+🏃 — KHÔNG MẤT TÍNH NĂNG NÀO.
       · HẾT KHỰNG khi bật 🧱 Xuyên tường + 🏃 Chạy trên thảm: 🧲 "Đẩy xuyên khi kẹt" trước đây
         VẪN đẩy người thêm ~0,9 studs/frame khi ĐANG Ở TRÊN THẢM (chồng lên tốc độ chạy, lúc đẩy
         lúc không -> khựng). Nay hễ ĐANG Ở TRÊN THẢM (🪩/🏃) là 🧲 chỉ theo dõi, KHÔNG tự đẩy.
@@ -692,6 +699,17 @@ pcall(function()
     end
 end)
 
+-- v4.36: dừng bộ di chuyển cũ TRƯỚC khi bỏ tham chiếu/GUI, tránh mover và watchdog mồ côi.
+do
+    local old = _G.BananaCatHub_MV
+    if old then
+        if old.StopAll then pcall(old.StopAll) end
+        old._wdToken = nil
+        if type(old._wd) == "thread" then pcall(task.cancel, old._wd) end
+        old._wd = nil
+    end
+end
+
 if _G.BananaCatHub_Connections then
     for _, c in ipairs(_G.BananaCatHub_Connections) do
         pcall(function() c:Disconnect() end)
@@ -1357,7 +1375,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.12 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.36 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -4788,7 +4806,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.35",
+    Version = "4.36",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7112,7 +7130,8 @@ end
 -- CFrame theo hướng đang bấm -> xuyên qua. Chỉ nhích khi THẬT SỰ bị chặn (> 0,2s) nên đi bộ bình thường
 -- không bị ảnh hưởng. Tắt bằng công tắc 🧲 trong khung ⚙ (MV.ncPass = false).
 function MV._NcAssist()
-    if not (MV.noclip and MV.ncPass ~= false) then
+    -- 🚀 tự điều khiển bằng vận tốc: không để trợ lực NoClip ghi CFrame tranh với hướng camera.
+    if MV.fly or not (MV.noclip and MV.ncPass ~= false) then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
         return
     end
@@ -7231,6 +7250,7 @@ function MV.SetNoclip(on)
         MV._NcRestore()
     end
     MV._Watchdog()
+    if MV.SyncFlyHud then MV.SyncFlyHud() end
     return MV.noclip
 end
 
@@ -7370,6 +7390,8 @@ function MV.SpeedStep()
 end
 function MV.SetSpeed(on)
     on = (on == true)
+    -- Tắt một tính năng vốn chưa bật không được ghi đè WalkSpeed/JumpPower của game.
+    if on == MV.speed then return MV.speed end
     local h = MV.Hum()
     if on and not MV.speed and h then          -- chỉ nhớ mặc định ở lần BẬT đầu tiên
         MV._baseWS = h.WalkSpeed  or 16
@@ -7398,11 +7420,13 @@ function MV._KeepAlive()
     end
     -- v4.23: 🚀 vòng lặp Bay bị game gỡ/ngốn (quá 0,6s không chạy) hoặc part bay dính nhân vật cũ
     -- -> dựng lại. Trước đây mất vòng lặp Bay là mất luôn (và 🛡 nằm trong đó nên chết theo).
-    local keepR = MV.Root()
-    if MV.fly and keepR and (not MV._bv or MV._bv.Parent ~= keepR
-       or (tick() - (MV._flyFrameAt or 0)) > 0.6) then
-        pcall(function() MV.SetFly(false) end)
-        pcall(function() MV.SetFly(true) end)
+    if MV.fly then
+        pcall(MV._EnsureFly)
+        if not MV._flyBound or (tick() - (MV._flyFrameAt or 0)) > 0.6 then
+            MV._flyBound = false
+            pcall(MV._BindFly)
+            pcall(MV._FlyFrame)
+        end
     end
     -- v4.23: 🛡 — quá 0,6s không thấy vòng lặp riêng chạy (game gỡ/ngốn) thì GẮN LẠI + chạy hộ 1 nhịp,
     -- để 🛡 KHÔNG BAO GIỜ chết lặng sau khi đổi trận.
@@ -7413,99 +7437,352 @@ function MV._KeepAlive()
     end
 end
 function MV._Watchdog()
-    if MV._wd then return end
-    MV._wd = task.spawn(function()
-        while MV._NeedWatch() and MV._wd do
+    if not MV._NeedWatch() then
+        MV._wdToken = nil
+        local thread = MV._wd
+        MV._wd = nil
+        if type(thread) == "thread" and thread ~= coroutine.running() then pcall(task.cancel, thread) end
+        return
+    end
+    if MV._wdToken then return end
+    -- task.spawn chạy ngay: token phải được gán TRƯỚC, không lấy thread chưa được trả về làm cờ.
+    local token = {}
+    MV._wdToken = token
+    local thread = task.spawn(function()
+        while MV._wdToken == token and MV._NeedWatch() do
             pcall(MV._KeepAlive)
             task.wait(0.3)
         end
-        MV._wd = nil
+        if MV._wdToken == token then MV._wdToken, MV._wd = nil, nil end
     end)
-    if MV._wd == nil then MV._wd = true end      -- executor nào spawn không trả thread thì gắn cờ
+    if MV._wdToken == token then MV._wd = thread end
 end
 
--- ---------- 🚀 BAY ----------
-function MV._StopFly()
-    if MV._bv then pcall(function() MV._bv:Destroy() end) end
-    if MV._bg then pcall(function() MV._bg:Destroy() end) end
-    if MV._floor then pcall(function() MV._floor:Destroy() end) end
-    MV._bv, MV._bg, MV._floor = nil, nil, nil
-    local h = MV.Hum()
-    if h then
-        h.AutoRotate = true
-        h.PlatformStand = false
-    end
-    pcall(function() RunService:UnbindFromRenderStep("Fly") end)
+-- ---------- 🚀 BAY THEO CAMERA (v4.36) ----------
+-- Cùng BodyVelocity/BodyGyro như 🛡, nhưng CHỈ bay khi có input.
+-- Không gọi Safe.Step/Scan, không tự bay, vòng tròn, né tránh hay dựng khiên.
+-- Xuyên tường dùng công tắc MV.noclip độc lập, không tự bật/tắt cùng 🚀.
+do
+local FL = { x = 0, z = 0, y = 0, holds = {}, showHud = true, focused = true, conns = {} }
+MV.Flight = FL
+
+function MV.ClearFlyInput()
+    FL.x, FL.z, FL.y = 0, 0, 0
+    FL.holds, FL.joyInput, FL.dragInput = {}, nil, nil
+    if FL.knob and FL.knob.Parent then FL.knob.Position = UDim2.new(0.5, -14, 0.5, -14) end
 end
-function MV.SetFly(on)
-    on = (on == true)
-    local r = MV.Root()
-    if on and not r then return false, "chưa có nhân vật để bay" end
-    -- v4.12.4: y hệt bản gốc (TogFly gọi StopFlyRun) — bật BAY thì thoát chế độ CHẠY TRÊN THẢM
-    if on and MV.runMode then MV.SetRunMode(false) end
-    MV.fly = on
-    if not on then MV._StopFly(); MV._Watchdog(); MV.SyncHud(); return false end
-    local h = MV.Hum()
-    MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(4000, 4000, 4000) }, r)
-    MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(4000, 4000, 4000) }, r)
-    if h then h.AutoRotate = false; h.PlatformStand = true end
-    if not MV._floor then
+function MV.SetFlyVirtual(x, z, y)
+    FL.x, FL.z, FL.y = mvClamp(x, -1, 1, 0), mvClamp(z, -1, 1, 0), mvClamp(y, -1, 1, 0)
+end
+function MV._RestoreFlyHum()
+    local h = FL.hum
+    if h and h.Parent then
+        h.PlatformStand = FL.platformStand
+        h.AutoRotate = FL.autoRotate
+    end
+    FL.hum = nil
+end
+function MV._DestroyFlyParts()
+    for _, key in ipairs({"_bv", "_bg", "_floor"}) do
+        if MV[key] then MV[key]:Destroy(); MV[key] = nil end
+    end
+end
+function MV._EnsureFly()
+    local r, h = MV.Root(), MV.Hum()
+    if not MV.fly then return nil end
+    if not r or not h or h.Health <= 0 then
+        MV._DestroyFlyParts()
+        MV._RestoreFlyHum()
+        MV.ClearFlyInput()
+        FL.root = nil
+        return nil
+    end
+    if FL.root ~= r then
+        MV._DestroyFlyParts()
+        MV._RestoreFlyHum()
+        MV.ClearFlyInput()
+        FL.root = r
+    end
+    if FL.hum ~= h then
+        MV._RestoreFlyHum()
+        FL.hum, FL.platformStand, FL.autoRotate = h, h.PlatformStand, h.AutoRotate
+    end
+    -- Kiểm từng mover: mất riêng gyro cũng phải sửa, không tạo trùng BodyVelocity.
+    if not MV._bv or MV._bv.Parent ~= r then
+        if MV._bv then MV._bv:Destroy() end
+        MV._bv = New("BodyVelocity", {
+            Name = "BC_FlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.zero,
+        }, r)
+    end
+    if not MV._bg or MV._bg.Parent ~= r then
+        if MV._bg then MV._bg:Destroy() end
+        MV._bg = New("BodyGyro", {
+            Name = "BC_FlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50,
+        }, r)
+    end
+    if h.PlatformStand ~= true then h.PlatformStand = true end
+    if h.AutoRotate ~= false then h.AutoRotate = false end
+    -- Giữ sàn hiển thị của 🚀 cũ; không va chạm và KHÔNG phải khiên.
+    if not MV._floor or not MV._floor.Parent then
         MV._floor = New("Part", {
             Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
             Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
-            Anchored = true, CanCollide = false,
+            Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false,
         }, workspace)
     end
-    RunService:BindToRenderStep("Fly", 1, function()
-        MV._flyFrameAt = tick()                 -- v4.23: watchdog soi vòng lặp 🚀 Bay còn sống không
-        local curR, curH = MV.Root(), MV.Hum()
-        if not MV.fly or not curR or not MV._bv then return end
-        local d = (curH and curH.MoveDirection) or Vector3.zero
-        -- v4.24: NÚT ẢO — nếu joystick ảo đang giữ thì dùng nó
-        if MV.Safe and (math.abs(tonumber(MV.Safe._virtX) or 0) > 0.01 or math.abs(tonumber(MV.Safe._virtZ) or 0) > 0.01) then
-            d = Vector3.new(tonumber(MV.Safe._virtX) or 0, 0, tonumber(MV.Safe._virtZ) or 0)
-        end
-        local t = curR.CFrame:VectorToWorldSpace(d)
-        if t.Magnitude > 0 then t = t.Unit end
-        local up   = UserInputService:IsKeyDown(Enum.KeyCode.Space)
-        local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-                  or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        local vv
-        if MV.Safe and math.abs(tonumber(MV.Safe._virtY) or 0) > 0.01 then
-            vv = tonumber(MV.Safe._virtY) or 0
-        else
-            vv = (up and 1 or 0) - (down and 1 or 0)
-        end
-        -- v4.23: BỌC pcall TỪNG PHẦN — game/anti-cheat xoá part bay, camera nil, nhân vật đổi giữa
-        -- frame... trước đây 1 lỗi ở đây là vòng lặp chết ngay frame đó (và 🛡 chết theo vì nằm cuối).
-        -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
-        -- cùng ghi vận tốc nên vòng nào chạy sau là thắng — 🛡 có lúc bị ghi đè về "bay thẳng" (im lặng).
-        if MV.Safe and MV.Safe.on then
-            if not MV.Safe._bound then pcall(MV.Safe.Step) end
-        else
-            MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed   -- v4.34: ghi thẳng (đỡ closure/frame)
-        end
-        local cam = workspace.CurrentCamera
-        if MV._bg and cam then
-            pcall(function()
-                MV._bg.CFrame = CFrame.new(curR.Position, curR.Position + cam.CFrame.LookVector)
-            end)
-        end
-        if MV._floor and not MV._floor.Parent then MV._floor = nil end
-        if not MV._floor then
-            pcall(function()
-                MV._floor = New("Part", {
-                    Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
-                    Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
-                    Anchored = true, CanCollide = false,
-                }, workspace)
-            end)
-        end
-        if MV._floor then pcall(function() MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end) end
-    end)
-    MV.SyncHud()
-    return true
+    return r, h
 end
+
+-- Humanoid.MoveDirection đã là WORLD SPACE: chỉ dùng nó để đọc ý định joystick
+-- trên mặt phẳng ngang, rồi mới áp LookVector đầy đủ (có pitch) của camera.
+function MV._ReadFlyInput(cf, h)
+    if not FL.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
+    local x, z, y = FL.x, FL.z, FL.y
+    local virtualDirection = FL.joyInput ~= nil or math.abs(x) + math.abs(z) > 0
+    for _, v in pairs(FL.holds) do
+        x += v.X; y += v.Y; z += v.Z
+        if v.X ~= 0 or v.Z ~= 0 then virtualDirection = true end
+    end
+    local w = UserInputService:IsKeyDown(Enum.KeyCode.W)
+    local s = UserInputService:IsKeyDown(Enum.KeyCode.S)
+    local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
+    local d = UserInputService:IsKeyDown(Enum.KeyCode.D)
+    if w or s or a or d then
+        x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0)
+    elseif not virtualDirection and h then
+        local md = h.MoveDirection
+        local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+        if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end
+        -- Lấy heading từ RightVector để không chia cho 0 khi nhìn thẳng lên/xuống.
+        local forward = Vector3.new(right.Z, 0, -right.X)
+        x, z = md:Dot(right), -md:Dot(forward)
+    end
+    local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+    local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+        or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+    if up or down then y = (up and 1 or 0) - (down and 1 or 0) end
+    return Vector3.new(x, y, z)
+end
+function MV.FlyVelocity(cf, input, speed)
+    local direction = cf.RightVector * input.X - cf.LookVector * input.Z + Vector3.new(0, input.Y, 0)
+    local magnitude = direction.Magnitude
+    if magnitude < 0.001 then return Vector3.zero end
+    if magnitude > 1 then direction = direction / magnitude end -- chéo không nhanh hơn, giữ analog
+    return direction * mvClamp(speed, 1, 2000, 50)
+end
+function MV._FlyStep()
+    if not MV.fly then return end
+    MV._flyFrameAt = tick()
+    local r, h = MV._EnsureFly()
+    if not r then return end
+    local cam = workspace.CurrentCamera
+    if cam then
+        local cf = cam.CFrame
+        MV._bv.Velocity = MV.FlyVelocity(cf, MV._ReadFlyInput(cf, h), MV.flySpeed)
+        -- Giữ cả góc camera, không tự ghi camera hoặc CFrame nhân vật.
+        -- Dùng Rotation thay lookAt để góc thẳng đứng không bị suy biến.
+        MV._bg.CFrame = CFrame.new(r.Position) * cf.Rotation
+    else
+        MV._bv.Velocity = Vector3.zero
+    end
+    MV._floor.Position = r.Position - Vector3.new(0, 3.5, 0)
+end
+function MV._FlyFrame()
+    local ok, err = pcall(MV._FlyStep)
+    if not ok then
+        FL.lastError = tostring(err)
+        pcall(function() if MV._bv then MV._bv.Velocity = Vector3.zero end end)
+        if tick() - (FL.errorAt or -math.huge) > 2 then
+            FL.errorAt = tick()
+            warn("[BananaCatHub] 🚀 Bay: " .. FL.lastError)
+        end
+    end
+end
+function MV._BindFly()
+    if MV._flyBound or not MV.fly then return end
+    RunService:UnbindFromRenderStep("Fly")
+    -- Đọc camera SAU khi CameraModule cập nhật trong frame hiện tại.
+    RunService:BindToRenderStep("Fly", Enum.RenderPriority.Camera.Value + 1, MV._FlyFrame)
+    MV._flyBound = true
+    MV._flyFrameAt = tick()
+end
+function MV._StopFly()
+    RunService:UnbindFromRenderStep("Fly")
+    MV._flyBound = false
+    MV._DestroyFlyParts()
+    MV._RestoreFlyHum()
+    MV.ClearFlyInput()
+    FL.root = nil
+end
+function MV.SetFly(on)
+    on = (on == true)
+    if on then
+        local r, h = MV.Root(), MV.Hum()
+        if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để bay" end
+        -- Chỉ một bộ mover điều khiển nhân vật: giữ nguyên các chế độ khác để bật lại khi cần.
+        if MV.Safe and MV.Safe.on then MV.Safe.Stop() end
+        if MV._glassFlyActive then MV.StopGlassFly() end
+        if MV._playerFlyActive then MV.StopPlayerFly() end
+        if MV.runMode then MV.SetRunMode(false) end
+        if not MV.fly then MV.ClearFlyInput() end
+        MV.fly = true
+        MV._EnsureFly()
+        MV._BindFly()
+        MV._FlyFrame() -- thả phím là giữ tại chỗ ngay, không có vận tốc mặc định lúc mới bật
+    else
+        MV.fly = false
+        MV._StopFly()
+    end
+    MV._Watchdog()
+    MV.SyncHud()
+    return MV.fly
+end
+function MV.SetFlySpeed(n)
+    n = tonumber(n)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end
+    MV.flySpeed = mvClamp(n, 1, 2000, 50)
+    MV.SyncHud()
+    if S.RefreshMovePanel then S.RefreshMovePanel() end
+    return true, MV.flySpeed
+end
+function MV.SetFlyHud(on)
+    FL.showHud = (on == true)
+    if not FL.showHud then MV.ClearFlyInput() end
+    MV.SyncHud()
+    return FL.showHud
+end
+
+-- Nút ảo cùng phong cách 🛡, nhưng chỉ có điều khiển tay + lên/xuống + dừng.
+-- Theo dõi ĐÚNG InputObject: thả ngón quay camera không nhả nhầm ngón joystick.
+function MV._BuildFlyHud()
+    if FL.hud and FL.hud.Parent then return FL.hud end
+    for _, c in ipairs(FL.conns) do c:Disconnect() end
+    FL.conns = {}
+    MV.ClearFlyInput()
+    local function connect(signal, callback)
+        local c = trackConn(signal:Connect(callback))
+        FL.conns[#FL.conns + 1] = c
+    end
+    local hud = New("Frame", {
+        Name = "BC_FlyHud", Size = UDim2.new(0, 292, 0, 184), Position = UDim2.new(0, 10, 1, -194),
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.18, BorderSizePixel = 0,
+        Visible = false, ZIndex = 25,
+    }, gui)
+    FL.hud = hud
+    Corner(hud, UDim.new(0, 12)); Stroke(hud, C.HAIRLINE, 1)
+    D.Shade(hud, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    local title = New("TextLabel", {
+        Name = "FlyHudTitle", Size = UDim2.new(1, -76, 0, 22), Position = UDim2.new(0, 10, 0, 2),
+        Text = "🚀 Bay theo camera", Active = true, BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 26,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, hud)
+    local function button(name, text, x, y, w, h, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BackgroundTransparency = 0.15,
+            Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0, ZIndex = 28,
+        }, hud)
+        Corner(b, UDim.new(0, 8))
+        return b
+    end
+    local hide = button("FlyHudHide", "👁", 226, 2, 28, 22, C.SURFACE3)
+    local close = button("FlyHudClose", "✕", 258, 2, 26, 22, C.RED)
+    connect(hide.Activated, function() MV.SetFlyHud(false) end)
+    local function stop()
+        MV.SetFly(false)
+        S.Rebuild()
+        D.Say("🚀 Bay: TẮT — công tắc xuyên tường giữ nguyên", C.YELLOW)
+    end
+    connect(close.Activated, stop)
+    local joy = New("Frame", {
+        Name = "FlyJoystick", Active = true, Size = UDim2.new(0, 104, 0, 104),
+        Position = UDim2.new(0, 10, 0, 32), BackgroundColor3 = C.SURFACE2,
+        BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 26,
+    }, hud)
+    Corner(joy, UDim.new(1, 0)); Stroke(joy, C.BORDER, 1)
+    FL.knob = New("Frame", {
+        Name = "FlyKnob", Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(0.5, -14, 0.5, -14),
+        BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 27,
+    }, joy)
+    Corner(FL.knob, UDim.new(1, 0))
+    local function pointer(input)
+        return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+    end
+    local function matches(held, input, moving)
+        return held == input or (held and held.UserInputType == Enum.UserInputType.MouseButton1
+            and input.UserInputType == (moving and Enum.UserInputType.MouseMovement or Enum.UserInputType.MouseButton1))
+    end
+    local function updateJoy(pos)
+        local delta = Vector2.new(pos.X, pos.Y) - (joy.AbsolutePosition + joy.AbsoluteSize * 0.5)
+        if delta.Magnitude > 38 then delta = delta.Unit * 38 end
+        FL.x, FL.z = delta.X / 38, delta.Y / 38
+        FL.knob.Position = UDim2.new(0.5, delta.X - 14, 0.5, delta.Y - 14)
+    end
+    connect(joy.InputBegan, function(input)
+        if pointer(input) and MV.fly and FL.showHud and not FL.joyInput then
+            FL.joyInput = input; updateJoy(input.Position)
+        end
+    end)
+    local function hold(name, text, x, y, w, h, axis, color)
+        local b = button(name, text, x, y, w, h, color or C.SURFACE3)
+        connect(b.InputBegan, function(input)
+            if pointer(input) and MV.fly and FL.showHud then FL.holds[input] = axis end
+        end)
+        -- Nhả cả khi thả ngoài nút: InputEnded trên service ở dưới xử lý cùng InputObject.
+        connect(b.InputEnded, function(input) FL.holds[input] = nil end)
+    end
+    hold("FlyForward", "↑", 150, 32, 30, 30, Vector3.new(0, 0, -1))
+    hold("FlyBack", "↓", 150, 100, 30, 30, Vector3.new(0, 0, 1))
+    hold("FlyLeft", "←", 116, 66, 30, 30, Vector3.new(-1, 0, 0))
+    hold("FlyRight", "→", 184, 66, 30, 30, Vector3.new(1, 0, 0))
+    hold("FlyUp", "⬆", 238, 32, 40, 44, Vector3.new(0, 1, 0), C.GREEN)
+    hold("FlyDown", "⬇", 238, 82, 40, 44, Vector3.new(0, -1, 0), C.RED)
+    local stopBtn = button("FlyHudStop", "⏹ Dừng", 198, 144, 80, 28, C.RED)
+    connect(stopBtn.Activated, stop)
+    FL.status = New("TextLabel", {
+        Name = "FlyHudStatus", Size = UDim2.new(0, 182, 0, 36), Position = UDim2.new(0, 10, 0, 140),
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 26,
+    }, hud)
+    connect(title.InputBegan, function(input)
+        if pointer(input) and not FL.dragInput then
+            FL.dragInput, FL.dragStart, FL.dragPos = input, input.Position, hud.Position
+        end
+    end)
+    connect(UserInputService.InputChanged, function(input)
+        if matches(FL.joyInput, input, true) then updateJoy(input.Position) end
+        if matches(FL.dragInput, input, true) then
+            local delta = input.Position - FL.dragStart
+            hud.Position = UDim2.new(FL.dragPos.X.Scale, FL.dragPos.X.Offset + delta.X,
+                FL.dragPos.Y.Scale, FL.dragPos.Y.Offset + delta.Y)
+        end
+    end)
+    connect(UserInputService.InputEnded, function(input)
+        for held in pairs(FL.holds) do if matches(held, input, false) then FL.holds[held] = nil end end
+        if matches(FL.joyInput, input, false) then
+            FL.joyInput, FL.x, FL.z = nil, 0, 0
+            FL.knob.Position = UDim2.new(0.5, -14, 0.5, -14)
+        end
+        if matches(FL.dragInput, input, false) then FL.dragInput = nil end
+    end)
+    connect(UserInputService.WindowFocusReleased, function()
+        FL.focused = false
+        MV.ClearFlyInput()
+        if MV._bv then MV._bv.Velocity = Vector3.zero end
+    end)
+    connect(UserInputService.WindowFocused, function() FL.focused = true end)
+    return hud
+end
+function MV.SyncFlyHud()
+    if MV.fly then MV._BuildFlyHud() end
+    if FL.hud and FL.hud.Parent then
+        FL.hud.Visible = MV.fly and FL.showHud
+        FL.status.Text = string.format("💨 %g · 🧱 %s\nThả phím / cần: đứng lơ lửng", MV.flySpeed, MV.noclip and "BẬT" or "TẮT")
+    end
+    if S.SyncFlyPanel then S.SyncFlyPanel() end
+end
+end -- 🚀 BAY THEO CAMERA
 
  -- ============================================================================
 -- ===== v4.17: 🛡 BAY AN TOÀN (tự bay + NÉ vật có dấu hiệu chuyển động) =======
@@ -8071,6 +8348,7 @@ function MV.Safe.Step(dt)
     end
 end
 function MV.Safe.Set(on)
+    if on == true and MV.fly then MV.SetFly(false) end -- không để hai BodyVelocity tranh lực
     SF.on = (on == true)
     if SF.on then
         if SF.noclip and SF._ncPrev == nil then
@@ -8418,18 +8696,18 @@ function MV.Safe._BuildHud()
             updateJoy(inp.Position)
         end
     end)
-    UserInputService.InputChanged:Connect(function(inp)
+    trackConn(UserInputService.InputChanged:Connect(function(inp)
         if SF._dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
             -- nếu input đang trên joyBG thì updateJoy đã lo, còn kéo ra ngoài vẫn cần
             local ok, pos = pcall(function() return inp.Position end)
             if ok and pos then updateJoy(pos) end
         end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
+    end))
+    trackConn(UserInputService.InputEnded:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             if SF._dragging then resetJoy() end
         end
-    end)
+    end))
 
     -- Cụm nút lên/xuống/bay vòng/trung tâm
     local function vBtn(txt, x, y, w, h, color, cb)
@@ -8515,17 +8793,17 @@ function MV.Safe._BuildHud()
                 startPos = hud.Position
             end
         end)
-        UserInputService.InputChanged:Connect(function(inp)
+        trackConn(UserInputService.InputChanged:Connect(function(inp)
             if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                 local delta = inp.Position - startInput
                 hud.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             end
-        end)
-        UserInputService.InputEnded:Connect(function(inp)
+        end))
+        trackConn(UserInputService.InputEnded:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
             end
-        end)
+        end))
     end
 
     -- Hàm cập nhật nhanh trạng thái trong HUD
@@ -9038,6 +9316,7 @@ function MV.FlyToGlass(idxOrPos)
         return false, "chỉ số hoặc vị trí không hợp lệ"
     end
     if not MV.Root() then return false, "chưa có nhân vật" end
+    if MV.fly then MV.SetFly(false) end
     MV._glassFlyTarget = targetPos
     MV._glassFlyIdx = idx
     MV._glassFlyActive = true
@@ -9212,6 +9491,7 @@ function MV.FlyToPlayer(p)
     if not p or not p.Parent then return false, "người chơi không tồn tại" end
     if p == player then return false, "không thể bay tới chính mình" end
     if not MV.Root() then return false, "chưa có nhân vật" end
+    if MV.fly then MV.SetFly(false) end
     pcall(function() MV.StopGlassFly() end)
     -- v4.32: nhớ trạng thái xuyên tường trước khi bay
     if MV._playerFlyNcPrev == nil and MV._glassFlyNcPrev == nil and (not MV.Safe or MV.Safe._ncPrev == nil) then
@@ -9318,13 +9598,14 @@ function MV.SyncHud()
         -- v4.24: khi 🛡 Bay An Toàn đang BẬT thì ẨN cụm nút cũ BC_MoveHud (🪩⬆⬇✕) để chỉ hiện BC_SafeHud mới, tránh rối màn hình. Không mất tính năng vì BC_SafeHud đã có ⬆⬇ + ⏹ + joystick.
         local safeOn = (MV.Safe and MV.Safe.on == true)
         local on = (MV.carpet or MV.fly or MV.runMode)
-        if safeOn then on = false end
+        if safeOn or MV.fly then on = false end -- 🚀 dùng HUD điều khiển tay, 🪩/🏃 giữ HUD cũ
         hud.Visible = (on == true)
         if MV._hudCarpet then                       -- xám như bản gốc, XANH khi thảm đang bật
             MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY
         end
         -- ⬆⬇ giữ nguyên độ mờ 0.3 như bản gốc (chúng LUÔN dùng được: thảm tắt thì tự bật lại)
     end)
+    if MV.SyncFlyHud then MV.SyncFlyHud() end
 end
 
 -- ---------- 🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" của aiaiaitao3 (v4.12.4: GIỐNG 100%) ----------
@@ -9387,6 +9668,7 @@ function MV.StopAll()
     MV.SetInfJump(false)
     MV.SetSpeed(false)
     MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
+    MV._Watchdog()
     MV.SyncHud()
     pcall(function() if MV.Safe and MV.Safe.SyncHud then MV.Safe.SyncHud() end end)
 end
@@ -9412,13 +9694,14 @@ function MV.Refresh()
     -- CHỈ dựng lại cái THẬT SỰ MẤT: nếu còn nguyên (ví dụ thảm vẫn nằm trong workspace) thì
     -- giữ y — tạo lại vô điều kiện sẽ làm mất tham chiếu đang dùng và giật hình.
     MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
-    MV.ApplyChar()
+    if MV.speed then MV.ApplyChar() end -- không ép tốc độ mặc định nếu chỉ đang bay
     if MV.noclip then MV._NcStep() end
     -- v4.23: part bay phải nằm ĐÚNG nhân vật đang dùng. Trước đây chỉ soi ".Parent ~= nil" nên part
     -- còn dính NHÂN VẬT CŨ (game đổi trận nhưng không xoá ngay) vẫn bị coi là "còn sống" -> bay/🛡 chết lặng.
-    local curRoot = MV.Root()
-    if MV.fly and (not MV._bv or not MV._bv.Parent or (curRoot ~= nil and MV._bv.Parent ~= curRoot)) then
-        MV.SetFly(false); MV.SetFly(true)
+    if MV.fly then
+        -- Nhân vật chưa đủ part thì GIỮ cờ Bay; render/watchdog sẽ gắn lại khi đã sẵn sàng.
+        MV._EnsureFly()
+        MV._BindFly()
     end
     if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
@@ -9593,7 +9876,7 @@ S.ScriptHubList = {
     -- v4.12: BỘ DI CHUYỂN (port từ menu "EXECUTOR MENU"). Tất cả là TIỆN ÍCH NỘI BỘ:
     -- gọi thẳng hàm của hub -> không tải gì từ mạng, không bao giờ "chạy không được".
     {icon="🚀", name="Bay", cat="Di chuyển", ord=12, action="fly",
-     desc="Bay lượn tự do (Space lên · Shift/Ctrl xuống · WASD lái). Tốc độ chỉnh ở khung ⚙ ngay trên đầu danh sách."},
+     desc="Bay như 🛡 nhưng điều khiển TAY theo camera: nhìn xuống 60° + tiến tới = xuống 60°. WASD/joystick; thả phím đứng lơ lửng. Space lên · Shift/Ctrl xuống. Không tự bay/né/vòng tròn/khiên; 🧱 bật/tắt riêng ở khung 🚀."},
     {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
      desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
@@ -9698,14 +9981,15 @@ function S.RunHubAction(id)
 
     -- ---------- v4.12: BỘ DI CHUYỂN ----------
     elseif id == "fly" then
-        if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
-        local okF = pcall(function() S.Move.SetFly(not S.Move.fly) end)
-        if not okF then return "⚠️ không bật được bay" end
-        S.Rebuild()                                        -- cập nhật nhãn nút
-        return S.Move.fly and ("🚀 Bay: BẬT — Space lên · Shift/Ctrl xuống · tốc độ " .. tostring(S.Move.flySpeed))
-                            or "🚀 Bay: TẮT (nhân vật trở lại bình thường)"
+        local wanted = not S.Move.fly
+        local okF, on, err = pcall(S.Move.SetFly, wanted)
+        if not okF then return "⚠️ lỗi bay: " .. tostring(on) end
+        if wanted and not on then return "⚠️ " .. tostring(err) end
+        S.Rebuild()
+        return S.Move.fly and ("🚀 Bay theo camera: BẬT — WASD/joystick · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed))
+                            or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
     elseif id == "noclip" then
-        if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
+        if not S.Move.noclip and not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetNoclip(not S.Move.noclip) end)
         S.Rebuild()
         return S.Move.noclip and "🧱 Xuyên tường: BẬT (đi xuyên mọi vật cản)"
@@ -10196,6 +10480,7 @@ function S.RebuildHubList()
         end
         list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6 + panelH)
     end)
+    if S.SyncFlyPanel then pcall(S.SyncFlyPanel) end          -- v4.36: Bay + xuyên tường độc lập
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
     if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
@@ -10203,6 +10488,92 @@ function S.RebuildHubList()
         D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end
 end
+
+-- ---------- v4.36: KHUNG 🚀 BAY THEO CAMERA (công tắc 🧱 độc lập) ----------
+do
+    local P = New("Frame", {
+        Name = "HubFly_Panel", Size = UDim2.new(1, 0, 0, 154), LayoutOrder = -1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🚀 BAY THEO CAMERA — điều khiển tay", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("FlyToggle", "🚀 Bay: TẮT", 8, 24, 100, C.GRAY)
+    local ncBtn = button("FlyNoclip", "🧱 Xuyên tường: TẮT", 114, 24, 158, C.GRAY)
+    local hudBtn = button("FlyHudToggle", "📱 Nút ảo: BẬT", 278, 24, 124, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(0, 128, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ (1–2000)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "FlySpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 140, 0, 54),
+        Text = tostring(MV.flySpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("FlySpeedApply", "✔ Áp dụng", 202, 54, 92, C.GREEN)
+    local stop = button("FlyStop", "⏹ Dừng bay", 300, 54, 102, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 46), Position = UDim2.new(0, 8, 0, 84),
+        Text = "WASD / joystick: bay theo camera cả lên và xuống. Nhìn xuống 60° + tiến tới = bay xuống 60°. "
+            .. "Space / ⬆: lên; Shift/Ctrl / ⬇: xuống. Thả điều khiển: đứng lơ lửng. "
+            .. "🧱 là công tắc riêng, Bay không tự bật/tắt xuyên tường.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "FlyPanelStatus", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 134),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncFlyPanel()
+        local function paint(b, on, label)
+            b.Text = label .. (on and "BẬT" or "TẮT")
+            D.SetBg(b, on and C.GREEN or C.GRAY)
+        end
+        paint(onBtn, MV.fly, "🚀 Bay: ")
+        paint(ncBtn, MV.noclip, "🧱 Xuyên tường: ")
+        paint(hudBtn, MV.Flight.showHud, "📱 Nút ảo: ")
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.flySpeed) end
+        status.Text = MV.fly and ("🚀 Đang bay theo camera · tốc độ " .. tostring(MV.flySpeed) .. " · thả phím để dừng tại chỗ")
+            or "🚀 Đã tắt bay · 🧱 xuyên tường " .. (MV.noclip and "BẬT" or "TẮT")
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("fly"), C.YELLOW) end)
+    ncBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("noclip"), C.YELLOW) end)
+    hudBtn.Activated:Connect(function() ReleaseHubFocus(); MV.SetFlyHud(not MV.Flight.showHud) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetFlySpeed(value)
+        if ok then D.Say("💨 Tốc độ bay: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncFlyPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetFly(false); S.Rebuild()
+        D.Say("🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱", C.YELLOW)
+    end)
+    S.flyBtns = {on = onBtn, noclip = ncBtn, hud = hudBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncFlyPanel()
+end
+-- ---------- HẾT KHUNG 🚀 BAY THEO CAMERA ----------
 
 -- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN ----------
 -- Nằm TRÊN CÙNG của danh sách thẻ (LayoutOrder = 0) và được đặt tên "HubMove_Panel"
@@ -10321,7 +10692,10 @@ do
     ap1.Activated:Connect(function()
         ReleaseHubFocus()
         local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text)
-        if f then S.Move.flySpeed = (f >= 1 and f <= 500) and f or S.Move.flySpeed end
+        if f then
+            S.Move.flySpeed = (f >= 1 and f <= 2000) and f or S.Move.flySpeed
+            S.Move.SyncFlyHud()
+        end
         local wmul = tostring(wsIn.Text or ""):match("^[xX×]%s*([%d%.]+)")
         if wmul then
             S.Move.speedMode = "x"
@@ -10573,9 +10947,9 @@ do
             st.Text = S.Move.Status()
             cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
             gapIn.Text = tostring(S.Move.carpetGap)
-            flyIn.Text = S.Move.flySpeed
+            flyIn.Text = tostring(S.Move.flySpeed)
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
-            jpIn.Text = S.Move.jumpPower
+            jpIn.Text = tostring(S.Move.jumpPower)
             paintPass()
             if paintHold then pcall(paintHold) end
             if paintEdge then pcall(paintEdge) end
@@ -13171,7 +13545,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.12 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.36 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
