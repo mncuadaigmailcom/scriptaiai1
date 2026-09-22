@@ -1,6 +1,10 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    🏃 v4.39: SỬA SỐ TỐC ĐỘ TRỐNG + 🔓 VƯỢT MỨC TỰ CHỌN.
+    ⚡ v4.40: TÍNH NĂNG "TỐC ĐỘ" THAY THẾ BỘ TỐC ĐỘ CHẠY CŨ.
+      · Chỉ Humanoid.WalkSpeed; hướng đi theo camera nhờ điều khiển gốc; nhảy/va chạm bình thường.
+      · Không bay, không xuyên tường, không HUD/nút ảo; tốc độ nhập bao nhiêu cũng được (số hữu hạn >= 0).
+      · Xoá bộ đọc mức quan sát/trần vượt mức và khối queue teleport của bản cũ theo yêu cầu.
+    🏃 v4.39 (lịch sử): SỬA SỐ TỐC ĐỘ TRỐNG + 🔓 VƯỢT MỨC TỰ CHỌN.
       · Không đợi WalkSpeed đứng yên: game đổi tốc độ mỗi frame vẫn đọc được số và hết chờ.
       · Đọc và hiển thị độc lập với quyền áp tốc độ; hỗ trợ Humanoid lồng trong Character của mình.
       · 🔓 opt-in mở trần tự chọn, tách hẳn khỏi cao nhất QUAN SÁT; không bịa tối đa thật/anti-cheat.
@@ -1391,7 +1395,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.39 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.40 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -4090,9 +4094,9 @@ function SV.Detect()
     local groundOn = ground and ground.on == true
     local applying = (m ~= nil) and (m.speed == true or m.runMode == true or groundOn)
     local src
-    if groundOn and num(ground.gameSpeed) then
-        SV.base = num(ground.gameSpeed)
-        src = "quan sát trước khi chỉnh tốc độ mặt đất"
+    if groundOn and num(ground.nativeSpeed) then
+        SV.base = num(ground.nativeSpeed)
+        src = "tốc độ game trước khi chỉnh tốc độ"
     elseif applying and baseWS then
         SV.base = baseWS
         src = "game (hub đã học khi 👟 bật)"
@@ -4831,7 +4835,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.39",
+    Version = "4.40",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -9750,8 +9754,8 @@ end
 function MV.Status()
     local t = {}
     if MV.GroundSpeed and MV.GroundSpeed.on then
-        t[#t + 1] = MV.GroundSpeed.pending and "🏃 chờ vào trận"
-            or string.format("🏃 mặt đất %g", MV.GroundSpeed.value or 0)
+        t[#t + 1] = MV.GroundSpeed.pending and "⚡ chờ vào trận"
+            or string.format("⚡ tốc độ %g", MV.GroundSpeed.value or 0)
     end
     if MV.fly then t[#t + 1] = string.format("🚀 bay %d", MV.flySpeed) end
     if MV.noclip then t[#t + 1] = "🧱 xuyên tường" end
@@ -9793,15 +9797,16 @@ trackConn(player.CharacterAdded:Connect(function()
     end)
 end))
 
--- ---------- v4.39: 🏃 TỐC ĐỘ CHẠY MẶT ĐẤT ----------
--- Chỉ WalkSpeed: không CFrame/lực bay/NoClip/nhảy/nút ảo. Điều khiển do game xử lý.
--- Mặc định = WalkSpeed game gần nhất; trần = mức cao nhất QUAN SÁT trong pha chơi này,
--- không chụp trần 500 lên game có tốc độ gốc cao hơn. KHÔNG phải ngưỡng chống ban của server.
+-- ---------- v4.40: ⚡ TỐC ĐỘ (điều khiển theo camera, trên mặt đất) ----------
+-- Thay THẾ hoàn toàn bộ "tốc độ chạy" cũ theo yêu cầu người dùng.
+-- Chỉ ghi Humanoid.WalkSpeed. Hướng đi do ĐIỀU KHIỂN GỐC của game đảm nhiệm:
+-- WASD/joystick mặc định của Roblox đã đi THEO CAMERA trên mặt phẳng ngang, nên cảm giác
+-- giống Bay theo camera nhưng KHÔNG bay — giữ va chạm, trọng lực và NHẢY BÌNH THƯỜNG.
+-- Không NoClip, không HUD/nút ảo, không BodyVelocity/CFrame/vận tốc cưỡng bức.
+-- Tốc độ nhập được mọi số hữu hạn >= 0; thanh kéo tối đa 500 (giới hạn hiển thị, không phải giới hạn game).
 S.GroundSpeed = {
-    on = false, pending = false, mode = "game", requested = nil, value = nil,
-    gameSpeed = nil, defaultSpeed = nil, limit = nil, observedMax = nil,
-    controlMax = nil, allowAbove = false, customCeiling = 2000, customCeilingMax = 1000000,
-    settleSeconds = 0.3, reason = "Chưa bật; dùng tốc độ game", sourceNote = "WalkSpeed game",
+    on = false, pending = false, value = nil, nativeSpeed = nil,
+    sliderMax = 500, reason = "Chưa bật; dùng điều khiển gốc của game",
     _applied = nil, _writing = false, _acc = 0,
 }
 MV.GroundSpeed = S.GroundSpeed
@@ -9821,30 +9826,6 @@ local function read(h)
     local n = number(h.WalkSpeed)
     return (n and n >= 0) and n or nil
 end
-local function rootOf(c, h)
-    if not c then return nil end
-    local r = h and h.RootPart
-    if r and r:IsA("BasePart") and r:IsDescendantOf(c) then return r end
-    r = c:FindFirstChild("HumanoidRootPart", true)
-    return r and r:IsA("BasePart") and r:IsDescendantOf(c) and r or nil
-end
-function GS.Hum()
-    local c = MV.Char()
-    if not c then GS.actorNote = "Chưa có Character"; return nil end
-    local h = c:FindFirstChildOfClass("Humanoid")
-    if h then GS.actorNote = "Humanoid trực tiếp"; return h end
-    -- Chỉ tìm trong Character CỦA MÌNH, không lấy nhầm humanoid của người khác/NPC ngoài model.
-    if GS._hum and GS._hum:IsDescendantOf(c) then GS.actorNote = "Humanoid lồng trong rig"; return GS._hum end
-    local found
-    for _, obj in ipairs(c:GetDescendants()) do
-        if obj:IsA("Humanoid") then
-            if found then GS.actorNote = "Nhiều Humanoid trong Character; không đoán nhân vật"; return nil end
-            found = obj
-        end
-    end
-    GS.actorNote = found and "Humanoid lồng trong rig" or "Chưa tìm thấy Humanoid trong Character"
-    return found
-end
 function GS.Conflicting()
     return MV.fly or MV.noclip or MV.infJump or MV.speed or MV.runMode or MV.carpet
         or MV._glassFlyActive or MV._playerFlyActive or (MV.Safe and MV.Safe.on) or false
@@ -9852,49 +9833,35 @@ end
 function GS.Sync()
     if S.SyncGroundSpeedPanel then S.SyncGroundSpeedPanel() end
 end
-function GS._Ready(h, speed)
+function GS._Ready(h)
     if not gui.Parent then return false, "Chờ giao diện được gắn lại" end
-    if GS._teleporting then return false, "Đang chuyển server; chờ game mới" end
     if not game:IsLoaded() then return false, "Chờ game tải xong" end
     local c = MV.Char()
     if not c or not c:IsDescendantOf(workspace) then return false, "Chờ nhân vật vào Workspace" end
-    if not h or not h:IsDescendantOf(c) then return false, "Chờ Humanoid: " .. tostring(GS.actorNote or "chưa tìm thấy") end
+    if not h or not h:IsDescendantOf(c) then return false, "Chờ Humanoid của nhân vật" end
     if not number(h.Health) or h.Health <= 0 then return false, "Chờ nhân vật sống / hồi sinh" end
-    local r = rootOf(c, h)
-    if not r then return false, "Chờ phần gốc nhân vật (RootPart)" end
-    if r.Anchored then return false, "Sảnh / game đang neo nhân vật; chờ mở khoá" end
-    if speed == nil then return false, "Chờ WalkSpeed hợp lệ; không đoán giới hạn" end
-    if speed <= 0 then return false, "Game đang đặt WalkSpeed = 0; chờ game mở khoá" end
+    local r = h.RootPart or c:FindFirstChild("HumanoidRootPart", true)
+    if not (r and r:IsA("BasePart")) then return false, "Chờ phần gốc nhân vật (RootPart)" end
+    if r.Anchored then return false, "Game đang neo nhân vật; chờ mở khoá" end
     return true, nil, r
-end
-function GS._Limits(n, ready, observe)
-    GS.gameSpeed, GS.defaultSpeed = n, n -- ĐỌC ĐƯỢC thì hiện, không xoá số chỉ vì đang chờ áp dụng
-    if (ready or observe) and n ~= nil and n > 0 then GS.observedMax = math.max(GS.observedMax or 0, n) end
-    GS.limit = ready and n and (GS.observedMax or n) or (n == 0 and 0 or nil)
-    -- Trần QUAN SÁT và trần TỰ CHỌN là hai số khác nhau; không học tốc độ tự đặt làm game max.
-    GS.controlMax = GS.limit
-    if GS.allowAbove and GS.limit and GS.limit > 0 then GS.controlMax = math.max(GS.limit, GS.customCeiling) end
-    local wanted = GS.mode == "max" and GS.limit or (GS.requested or n)
-    GS.value = GS.controlMax and math.max(0, math.min(wanted or GS.controlMax, GS.controlMax)) or nil
 end
 function GS._Restore()
     local h, applied = GS._hum, GS._applied
     GS._applied = nil
     -- Chỉ trả giá trị còn do mình giữ; KHÔNG ghi đè cập nhật mới của game.
-    if applied ~= nil and same(read(h), applied) and GS.gameSpeed ~= nil and not same(applied, GS.gameSpeed) then
+    if applied ~= nil and same(read(h), applied) and GS.nativeSpeed ~= nil and not same(applied, GS.nativeSpeed) then
         GS._writing = true
-        local ok, err = pcall(function() h.WalkSpeed = GS.gameSpeed end)
+        local ok, err = pcall(function() h.WalkSpeed = GS.nativeSpeed end)
         GS._writing = false
-        if not ok then warn("[BananaCatHub] 🏃 Không trả được WalkSpeed: " .. tostring(err)) end
+        if not ok then warn("[BananaCatHub] ⚡ Không trả được WalkSpeed: " .. tostring(err)) end
     end
 end
 function GS._Apply()
     local h = GS._hum
-    if GS._closed or not GS.on or GS.pending or GS.Conflicting() or h ~= GS.Hum()
-        or not GS._Ready(h, GS.gameSpeed) or GS.limit == nil then return end
-    local wanted = GS.mode == "max" and GS.limit or (GS.requested or GS.gameSpeed)
-    local value = math.max(0, math.min(wanted or GS.controlMax, GS.controlMax))
-    GS.value, GS._applied = value, value
+    if GS._closed or not GS.on or GS.pending or GS.Conflicting() or h ~= MV.Hum()
+        or not GS._Ready(h) or GS.value == nil then return end
+    local value = GS.value
+    GS._applied = value
     if same(read(h), value) then return true end
     GS._writing = true
     local ok, err = pcall(function() h.WalkSpeed = value end)
@@ -9902,185 +9869,90 @@ function GS._Apply()
     if not ok or not same(read(h), value) then
         GS.on, GS.pending, GS._applied = false, false, nil
         GS.reason = "Game không nhận tốc độ; đã dừng, không ép lại"
-        GS._Limits(read(h), true)
         if GS.EndDrag then GS.EndDrag() end
-        if not ok then warn("[BananaCatHub] 🏃 " .. tostring(err)) end
+        if not ok then warn("[BananaCatHub] ⚡ " .. tostring(err)) end
         return false
     end
     return true
 end
 function GS._Observe(h)
-    if GS._closed or GS._writing or h ~= GS._hum then return end
-    if h ~= GS.Hum() then GS.Sample(); return end -- event nhân vật cũ đến muộn
+    if GS._closed or GS._writing or h ~= GS._hum or GS.Conflicting() then return end
+    if h ~= MV.Hum() then GS.Sample(); return end -- event nhân vật cũ đến muộn
     local n = read(h)
-    if GS.Conflicting() then
-        -- Bay/NoClip không sửa WalkSpeed: vẫn đọc số, chỉ KHÔNG áp bộ chạy cùng lúc.
-        -- Boost cũ thì chỉ dùng nền đã lưu, tuyệt đối không học tốc độ đã nhân của hub.
-        if MV.speed or MV.runMode then
-            n = number(MV._baseWS)
-            if n and n < 0 then n = nil end
-            GS.sourceNote = "Nền boost cũ đã lưu; tắt boost để đọc trực tiếp"
-        else GS.sourceNote = "WalkSpeed game; chế độ di chuyển khác đang bật" end
-        local ready = GS._Ready(h, n)
-        if not ready then
-            GS.observedMax, GS._candidateAt = nil, nil
-            GS._fresh, GS._waiting = true, true
-        end
-        GS._Limits(n, ready)
-        return
-    end
-    GS.sourceNote = "WalkSpeed quan sát của nhân vật"
     local owned = GS._applied ~= nil and same(n, GS._applied)
-    local ready, why, r = GS._Ready(h, owned and GS.gameSpeed or n)
+    local ready, why = GS._Ready(h)
     if not ready then
-        -- Sảnh/chết/thiếu root: ngừng can thiệp, nhưng giữ ý định bật. KHÔNG mở khoá hộ game.
-        if not GS._waiting then
-            GS._Restore()
-            GS.observedMax, GS._candidateAt = nil, nil
-        end
-        GS._candidateAt = nil -- mất readiness dù chỉ một nhịp cũng phải chờ lại liên tục
-        GS._waiting, GS._fresh, GS.pending = true, true, GS.on
+        -- Sảnh/chết/thiếu root: ngừng can thiệp nhưng GIỮ ý định bật, tự áp lại khi sẵn sàng.
+        GS._Restore()
+        GS.pending = GS.on
         GS.reason = why
-        GS._Limits(read(h), false)
         if GS.EndDrag then GS.EndDrag() end
         return
     end
-    if GS._fresh then
-        -- Chỉ đợi NHÂN VẬT/root sẵn sàng liên tục. WalkSpeed có thể đổi MỖI FRAME
-        -- (gia tốc/sprint); đợi số đứng yên sẽ kẹt vĩnh viễn và từng làm UI hiện toàn dấu —.
-        if r ~= GS._candidateRoot or not GS._candidateAt then
-            GS._candidateRoot, GS._candidateAt = r, tick()
-        end
-        if tick() - GS._candidateAt < GS.settleSeconds then
-            GS.pending = GS.on
-            GS.reason = "Đã đọc tốc độ; chờ nhân vật mới sẵn sàng"
-            GS._Limits(n, false, true) -- số hiển thị tạm, chưa cho áp vào nhân vật
-            return
-        end
-        GS._fresh, GS._waiting, GS._candidateAt = false, false, nil
-        GS.observedMax = nil -- không mang giá trị tạm lúc dựng rig thành trần pha chơi
-        owned = false
-    end
     GS.pending = false
     if owned then return end -- bỏ qua cả property signal DEFERRED của chính mình
-    local wasApplied, previous = GS._applied, GS.gameSpeed
+    local wasApplied = GS._applied
     GS._applied = nil
-    if GS.on and wasApplied ~= nil and GS.mode ~= "game" then
+    if GS.on and wasApplied ~= nil then
         GS.on = false
         GS.reason = "Game vừa đổi WalkSpeed → tự dừng, nhường quyền cho game"
         if GS.EndDrag then GS.EndDrag() end
     end
-    GS._Limits(n, true)
+    GS.nativeSpeed = n
+    if GS.value == nil then GS.value = n end
     if GS.on then
-        GS.reason = "Dùng điều khiển gốc của game; không bay/xuyên tường"
+        GS.reason = "Đi theo camera bằng điều khiển gốc; nhảy và va chạm bình thường"
         GS._Apply()
-    elseif previous == nil or previous == 0 or GS.reason:find("Chờ", 1, true) then
-        GS.reason = "Đã đọc WalkSpeed; có thể bật điều chỉnh tốc độ"
+    elseif GS.reason == nil or GS.reason:find("Chờ", 1, true) then
+        GS.reason = "Đã đọc WalkSpeed; có thể bật tốc độ"
     end
 end
 function GS.Sample()
-    if GS._closed then return GS.gameSpeed end
+    if GS._closed then return GS.nativeSpeed end
     if not gui.Parent then
         GS._guiMissingAt = GS._guiMissingAt or tick()
-        if tick() - GS._guiMissingAt >= 10 then GS.Close(); return GS.gameSpeed end
+        if tick() - GS._guiMissingAt >= 10 then GS.Close(); return GS.nativeSpeed end
     else GS._guiMissingAt = nil end -- reparent GUI ngắn lúc vào trận không làm controller chết vĩnh viễn
-    local c, h = MV.Char(), GS.Hum()
-    local r = rootOf(c, h)
-    GS.actualWalkSpeed = read(h)
-    local velocity = r and r.AssemblyLinearVelocity
-    local vx, vz = number(MV.comp(velocity, "X")), number(MV.comp(velocity, "Z"))
-    GS.motionSpeed = vx and vz and number(math.sqrt(vx * vx + vz * vz)) or nil
-    if h ~= GS._hum or c ~= GS._char or r ~= GS._root then
+    local c, h = MV.Char(), MV.Hum()
+    if h ~= GS._hum or c ~= GS._char then
         if GS._humConn then GS._humConn:Disconnect(); GS._humConn = nil end
         GS._Restore()
-        GS._hum, GS._char, GS._root = h, c, r
-        GS.observedMax, GS._candidateAt = nil, nil
-        GS._fresh, GS._waiting = GS._sampled == true, false
-        GS._Limits(nil, false)
+        GS._hum, GS._char = h, c
+        if GS.on then GS.pending = true; GS.reason = GS.reason and GS.reason:find("Chờ", 1, true) and GS.reason or "Chờ nhân vật sẵn sàng" end
         if h then
             GS._humConn = trackConn(h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
                 if h ~= GS._hum then return end
-                -- Kiểm tra cả Character/root: không để signal của model cũ tắt ý định mới.
                 GS.Sample()
             end))
         end
     end
-    GS._sampled = true
     GS._Observe(h)
     GS.Sync()
-    return GS.gameSpeed
+    return GS.nativeSpeed
 end
 function GS.SetValue(value)
     local n = number(value)
-    if n == nil then return false, "Nhập một số hữu hạn (ví dụ 12 hoặc 12.5)" end
+    if n == nil or n < 0 then return false, "Nhập một số hữu hạn từ 0 trở lên" end
     if GS._closed then return false, "Hub đã đóng" end
     GS.Sample()
-    if GS.pending or GS.limit == nil or GS.limit <= 0 then return false, "Chờ nhân vật/game sẵn sàng rồi chọn tốc độ" end
-    local clamped = math.max(0, math.min(n, GS.controlMax))
-    GS.mode, GS.requested, GS.value = "manual", clamped, clamped
-    local applied = GS._Apply()
-    GS.Sync()
-    if applied == false then return false, GS.reason end
-    return true, clamped, n ~= clamped
+    GS.value = n
+    if GS.on and not GS.pending then
+        local applied = GS._Apply()
+        GS.Sync()
+        if applied == false then return false, GS.reason end
+    else GS.Sync() end
+    return true, n
 end
-function GS.SetAllowAbove(on)
+function GS.SetNative()
     if GS._closed then return false, "Hub đã đóng" end
     GS.Sample()
-    GS.allowAbove = on == true
-    if not GS.allowAbove and GS.requested then
-        if GS.limit and GS.limit > 0 then
-            GS.requested = math.min(GS.requested, GS.limit)
-        else
-            GS.mode, GS.requested = "game", nil -- đang chờ: không lưu số cao ẩn hoặc biến nó thành 0
-        end
-    end
-    GS._Limits(GS.gameSpeed, GS.limit ~= nil and GS.limit > 0)
-    local applied = GS._Apply()
-    GS.Sync()
-    if applied == false then return GS.allowAbove, GS.reason end
-    return GS.allowAbove, GS.allowAbove and "🔓 Cho chọn vượt mức đã thấy; KHÔNG bảo đảm game chấp nhận hay tránh ban"
-        or "🔒 Đã kẹp lại theo mức quan sát"
-end
-function GS.SetCustomCeiling(value)
-    local n = number(value)
-    if not n or n < 1 then return false, "Trần tự chọn phải là số hữu hạn từ 1 trở lên" end
-    if GS._closed then return false, "Hub đã đóng" end
-    GS.Sample()
-    GS.customCeiling = math.min(n, GS.customCeilingMax)
-    GS._Limits(GS.gameSpeed, GS.limit ~= nil and GS.limit > 0)
-    if GS.requested and GS.controlMax then GS.requested = math.min(GS.requested, GS.controlMax) end
-    local applied = GS._Apply()
-    GS.Sync()
-    if applied == false then return false, GS.reason end
-    return true, GS.customCeiling, n ~= GS.customCeiling
-end
-function GS.Diagnostics()
-    local function fmt(v) return v ~= nil and string.format("%.3g", v) or "chưa đọc được" end
-    local note = "WS hiện tại: " .. fmt(GS.actualWalkSpeed) .. " · Đo ngang: " .. fmt(GS.motionSpeed) .. " studs/s"
-    if GS.motionSpeed and GS.motionSpeed > 1 and (not GS.defaultSpeed or GS.defaultSpeed <= 0) then
-        note ..= " · WS không phản ánh chuyển động này; có thể game dùng bộ điều khiển riêng"
-    else note ..= " · " .. tostring(GS.actorNote or "chờ nhân vật") end
-    return note .. " · " .. tostring(GS.sourceNote)
-end
-function GS.UseGameSpeed()
-    if GS._closed then return false, "Hub đã đóng" end
-    GS.Sample()
-    -- Cho chọn Mặc định ngay cả trong sảnh; không dùng tốc độ/đỉnh của trận cũ.
-    GS.mode, GS.requested = "game", nil
-    GS.value = GS.limit and math.min(GS.gameSpeed or GS.limit, GS.limit) or nil
-    local applied = GS._Apply()
-    GS.Sync()
-    if applied == false then return false, GS.reason end
-    return true, GS.value
-end
-function GS.UseMaxSpeed()
-    if GS._closed then return false, "Hub đã đóng" end
-    GS.Sample()
-    if not GS.limit or GS.limit <= 0 then return false, "Chưa quan sát được mức cao nhất ở pha chơi này" end
-    GS.mode, GS.requested, GS.value = "max", nil, GS.limit
-    local applied = GS._Apply()
-    GS.Sync()
-    if applied == false then return false, GS.reason end
+    if GS.nativeSpeed == nil then return false, "Chưa đọc được WalkSpeed của game" end
+    GS.value = GS.nativeSpeed
+    if GS.on and not GS.pending then
+        local applied = GS._Apply()
+        GS.Sync()
+        if applied == false then return false, GS.reason end
+    else GS.Sync() end
     return true, GS.value
 end
 function GS.Set(on, reason)
@@ -10096,9 +9968,10 @@ function GS.Set(on, reason)
     if GS._closed or not gui.Parent then return false, "Hub đã đóng; không bật lại controller cũ" end
     GS.Sample()
     if GS.on and not GS.Conflicting() then return true end
-    local ready, why = GS._Ready(GS.Hum(), MV.speed and number(MV._baseWS) or read(GS.Hum()))
+    local ready, why = GS._Ready(MV.Hum())
     -- Không tắt Bay/thảm đang dùng vì một yêu cầu chuyển chưa hợp lệ.
     if not ready and GS.Conflicting() then return false, why end
+    if GS.value == nil then GS.value = GS.nativeSpeed or 16 end
     if ready then
         if MV.Safe and MV.Safe.on then MV.Safe.Stop() end
         if MV._glassFlyActive then MV.StopGlassFly() end
@@ -10110,17 +9983,16 @@ function GS.Set(on, reason)
         if MV.infJump then MV.SetInfJump(false) end
         if MV.noclip then MV.SetNoclip(false) end
     end
-    GS.on = true -- có thể BẬT ý định ngay ở sảnh; pending không phải đã áp tốc độ
+    GS.on = true -- có thể BẬT ý định ngay khi nhân vật chưa sẵn sàng; pending không phải đã áp tốc độ
     GS.Sample()
     return GS.on, not GS.on and GS.reason or nil
 end
 function GS.Status()
     if GS.on then
         if GS.pending then return "⏳ ĐÃ BẬT · " .. tostring(GS.reason) .. " · tự tiếp tục khi sẵn sàng" end
-        return string.format("🏃 BẬT · %g / %g studs/s · %s", GS.value or 0, GS.controlMax or 0,
-            GS.mode == "game" and "mặc định theo game" or (GS.mode == "max" and "cao nhất đã thấy" or "số tự chọn"))
+        return string.format("⚡ BẬT · %g studs/s · đi theo camera, nhảy bình thường", GS.value or 0)
     end
-    return "🏃 TẮT · " .. tostring(GS.reason)
+    return "⚡ TẮT · " .. tostring(GS.reason)
 end
 function MV._LeaveGroundSpeed()
     if GS.on then GS.Set(false, "Đã chuyển sang tính năng di chuyển khác") end
@@ -10133,7 +10005,6 @@ function GS.Close()
     if GS._humConn then GS._humConn:Disconnect(); GS._humConn = nil end
     if GS._heartbeat then GS._heartbeat:Disconnect(); GS._heartbeat = nil end
     if GS._charConn then GS._charConn:Disconnect(); GS._charConn = nil end
-    for _, c in ipairs(GS._teleConns or {}) do c:Disconnect() end
     GS.Sync()
 end
 GS._heartbeat = trackConn(RunService.Heartbeat:Connect(function(dt)
@@ -10147,119 +10018,8 @@ GS._charConn = trackConn(player:GetPropertyChangedSignal("Character"):Connect(GS
 trackConn(gui.Destroying:Connect(GS.Close))
 GS.Sample()
 end
--- ---------- HẾT 🏃 TỐC ĐỘ CHẠY MẶT ĐẤT ----------
+-- ---------- HẾT ⚡ TỐC ĐỘ ----------
 
--- ---------- v4.38: ĐỔI SERVER THẬT = LUA VM MỚI; CHỈ NẠP LẠI KHI NGƯỜI DÙNG CHỌN ----------
-do
-local GS = S.GroundSpeed
-GS.teleportAuto = false
-GS.reloadUrl = "https://raw.githubusercontent.com/mncuadaigmailcom/scriptaiai1/arena/01a0be40-scriptaiai1/script.js" .. "?v=4.39" -- không dùng lại URL cache của bản cũ khi teleport
-GS._teleConns = {}
-function GS.GetTeleportQueue()
-    local shim = _G.BananaCatHub_QueueShim
-    local function real(fn)
-        if type(fn) ~= "function" or fn == shim or (S.shimmedFns and fn == S.shimmedFns.queue_on_teleport) then return nil end
-        return fn
-    end
-    -- Chỉ API executor; KHÔNG dùng S.queued / hàm RAM giả để báo thành công.
-    return real(queue_on_teleport) or real(queueonteleport)
-        or (type(syn) == "table" and real(syn.queue_on_teleport))
-        or (type(fluxus) == "table" and real(fluxus.queue_on_teleport)) or nil
-end
-function GS.TeleportStatus()
-    if GS._teleportError then return "⚠ " .. GS._teleportError end
-    if GS._queueSent then return "↪ Đã gửi yêu cầu nạp hub; phụ thuộc executor. Server mới: tốc độ TẮT, đọc lại game." end
-    if not GS.GetTeleportQueue() then return "↪ Executor không có queue thật: sang server khác cần chạy lại link script." end
-    return GS.teleportAuto and "↪ Tự nạp hub khi đổi server: BẬT. Không mang tốc độ/giới hạn cũ sang server mới."
-        or "↪ Tự nạp hub khi đổi server: TẮT (bấm nút ↪ để cho phép)."
-end
-function GS.SetTeleportAuto(on)
-    if GS._closed then return false, "Hub đã đóng" end
-    on = on == true
-    if on and not GS.GetTeleportQueue() then
-        GS.teleportAuto = false
-        GS._teleportError = "Executor không hỗ trợ queue thật; hãy chạy lại script sau khi vào server chơi."
-        GS.Sync()
-        return false, GS._teleportError
-    end
-    GS.teleportAuto, GS._teleportError = on, nil
-    GS.Sync()
-    if not on and GS._queueSent then return false, "Đã tắt cho lần sau; yêu cầu đã gửi executor không thể thu hồi từ hub." end
-    return on, GS.TeleportStatus()
-end
-function GS.TeleportLoader(placeId)
-    local function id(value)
-        local n = tonumber(value)
-        return n and n == n and n > 0 and n < math.huge and math.floor(n) or 0
-    end
-    local target, universe = id(placeId), id(game.GameId)
-    -- Không truyền WalkSpeed/đỉnh quan sát/trạng thái di chuyển. Loader chỉ dựng lại hub.
-    return string.format([=[
-task.spawn(function()
-    local target, universe = %s, %s
-    local players = game:GetService("Players")
-    local deadline = os.clock() + 60
-    while not game:IsLoaded() or not players.LocalPlayer or not players.LocalPlayer:FindFirstChild("PlayerGui") do
-        if os.clock() >= deadline then warn("[BananaCatHub] Game tải chậm; hãy chạy lại link script."); return end
-        task.wait(0.1)
-    end
-    if target > 0 and game.PlaceId ~= target then return end
-    if universe > 0 and game.GameId > 0 and game.GameId ~= universe then return end
-    local key = tostring(game.PlaceId) .. ":" .. tostring(game.JobId)
-    local api = _G.BananaCatHubAPI
-    if _G.BananaCatHub_QueuedReloadJob == key and api and api.HubGui and api.HubGui.Parent then return end
-    if _G.BananaCatHub_QueuedReloadBusy == key then return end
-    _G.BananaCatHub_QueuedReloadBusy = key
-    local ok, err = pcall(function()
-        local code = game:HttpGet(%q)
-        local run, compileError = loadstring(code, "BananaCatHub-Teleport")
-        if not run then error(compileError) end
-        run()
-    end)
-    _G.BananaCatHub_QueuedReloadBusy = nil
-    if not ok then warn("[BananaCatHub] Không nạp được hub sau teleport: " .. tostring(err)); return end
-    _G.BananaCatHub_QueuedReloadJob = key
-    local mv = _G.BananaCatHub_MV
-    if mv and mv.GroundSpeed and mv.GroundSpeed.SetTeleportAuto then mv.GroundSpeed.SetTeleportAuto(true) end
-end)
-]=], string.format("%.0f", target), string.format("%.0f", universe), GS.reloadUrl)
-end
-function GS.QueueTeleport(placeId)
-    if GS._closed or not GS.teleportAuto then return false end
-    if GS._queueAttempted then return GS._queueSent == true end
-    GS._queueAttempted = true
-    local queue = GS.GetTeleportQueue()
-    if not queue then
-        GS._teleportError = "Queue không còn khả dụng; chạy lại script ở server mới."
-        GS.Sync(); return false
-    end
-    local ok, result = pcall(queue, GS.TeleportLoader(placeId))
-    GS._queueSent = ok and result ~= false
-    if not GS._queueSent then GS._teleportError = "Không gửi được queue: " .. tostring(result) .. " · chạy lại script ở server mới." end
-    GS.Sync()
-    return GS._queueSent
-end
-local function add(signal, fn)
-    GS._teleConns[#GS._teleConns + 1] = trackConn(signal:Connect(fn))
-end
-local function failed()
-    GS._teleporting, GS._queueAttempted, GS._queueSent = false, false, false
-    GS._teleportError = "Chuyển server chưa thành công; vẫn ở server hiện tại. Queue đã gửi có thể còn trong executor."
-    GS.Sample()
-end
-add(player.OnTeleport, function(state, placeId)
-    if GS._closed then return end
-    if state == Enum.TeleportState.Failed then failed(); return end
-    if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
-        GS.QueueTeleport(placeId)
-        if state == Enum.TeleportState.InProgress then GS._teleporting = true; GS.Sample() end
-    end
-end)
-add(TeleportService.TeleportInitFailed, function(who)
-    if who == player and not GS._closed then failed() end
-end)
-end
--- ---------- HẾT TỰ NẠP HUB KHI ĐỔI SERVER ----------
 
 -- ==================== v4.5: TRANG 📚 SCRIPT HUB (menu kiểu Delta) ====================
 -- "Menu giống Delta": ô tìm kiếm + dãy chip phân loại + danh sách THẺ script (icon, tên, mô tả,
@@ -10384,8 +10144,8 @@ S.ScriptHubList = {
      desc="Đọc mã server hiện tại, copy ra clipboard và điền sẵn vào ô 🎟 để gửi cho bạn bè vào cùng."},
     -- v4.12: BỘ DI CHUYỂN (port từ menu "EXECUTOR MENU"). Tất cả là TIỆN ÍCH NỘI BỘ:
     -- gọi thẳng hàm của hub -> không tải gì từ mạng, không bao giờ "chạy không được".
-    {icon="🏃", name="Tốc Độ Chạy (mặt đất)", cat="Di chuyển", ord=11.5, action="groundspeed",
-     desc="Tốc độ mặt đất: Mặc định / Cao nhất đã thấy, slider + ô số, 🔓 Vượt mức tự chọn. Đọc tốc độ động; chờ sảnh → trận. Không bay/xuyên tường/nút ảo, KHÔNG bảo đảm tránh ban."},
+    {icon="⚡", name="Tốc Độ", cat="Di chuyển", ord=11.5, action="groundspeed",
+     desc="Đi THEO CAMERA trên mặt đất như Bay nhưng KHÔNG bay: giữ va chạm, trọng lực và nhảy bình thường. Slider + ô số, tốc độ bao nhiêu cũng được. Không xuyên tường, không HUD/nút ảo."},
     {icon="🚀", name="Bay", cat="Di chuyển", ord=12, action="fly",
      desc="Bay như 🛡 nhưng điều khiển TAY theo camera: nhìn xuống 60° + tiến tới = xuống 60°. WASD/joystick; thả phím đứng lơ lửng. Space lên · Shift/Ctrl xuống. Không tự bay/né/vòng tròn/khiên; 🧱 bật/tắt riêng ở khung 🚀."},
     {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
@@ -10494,7 +10254,7 @@ function S.RunHubAction(id)
     elseif id == "groundspeed" then
         local wanted = not S.GroundSpeed.on
         local ok, on, err = pcall(S.GroundSpeed.Set, wanted)
-        if not ok then return "⚠️ Tốc độ chạy: " .. tostring(on) end
+        if not ok then return "⚠️ Tốc độ: " .. tostring(on) end
         if wanted and not on then S.Rebuild(); return "⚠️ " .. tostring(err or S.GroundSpeed.Status()) end
         S.Rebuild()
         return S.GroundSpeed.Status()
@@ -11009,54 +10769,60 @@ function S.RebuildHubList()
     end
 end
 
--- ---------- v4.39: KHUNG 🏃 TỐC ĐỘ (số luôn ở đầu + vượt mức opt-in) ----------
+-- ---------- v4.40: KHUNG ⚡ TỐC ĐỘ (slider + nhập số; không HUD/nút ảo) ----------
 do
-    -- Constructor riêng: tránh vượt trần 200 register của main chunk khi thêm điều khiển.
+    -- Constructor riêng: tránh vượt trần 200 register của main chunk.
     (function()
     local GS = S.GroundSpeed
     local P = New("Frame", {
-        Name = "HubGroundSpeed_Panel", Size = UDim2.new(1, 0, 0, 432), LayoutOrder = -2,
+        Name = "HubGroundSpeed_Panel", Size = UDim2.new(1, 0, 0, 232), LayoutOrder = -2,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList)
     Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
     D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
-    local function label(name, text, y, height, color)
-        return New("TextLabel", {
-            Name = name, Size = UDim2.new(1, -16, 0, height), Position = UDim2.new(0, 8, 0, y),
-            Text = text, BackgroundTransparency = 1, TextColor3 = color or C.MUTED,
-            Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true,
-            TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
-        }, P)
-    end
-    local title = label("GroundSpeedTitle", "🏃 TỐC ĐỘ CHẠY — chỉ di chuyển trên mặt đất", 5, 18, C.ACCENT)
+    local title = New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "⚡ TỐC ĐỘ — đi theo camera trên mặt đất", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
     title.Font, title.TextSize = Enum.Font.GothamBold, 10
-    -- Hai số nằm NGAY DƯỚI TIÊU ĐỀ, không phải cuộn qua thanh kéo mới thấy.
-    local observed = label("GroundSpeedObserved", "Đang đọc nhân vật…", 22, 18, C.ACCENT)
-    local function button(name, text, x, y, width, color)
+    local function button(name, text, x, y, w, color)
         local b = New("TextButton", {
-            Name = name, Text = text, Size = UDim2.new(0, width, 0, 24), Position = UDim2.new(0, x, 0, y),
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
             BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
             Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
         }, P)
-        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        Corner(b, UDim.new(0, 6))
+        D.Tactile(b, 0.08)
         return b
     end
-    local onBtn = button("GroundSpeedToggle", "🏃 Tốc độ: TẮT", 8, 43, 110, C.GRAY)
-    local reset = button("GroundSpeedReset", "↺ Mặc định", 124, 43, 90, C.SURFACE3)
-    local maxBtn = button("GroundSpeedMax", "⇡ Cao nhất", 220, 43, 105, C.SURFACE3)
-    local stop = button("GroundSpeedStop", "⏹ Dừng", 331, 43, 67, C.RED)
-    label("GroundSpeedValueLabel", "💨 Tốc độ (studs/s)", 79, 20)
+    -- Số đọc được nằm NGAY DƯỚI TIÊU ĐỀ để không phải cuộn mới thấy.
+    local function label(name, text, y, h, color)
+        local l = New("TextLabel", {
+            Name = name, Text = text, Size = UDim2.new(1, -16, 0, h), Position = UDim2.new(0, 8, 0, y),
+            BackgroundTransparency = 1, TextColor3 = color or C.TEXT, Font = Enum.Font.Gotham,
+            TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+        }, P)
+        return l
+    end
+    local observed = label("GroundSpeedObserved", "Đang đọc nhân vật…", 22, 18, C.ACCENT)
+    local onBtn = button("GroundSpeedToggle", "⚡ Tốc độ: TẮT", 8, 43, 120, C.GRAY)
+    local reset = button("GroundSpeedReset", "↺ Về tốc độ game", 134, 43, 130, C.SURFACE3)
+    local stop = button("GroundSpeedStop", "⏹ Dừng", 270, 43, 68, C.RED)
+    label("GroundSpeedValueLabel", "💨 Tốc độ (studs/s) — nhập số bao nhiêu cũng được", 74, 18)
     local input = New("TextBox", {
-        Name = "GroundSpeedValue", Size = UDim2.new(0, 84, 0, 24), Position = UDim2.new(0, 146, 0, 74),
-        Text = "", PlaceholderText = "Chờ game", ClearTextOnFocus = false,
+        Name = "GroundSpeedValue", Size = UDim2.new(0, 84, 0, 24), Position = UDim2.new(0, 8, 0, 94),
+        Text = "", PlaceholderText = "vd 100", ClearTextOnFocus = false,
         BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK, BorderSizePixel = 0,
         Font = Enum.Font.GothamMedium, TextSize = 10, ZIndex = 8,
     }, P)
     Corner(input, UDim.new(0, 6))
-    local apply = button("GroundSpeedApply", "✔ Áp dụng", 236, 74, 162, C.GREEN)
+    local apply = button("GroundSpeedApply", "✔ Áp dụng", 100, 94, 120, C.GREEN)
     local slider = New("TextButton", {
         Name = "GroundSpeedSlider", Text = "", AutoButtonColor = false, Active = true,
-        Size = UDim2.new(1, -32, 0, 30), Position = UDim2.new(0, 16, 0, 105),
+        Size = UDim2.new(1, -32, 0, 30), Position = UDim2.new(0, 16, 0, 126),
         BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8,
     }, P)
     local rail = New("Frame", {
@@ -11074,59 +10840,28 @@ do
         BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 10,
     }, slider)
     Corner(thumb, UDim.new(1, 0)); Stroke(thumb, C.ACCENT3, 1)
-    local range = label("GroundSpeedRange", "", 138, 16, C.ACCENT)
-    local unlock = button("GroundSpeedUnlock", "🔒 Vượt mức: TẮT", 8, 162, 178, C.GRAY)
-    local ceilingLabel = label("GroundSpeedCeilingLabel", "Trần mở rộng", 167, 20)
-    ceilingLabel.Position = UDim2.new(0, 194, 0, 167); ceilingLabel.Size = UDim2.new(0, 80, 0, 20)
-    local ceiling = New("TextBox", {
-        Name = "GroundSpeedCeiling", Size = UDim2.new(0, 70, 0, 24), Position = UDim2.new(0, 280, 0, 162),
-        Text = "2000", ClearTextOnFocus = false, TextEditable = false,
-        BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK, BorderSizePixel = 0,
-        Font = Enum.Font.GothamMedium, TextSize = 10, ZIndex = 8,
-    }, P)
-    Corner(ceiling, UDim.new(0, 6))
-    local ceilingApply = button("GroundSpeedCeilingApply", "✔", 356, 162, 42, C.SURFACE3)
-    local limit = label("GroundSpeedLimit", "", 192, 24)
-    local status = label("GroundSpeedStatus", "", 219, 35)
-    local diagnostics = label("GroundSpeedDiagnostics", "", 257, 42)
-    local teleBtn = button("GroundSpeedTeleport", "↪ Qua server: tự nạp hub TẮT", 8, 303, 390, C.SURFACE3)
-    local teleStatus = label("GroundSpeedTeleportStatus", "", 332, 30)
-    label("GroundSpeedWarning", "⚠ Cao nhất quan sát không phải tối đa thật/anti-cheat; KHÔNG bảo đảm tránh ban. "
-        .. "🔓 chỉ mở trần TỰ CHỌN, không vượt quyền server. Game ghi đè số đã chọn → dừng, không ép lại. "
-        .. "Nếu game dùng bộ di chuyển riêng, đổi WalkSpeed có thể không tác dụng. Không bay/xuyên tường/nút ảo.", 365, 58, C.YELLOW)
+    local range = label("GroundSpeedRange", "", 158, 16, C.ACCENT)
+    local status = label("GroundSpeedStatus", "", 176, 20)
+    label("GroundSpeedWarning", "⚠ KHÔNG bay, KHÔNG xuyên tường, KHÔNG nút ảo — vẫn va chạm, trọng lực và nhảy bình thường. "
+        .. "Hướng đi theo camera nhờ điều khiển gốc của game. Tốc độ do bạn nhập; server có thể không nhận. "
+        .. "Game đổi WalkSpeed khi đang chỉnh → tự dừng, không ép lại.", 198, 30, C.YELLOW)
 
     local function text(obj, value) if obj.Text ~= value then obj.Text = value end end
     local function fmt(n) return n ~= nil and string.format("%g", n) or "—" end
     function S.SyncGroundSpeedPanel()
         if not P.Parent then return end
-        text(onBtn, GS.on and (GS.pending and "⏳ Chờ vào trận" or "🏃 Tốc độ: BẬT") or "🏃 Tốc độ: TẮT")
+        text(onBtn, GS.on and (GS.pending and "⏳ Chờ vào trận" or "⚡ Tốc độ: BẬT") or "⚡ Tốc độ: TẮT")
         local cardButton = S.groundSpeedRunButton
-        if cardButton and cardButton.Parent then text(cardButton, GS.on and "🏃 TẮT" or "🏃 BẬT") end
+        if cardButton and cardButton.Parent then text(cardButton, GS.on and "⚡ TẮT" or "⚡ BẬT") end
         D.SetBg(onBtn, GS.on and (GS.pending and C.YELLOW or C.GREEN) or C.GRAY)
-        D.SetBg(reset, GS.mode == "game" and C.BLUE or C.SURFACE3)
-        D.SetBg(maxBtn, GS.mode == "max" and C.BLUE or C.SURFACE3)
-        text(teleBtn, GS.teleportAuto and "↪ Qua server: tự nạp hub BẬT" or "↪ Qua server: tự nạp hub TẮT")
-        D.SetBg(teleBtn, GS.teleportAuto and C.GREEN or C.SURFACE3)
-        text(teleStatus, GS.TeleportStatus())
-        text(unlock, GS.allowAbove and "🔓 Vượt mức: BẬT" or "🔒 Vượt mức: TẮT")
-        D.SetBg(unlock, GS.allowAbove and C.YELLOW or C.GRAY)
-        ceiling.TextEditable = GS.allowAbove
-        if UserInputService:GetFocusedTextBox() ~= ceiling then text(ceiling, fmt(GS.customCeiling)) end
-        local available = GS.controlMax ~= nil and GS.controlMax > 0
-        input.TextEditable = available
-        slider.Active = available
-        local pct = available and math.max(0, math.min((GS.value or 0) / GS.controlMax, 1)) or 0
+        text(observed, "WalkSpeed game: " .. fmt(GS.nativeSpeed) .. " · Đang đặt: " .. fmt(GS.value) .. " studs/s")
+        slider.Active = true
+        local pct = math.max(0, math.min((GS.value or 0) / GS.sliderMax, 1))
         fill.Size = UDim2.new(pct, 0, 1, 0)
         thumb.Position = UDim2.new(pct, -9, 0.5, -9)
-        thumb.BackgroundColor3 = available and C.ACCENT or C.GRAY
         if UserInputService:GetFocusedTextBox() ~= input then text(input, GS.value ~= nil and fmt(GS.value) or "") end
-        text(range, "0  ← kéo trái / phải →  " .. fmt(GS.controlMax) .. " studs/s")
-        text(observed, "Mặc định (WS): " .. (GS.defaultSpeed ~= nil and fmt(GS.defaultSpeed) or "chưa đọc được")
-            .. " · Cao nhất đã thấy: " .. (GS.observedMax ~= nil and fmt(GS.observedMax) or "chưa có mẫu"))
-        text(limit, "Quan sát: " .. fmt(GS.limit) .. " · Trần ô kéo: " .. fmt(GS.controlMax)
-            .. (GS.allowAbove and " · 🔓 TỰ CHỌN, không phải giới hạn game" or " · 🔒 Theo mẫu game"))
+        text(range, "0  ← kéo trái / phải →  " .. fmt(GS.sliderMax) .. " studs/s (thanh kéo; ô số nhận lớn hơn)")
         text(status, GS.Status())
-        text(diagnostics, GS.Diagnostics())
     end
     onBtn.Activated:Connect(function()
         ReleaseHubFocus()
@@ -11137,40 +10872,15 @@ do
     end)
     reset.Activated:Connect(function()
         ReleaseHubFocus()
-        local ok, value = GS.UseGameSpeed()
-        D.Say(ok and ("🏃 Mặc định theo game: " .. fmt(value) .. (value == nil and " · chờ vào trận" or "")) or tostring(value), ok and C.GREEN or C.YELLOW)
+        local ok, value = GS.SetNative()
+        D.Say(ok and ("⚡ Về tốc độ game: " .. fmt(value)) or tostring(value), ok and C.GREEN or C.YELLOW)
     end)
-    maxBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local ok, value = GS.UseMaxSpeed()
-        D.Say(ok and ("🏃 Cao nhất ĐÃ THẤY: " .. fmt(value) .. " · không phải ngưỡng chống ban") or tostring(value), ok and C.GREEN or C.YELLOW)
-    end)
-    teleBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local on, message = GS.SetTeleportAuto(not GS.teleportAuto)
-        D.Say(tostring(message), on and C.GREEN or C.YELLOW)
-    end)
-    unlock.Activated:Connect(function()
-        ReleaseHubFocus()
-        local _, message = GS.SetAllowAbove(not GS.allowAbove)
-        D.Say(tostring(message), C.YELLOW)
-    end)
-    local function applyCeiling()
-        local value = ceiling.Text
-        ReleaseHubFocus()
-        local ok, result, clamped = GS.SetCustomCeiling(value)
-        D.Say(ok and ("🔓 Trần TỰ CHỌN: " .. fmt(result) .. (clamped and " — đã kẹp giới hạn kỹ thuật" or "")
-            .. " · không phải tối đa thật của game") or tostring(result), ok and C.YELLOW or C.RED)
-        S.SyncGroundSpeedPanel()
-    end
-    ceilingApply.Activated:Connect(applyCeiling)
-    ceiling.FocusLost:Connect(function(enter) if enter then applyCeiling() end end)
     local function applyValue()
         local value = input.Text
         ReleaseHubFocus()
-        local ok, result, clamped = GS.SetValue(value)
+        local ok, result = GS.SetValue(value)
         if ok then
-            D.Say("🏃 " .. fmt(result) .. " studs/s" .. (clamped and (GS.allowAbove and " — đã kẹp theo trần TỰ CHỌN" or " — đã kẹp theo mức QUAN SÁT") or "")
+            D.Say("⚡ " .. fmt(result) .. " studs/s"
                 .. (GS.on and (GS.pending and " (chờ vào trận)" or " (đang áp dụng)") or " (chưa bật)"), C.GREEN)
         else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
         S.SyncGroundSpeedPanel()
@@ -11197,15 +10907,16 @@ do
         scrollWas = nil
     end
     local function dragTo(pos)
-        if not visible() or GS.controlMax == nil or GS.controlMax <= 0 then GS.EndDrag(); return end
+        if not visible() or not GS.on then GS.EndDrag(); return end
+        -- Không kéo thanh khi tính năng đang TẮT: tránh drag "đi lạc" tự bật lại tốc độ.
         local width = slider.AbsoluteSize.X
         if width <= 0 or not pos then return end
         local ratio = math.max(0, math.min((pos.X - slider.AbsolutePosition.X) / width, 1))
-        GS.SetValue(ratio == 1 and GS.controlMax or math.min(GS.controlMax, math.floor(ratio * GS.controlMax * 10 + 0.5) / 10))
+        GS.SetValue(ratio == 1 and GS.sliderMax or math.floor(ratio * GS.sliderMax * 10 + 0.5) / 10)
     end
     slider.InputBegan:Connect(function(event)
         local pointer = event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch
-        if not pointer or dragInput or not visible() or GS.controlMax == nil or GS.controlMax <= 0 then return end
+        if not pointer or dragInput or not visible() or not GS.on then return end
         ReleaseHubFocus()
         dragInput, scrollWas = event, D.hubList.ScrollingEnabled
         D.hubList.ScrollingEnabled = false
@@ -11231,13 +10942,13 @@ do
         GS.ReleasePanel()
         GS.Set(false, "Khung tốc độ đã đóng")
     end)
-    S.groundSpeedControls = {panel=P, on=onBtn, stop=stop, reset=reset, max=maxBtn, value=input, apply=apply,
-        slider=slider, fill=fill, thumb=thumb, observed=observed, limit=limit, status=status,
-        teleport=teleBtn, teleportStatus=teleStatus, unlock=unlock, ceiling=ceiling, ceilingApply=ceilingApply, diagnostics=diagnostics}
+    S.groundSpeedControls = {panel=P, on=onBtn, stop=stop, reset=reset, value=input, apply=apply,
+        slider=slider, fill=fill, thumb=thumb, observed=observed, range=range, status=status}
     S.SyncGroundSpeedPanel()
     end)()
 end
--- ---------- HẾT KHUNG 🏃 TỐC ĐỘ ----------
+-- ---------- HẾT KHUNG ⚡ TỐC ĐỘ ----------
+
 
 -- ---------- v4.36: KHUNG 🚀 BAY THEO CAMERA (công tắc 🧱 độc lập) ----------
 do
@@ -14295,7 +14006,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.39 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.40 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
