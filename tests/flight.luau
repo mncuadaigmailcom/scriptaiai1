@@ -25,8 +25,8 @@ local function otherPlayer(m,E)
 end
 local function frames(m,n) for _=1,n do m:frame() end end
 
-test("full hub starts with all 7 pages and 31 existing cards",function(m,h,MV,E)
-    assert(#h.tabs==7 and #h.S.ScriptHubList==31)
+test("full hub keeps 7 pages, all 31 existing cards and adds ground speed",function(m,h,MV,E)
+    assert(#h.tabs==7 and #h.S.ScriptHubList==32)
     local names={}
     for _,tab in ipairs(h.tabs) do names[tab:GetAttribute("BCTabName")]=true end
     for _,name in ipairs({"Code","Code Đã Lưu","Script Hub","Hỗ Trợ","Người Chơi","Tạo Tính Năng","Thiết Lập"}) do
@@ -485,7 +485,7 @@ test("search/filter never destroys the flight controls or existing panels",funct
     assert(h.S.flyBtns.panel==panel and panel.Parent and m:find("HubMove_Panel") and m:find("HubSafe_Panel"))
     h.S.hubSearch=""; h.S.hubCat="Di chuyển"; h.S.RebuildHubList()
     assert(panel.Parent and h.D.hubList.CanvasSize.Y.Offset>panel.Size.Y.Offset)
-    h.S.hubCat="Tất cả"; h.S.RebuildHubList(); assert(#h.S.ScriptHubList==31)
+    h.S.hubCat="Tất cả"; h.S.RebuildHubList(); assert(#h.S.ScriptHubList==32)
 end)
 
 test("destroyed manual HUD is rebuilt without leaking service connections",function(m,h,MV,E)

@@ -2,7 +2,7 @@
 -- Important contracts: immediate task.spawn, real vector/camera math, distinct
 -- touch identities, named render bindings, instance destruction and Text typing.
 return function()
-    local m = {now = 1, errors = {}, warnings = {}, propertyErrors = {}, instances = {}, scheduled = {}, keys = {}, bindings = {}, cfWrites = 0, httpCalls = 0}
+    local m = {now = 1, errors = {}, warnings = {}, propertyErrors = {}, instances = {}, scheduled = {}, keys = {}, bindings = {}, cfWrites = 0, httpCalls = 0, humanoidWrites = {}, deferPropertySignals = false}
     local env = setmetatable({_G = {}}, {__index = getfenv()})
     m.env = env
 
@@ -201,6 +201,10 @@ return function()
             m.propertyErrors[#m.propertyErrors+1]=err; error(err)
         end
         local old=obj._props[key]
+        if obj.ClassName=="Humanoid" then
+            m.humanoidWrites[key]=(m.humanoidWrites[key] or 0)+1
+            if key=="WalkSpeed" and m.rejectWalkSpeed then error("mock WalkSpeed write rejected") end
+        end
         if key=="Parent" and old~=value then
             assert(not obj._destroyed or value==nil,"cannot reparent destroyed instance")
             if old then
@@ -225,12 +229,16 @@ return function()
                 obj._props.CFrame=CF.new(value)*c.Rotation
             end
         end
-        if old~=value and obj._signals["Property_"..key] then obj._signals["Property_"..key]:Fire() end
+        if old~=value and obj._signals["Property_"..key] then
+            local sig=obj._signals["Property_"..key]
+            if m.deferPropertySignals then env.task.defer(function() sig:Fire() end) else sig:Fire() end
+        end
     end
     env.Instance={new=function(cls,parent)
         local props={ClassName=cls,Name=cls,Visible=true,Enabled=true,Text="",BackgroundColor3=env.Color3.new(),
             Size=env.UDim2.new(),Position=env.UDim2.new(),CanvasSize=env.UDim2.new(),CanvasPosition=V.zero,
             Font=env.Enum.Font.Gotham,BackgroundTransparency=0,TextSize=14,AnchorPoint=V.zero}
+        if cls=="ScrollingFrame" then props.ScrollingEnabled=true end
         if partClasses[cls] then
             props.Position=V.zero; props.CFrame=CF.new(); props.Size=V.new(2,2,1)
             props.CanCollide=true; props.AssemblyLinearVelocity=V.zero; props.Velocity=V.zero
