@@ -1,6 +1,11 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    💨 v4.37: TỐC ĐỘ THEO CAMERA — cùng kiểu điều khiển 🚀 trên mặt đất, không mất tính năng cũ.
+    🦘 v4.38: NHẢY CAO — công tắc độc lập kiểu 👤 Né người (🛡): BẬT/TẮT + chỉnh tốc độ nhảy.
+      · Bấm Space/JumpRequest là nhảy cao theo số 💨 (giữ vận tốc XZ, không khóa Y).
+      · Rơi theo trọng lực game. Không xuyên tường, không nút ảo, không PlatformStand.
+      · Khung 🦘 + thẻ trong 📚 Script Hub. 🦘 Nhảy vô hạn / 💨 tốc độ / 🚀 / 🛡 / 👤 né người giữ nguyên.
+      · Test: tests/test-highjump.js (node tests/run.js).
+    💨 v4.37 (lịch sử): TỐC ĐỘ THEO CAMERA — cùng kiểu điều khiển 🚀 trên mặt đất, không mất tính năng cũ.
       · WASD/joystick theo hướng camera (mặt phẳng XZ). Nhìn xuống 60° + tiến tới vẫn chạy ngang.
       · KHÔNG xuyên tường, KHÔNG nút ảo, nhảy bình thường (Space của game), rơi theo trọng lực game.
       · BodyVelocity chỉ ép trục XZ (MaxForce.Y = 0) — không PlatformStand, không BodyGyro, không sàn bay.
@@ -1382,7 +1387,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.37 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.38 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -4813,7 +4818,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.37",
+    Version = "4.38",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -7037,6 +7042,7 @@ S.Move = {
     fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
     sprint = false, sprintSpeed = 50,        -- v4.37: 💨 tốc độ theo camera (mặt đất, không xuyên tường)
+    highJump = false, highJumpSpeed = 80,    -- v4.38: 🦘 nhảy cao (công tắc độc lập, chỉnh tốc độ)
     _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
     -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
@@ -7300,7 +7306,7 @@ function MV._JumpConfirm(y0)
     if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
         pcall(function()
             r2.AssemblyLinearVelocity = Vector3.new(
-                MV.comp(v, "X", 0), mvClamp(MV.jumpPower, 1, 500), MV.comp(v, "Z", 0))
+                MV.comp(v, "X", 0), MV.WantJumpSpeed(), MV.comp(v, "Z", 0))
         end)
     end
 end
@@ -7378,11 +7384,15 @@ function MV.ApplyChar()
         local want = MV.WantSpeed()
         h.WalkSpeed = want
         MV.appliedWS = want
-        local jp = mvClamp(MV.jumpPower, 0, 500)
-        if h.JumpPower ~= jp then h.JumpPower = jp end
+        if not MV.highJump then
+            local jp = mvClamp(MV.jumpPower, 0, 500)
+            if h.JumpPower ~= jp then h.JumpPower = jp end
+        end
     else
         h.WalkSpeed  = MV._baseWS or 16
-        h.JumpPower  = MV._baseJP or 50
+        if not MV.highJump then
+            h.JumpPower  = MV._baseJP or 50
+        end
         MV.appliedWS = nil
     end
 end
@@ -7418,7 +7428,7 @@ end
 function MV._NeedWatch()
     -- v4.23: + 🛡 Bay An Toàn (phải tự sống qua respawn/đổi trận kể cả khi game gỡ vòng lặp render)
     return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode
-            or MV.sprint or (MV.Safe and MV.Safe.on)) == true
+            or MV.sprint or MV.highJump or (MV.Safe and MV.Safe.on)) == true
 end
 function MV._KeepAlive()
     if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
@@ -7431,6 +7441,7 @@ function MV._KeepAlive()
         end
     end
     if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
+    if MV.highJump then pcall(MV._HighJumpApplyPower) end
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         pcall(MV.CreateCarpet, MV.carpetY)
     end
@@ -7950,6 +7961,112 @@ function MV.SetSprintSpeed(n)
     return true, MV.sprintSpeed
 end
 end -- 💨 TỐC ĐỘ THEO CAMERA
+
+-- ---------- 🦘 NHẢY CAO (v4.38) ----------
+-- Công tắc độc lập giống 👤 Né người trong 🛡: BẬT thì có hiệu lực, TẮT thì thôi.
+-- Bấm nhảy (JumpRequest / Space / A) -> đẩy vận tốc Y = tốc độ đã chỉnh, GIỮ XZ.
+-- Không khóa Y sau đó nên rơi theo trọng lực game. Không xuyên tường, không nút ảo.
+do
+local HJ = { last = 0 }
+MV.HighJump = HJ
+
+function MV.WantJumpSpeed()
+    if MV.highJump then return mvClamp(MV.highJumpSpeed, 1, 500, 80) end
+    return mvClamp(MV.jumpPower, 1, 500, 50)
+end
+function MV.HighJumpVelocity(current, speed)
+    local vx = MV.comp(current, "X", 0)
+    local vz = MV.comp(current, "Z", 0)
+    return Vector3.new(vx, mvClamp(speed, 1, 500, 80), vz)
+end
+function MV._HighJumpApplyPower()
+    if not MV.highJump then return end
+    local h = MV.Hum()
+    if not h then return end
+    local jp = mvClamp(MV.highJumpSpeed, 1, 500, 80)
+    pcall(function()
+        if h.UseJumpPower ~= false then
+            if (tonumber(h.JumpPower) or 0) ~= jp then h.JumpPower = jp end
+        end
+        local g = tonumber(workspace.Gravity) or 0
+        if g < 1 then g = 196.2 end
+        local jh = mvClamp((jp * jp) / (2 * g), 1, 500)
+        if math.abs((tonumber(h.JumpHeight) or 0) - jh) > 0.05 then h.JumpHeight = jh end
+    end)
+end
+function MV._DoHighJump()
+    if not MV.highJump then return false end
+    -- 🚀/🛡 đang bay: không cướp trục Y.
+    if MV.fly or (MV.Safe and MV.Safe.on) then return false end
+    local h, r = MV.Hum(), MV.Root()
+    if not h or not r then return false end
+    if h.Sit then return false end
+    local st = h:GetState()
+    if st == Enum.HumanoidStateType.Freefall then return false end
+    local now = os.clock()
+    if HJ.last and (now - HJ.last) < 0.12 then return false end
+    HJ.last = now
+    MV._HighJumpApplyPower()
+    pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    pcall(function() h.Jump = true end)
+    pcall(function()
+        r.AssemblyLinearVelocity = MV.HighJumpVelocity(r.AssemblyLinearVelocity, MV.highJumpSpeed)
+    end)
+    return true
+end
+function MV._HighJumpBind()
+    if HJ.conn or not MV.highJump then return end
+    HJ.conn = trackConn(UserInputService.JumpRequest:Connect(function()
+        pcall(MV._DoHighJump)
+    end))
+    HJ.conn2 = trackConn(UserInputService.InputBegan:Connect(function(i, gp)
+        if not MV.highJump then return end
+        pcall(function()
+            local tb = UserInputService:GetFocusedTextBox()
+            if tb and tb:IsDescendantOf(gui) then return end
+            local k = i and i.KeyCode
+            if k == Enum.KeyCode.Space or k == Enum.KeyCode.ButtonA then MV._DoHighJump() end
+        end)
+    end))
+end
+function MV._HighJumpUnbind()
+    for _, c in ipairs({ HJ.conn, HJ.conn2 }) do
+        if c then pcall(function() c:Disconnect() end) end
+    end
+    HJ.conn, HJ.conn2 = nil, nil
+end
+function MV.SetHighJump(on)
+    on = (on == true)
+    if on == MV.highJump then return MV.highJump end
+    local h = MV.Hum()
+    if on then
+        if h then HJ.baseJP, HJ.baseJH = h.JumpPower, h.JumpHeight end
+        MV.highJump = true
+        MV._HighJumpApplyPower()
+        MV._HighJumpBind()
+    else
+        MV.highJump = false
+        MV._HighJumpUnbind()
+        if h and not MV.infJump then
+            if HJ.baseJP ~= nil then pcall(function() h.JumpPower = HJ.baseJP end) end
+            if HJ.baseJH ~= nil then pcall(function() h.JumpHeight = HJ.baseJH end) end
+        end
+        HJ.baseJP, HJ.baseJH = nil, nil
+    end
+    MV._Watchdog()
+    if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end
+    return MV.highJump
+end
+function MV.SetHighJumpSpeed(n)
+    n = tonumber(n)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ nhảy 1–500" end
+    MV.highJumpSpeed = mvClamp(n, 1, 500, 80)
+    if MV.highJump then pcall(MV._HighJumpApplyPower) end
+    if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end
+    return true, MV.highJumpSpeed
+end
+end -- 🦘 NHẢY CAO
+
 
 
  -- ============================================================================
@@ -9834,6 +9951,7 @@ function MV.StopAll()
     -- pcall(function() MV.ClearPlacedGlasses() end)
     MV.SetNoclip(false)
     MV.SetInfJump(false)
+    MV.SetHighJump(false)    -- v4.38: tắt 🦘 nhảy cao
     MV.SetSpeed(false)
     MV.SetSprint(false)      -- v4.37: tắt 💨 tốc độ theo camera
     MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
@@ -9847,6 +9965,7 @@ S.MoveActionState = {
     fly     = function() return S.Move.fly     end,
     noclip  = function() return S.Move.noclip  end,
     infjump = function() return S.Move.infJump end,
+    highjump= function() return S.Move.highJump end,
     speed   = function() return S.Move.speed   end,
     camspeed= function() return S.Move.sprint  end,
     carpet  = function() return S.Move.carpet  end,
@@ -9877,6 +9996,10 @@ function MV.Refresh()
         MV._EnsureSpeed()
         MV._BindSpeed()
     end
+    if MV.highJump then
+        pcall(MV._HighJumpApplyPower)
+        pcall(MV._HighJumpBind)
+    end
     if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         MV.CreateCarpet(MV.carpetY)
@@ -9889,6 +10012,7 @@ function MV.Status()
     if MV.fly then t[#t + 1] = string.format("🚀 bay %d", MV.flySpeed) end
     if MV.noclip then t[#t + 1] = "🧱 xuyên tường" end
     if MV.infJump then t[#t + 1] = "🦘 nhảy vô hạn" end
+    if MV.highJump then t[#t + 1] = string.format("🦘 nhảy cao %d", MV.highJumpSpeed) end
     if MV.sprint then t[#t + 1] = string.format("💨 tốc độ %d", MV.sprintSpeed) end
     if MV.speed then
         if MV.speedMode == "x" then
@@ -10058,6 +10182,8 @@ S.ScriptHubList = {
      desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
      desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
+    {icon="🦘", name="Nhảy Cao", cat="Di chuyển", ord=14.2, action="highjump",
+     desc="Công tắc độc lập kiểu 👤 Né người (🛡): BẬT/TẮT + chỉnh tốc độ nhảy. Space là nhảy cao, rơi theo trọng lực game. Không xuyên tường, không nút ảo. Không thay 🦘 Nhảy vô hạn."},
     {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
      desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
     {icon="🧱", name="Đặt Kính", cat="Di chuyển", ord=16, action="carpet",
@@ -10184,6 +10310,13 @@ function S.RunHubAction(id)
         S.Rebuild()
         return S.Move.infJump and "🦘 Nhảy vô hạn: BẬT (Space/🐸 A — nhảy được cả game cấm nhảy/không bốc JumpRequest)"
                                or "🦘 Nhảy vô hạn: TẮT (JumpPower/JumpHeight đã trả lại game)"
+    elseif id == "highjump" then
+        local wanted = not S.Move.highJump
+        local okH, on = pcall(S.Move.SetHighJump, wanted)
+        if not okH then return "⚠️ lỗi nhảy cao: " .. tostring(on) end
+        S.Rebuild()
+        return S.Move.highJump and ("🦘 Nhảy cao: BẬT — tốc độ " .. tostring(S.Move.highJumpSpeed) .. " · Space nhảy cao · rơi theo game")
+                                or "🦘 Nhảy cao: TẮT — JumpPower trả về game"
     elseif id == "speed" then
         pcall(function() S.Move.SetSpeed(not S.Move.speed) end)
         S.Rebuild()
@@ -10667,6 +10800,7 @@ function S.RebuildHubList()
     end)
     if S.SyncFlyPanel then pcall(S.SyncFlyPanel) end          -- v4.36: Bay + xuyên tường độc lập
     if S.SyncSpeedPanel then pcall(S.SyncSpeedPanel) end      -- v4.37: 💨 tốc độ theo camera
+    if S.SyncHighJumpPanel then pcall(S.SyncHighJumpPanel) end -- v4.38: 🦘 nhảy cao
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
     if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
@@ -10837,6 +10971,83 @@ do
     S.SyncSpeedPanel()
 end
 -- ---------- HẾT KHUNG 💨 TỐC ĐỘ THEO CAMERA ----------
+
+-- ---------- v4.38: KHUNG 🦘 NHẢY CAO (công tắc độc lập kiểu 👤 Né người) ----------
+do
+    local P = New("Frame", {
+        Name = "HubHighJump_Panel", Size = UDim2.new(1, 0, 0, 118), LayoutOrder = -3,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🦘 NHẢY CAO — BẬT/TẮT độc lập (kiểu 👤 Né người)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("HighJumpToggle", "🦘 Nhảy cao: TẮT", 8, 24, 148, C.GRAY)
+    local stop = button("HighJumpStop", "⏹ Dừng", 162, 24, 80, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(0, 148, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ nhảy (1–500)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "HighJumpSpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 160, 0, 54),
+        Text = tostring(MV.highJumpSpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("HighJumpApply", "✔ Áp dụng", 222, 54, 92, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 82),
+        Text = "BẬT rồi bấm Space: nhảy cao theo số trên. Rơi theo game. Không xuyên tường, không nút ảo.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "HighJumpStatus", Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 100),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncHighJumpPanel()
+        onBtn.Text = "🦘 Nhảy cao: " .. (MV.highJump and "BẬT" or "TẮT")
+        D.SetBg(onBtn, MV.highJump and C.GREEN or C.GRAY)
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.highJumpSpeed) end
+        status.Text = MV.highJump
+            and ("🦘 Đang nhảy cao · tốc độ " .. tostring(MV.highJumpSpeed) .. " · rơi theo trọng lực game")
+            or "🦘 Đã tắt · nhảy = của game (🦘 vô hạn vẫn độc lập)"
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("highjump"), C.YELLOW) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetHighJumpSpeed(value)
+        if ok then D.Say("💨 Tốc độ nhảy cao: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncHighJumpPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetHighJump(false); S.Rebuild()
+        D.Say("🦘 Nhảy cao: TẮT", C.YELLOW)
+    end)
+    S.highJumpBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncHighJumpPanel()
+end
+-- ---------- HẾT KHUNG 🦘 NHẢY CAO ----------
+
 
 
 -- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN ----------
@@ -13809,7 +14020,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.37 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.38 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
