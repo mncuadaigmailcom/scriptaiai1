@@ -468,14 +468,16 @@ local togBtn = New("TextButton", {
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
--- viền cầu vồng mỏng, chỉ viền, không che
+-- viền cầu vồng mỏng, chỉ viền, không che (sẽ được S.TogCustom.Apply quản lý)
 local rainbowStroke = Instance.new("UIStroke")
-rainbowStroke.Thickness = 2
+rainbowStroke.Name = "RainbowStroke"
+rainbowStroke.Thickness = 2.5
 rainbowStroke.Color = Color3.fromRGB(255,255,255)
 rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 rainbowStroke.Parent = togBtn
 pcall(function()
     local grad = Instance.new("UIGradient")
+    grad.Name = "Grad"
     grad.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)),
         ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255,255,0)),
@@ -498,6 +500,8 @@ pcall(function()
     end)
 end)
 D.Tactile(togBtn, 1)
+-- áp dụng tùy chỉnh đã lưu
+pcall(function() if S.TogCustom and S.TogCustom.Apply then S.TogCustom.Apply() end end)
 -- đã bỏ glow toàn màn hình để không che góc phải khi kéo nút vào giữa
 
 local main = New("Frame", {
@@ -1136,6 +1140,15 @@ function Store.serialize()
                 end
                 return out
             end)(),
+            togCustom = {
+                imageId = S.TogCustom and S.TogCustom.imageId or "",
+                bgColor = S.TogCustom and S.TogCustom.bgColor or {r=18,g=18,b=22},
+                bgTrans = S.TogCustom and S.TogCustom.bgTrans or 0.15,
+                size = S.TogCustom and S.TogCustom.size or 56,
+                rainbow = S.TogCustom and S.TogCustom.rainbow or true,
+                gradient = S.TogCustom and S.TogCustom.gradient or "",
+                useImage = S.TogCustom and S.TogCustom.useImage or false,
+            },
         },
     }
 end
@@ -1178,6 +1191,17 @@ function Store.load()
         if type(data.settings.hubFavs) == "table" then
             S.hubFavs = {}
             for _, nm in ipairs(data.settings.hubFavs) do S.hubFavs[tostring(nm)] = true end
+        end
+        if type(data.settings.togCustom) == "table" then
+            local tc = data.settings.togCustom
+            S.TogCustom = S.TogCustom or {}
+            S.TogCustom.imageId = tostring(tc.imageId or "")
+            S.TogCustom.bgColor = type(tc.bgColor)=="table" and tc.bgColor or {r=18,g=18,b=22}
+            S.TogCustom.bgTrans = tonumber(tc.bgTrans) or 0.15
+            S.TogCustom.size = tonumber(tc.size) or 56
+            S.TogCustom.rainbow = (tc.rainbow ~= false)
+            S.TogCustom.gradient = tostring(tc.gradient or "")
+            S.TogCustom.useImage = (tc.useImage == true) or (S.TogCustom.imageId ~= "")
         end
     end
 
@@ -1226,6 +1250,218 @@ function Store.load()
 end
 
 Store.load()
+
+-- ---------- 🎨 TÙY CHỈNH NÚT BẬT/ẨN MENU (taodepzai v5.0) ----------
+S.TogCustom = S.TogCustom or {
+    imageId = "", -- rbxassetid://...
+    bgColor = {r=18,g=18,b=22},
+    bgTrans = 0.15,
+    size = 56,
+    rainbow = true,
+    gradient = "", -- "255,0,0;0,255,0;0,0,255" = nhiều màu
+    useImage = false,
+}
+
+function S.TogCustom.Save()
+    pcall(function() Store.saveSoon() end)
+end
+
+function S.TogCustom.Apply()
+    pcall(function()
+        if not togBtn or not togBtn.Parent then return end
+        local cfg = S.TogCustom
+        -- size
+        local sz = tonumber(cfg.size) or 56
+        sz = math.clamp(sz, 32, 120)
+        togBtn.Size = UDim2.new(0, sz, 0, sz)
+        -- background color + trans
+        local c = cfg.bgColor or {r=18,g=18,b=22}
+        local col = Color3.fromRGB(math.clamp(tonumber(c.r) or 18,0,255), math.clamp(tonumber(c.g) or 18,0,255), math.clamp(tonumber(c.b) or 22,0,255))
+        togBtn.BackgroundColor3 = col
+        togBtn.BackgroundTransparency = math.clamp(tonumber(cfg.bgTrans) or 0.15, 0, 1)
+        -- image
+        local imgHolder = togBtn:FindFirstChild("CustomImage")
+        if cfg.useImage and cfg.imageId and cfg.imageId ~= "" then
+            local imgId = tostring(cfg.imageId)
+            -- chấp nhận cả số và rbxassetid://
+            if imgId:match("^%d+$") then imgId = "rbxassetid://"..imgId end
+            if not imgId:match("^rbxassetid://") and not imgId:match("^http") then
+                -- nếu user dán link decal, thử lấy số
+                local num = imgId:match("(%d+)")
+                if num then imgId = "rbxassetid://"..num end
+            end
+            if not imgHolder then
+                imgHolder = Instance.new("ImageLabel")
+                imgHolder.Name = "CustomImage"
+                imgHolder.Size = UDim2.new(1, -8, 1, -8)
+                imgHolder.Position = UDim2.new(0,4,0,4)
+                imgHolder.BackgroundTransparency = 1
+                imgHolder.ScaleType = Enum.ScaleType.Fit
+                imgHolder.ZIndex = togBtn.ZIndex + 1
+                imgHolder.Parent = togBtn
+                Instance.new("UICorner", {CornerRadius=UDim.new(1,0), Parent=imgHolder})
+            end
+            imgHolder.Image = imgId
+            imgHolder.Visible = true
+            -- nếu có gradient nền nhiều màu, để ảnh hơi trong suốt để thấy màu nền
+            if cfg.gradient and cfg.gradient ~= "" then
+                imgHolder.ImageTransparency = 0.15
+            else
+                imgHolder.ImageTransparency = 0
+            end
+        else
+            if imgHolder then imgHolder.Visible = false end
+        end
+        -- gradient nền nhiều màu
+        local existingGrad = togBtn:FindFirstChild("TogBgGrad")
+        if existingGrad then existingGrad:Destroy() end
+        if cfg.gradient and cfg.gradient ~= "" then
+            -- gradient format: "255,0,0;0,255,0;0,0,255" hoặc "#FF0000,#00FF00"
+            local colors = {}
+            for part in string.gmatch(cfg.gradient, "[^;]+") do
+                part = part:gsub("%s+","")
+                local r,g,b = part:match("(%d+),(%d+),(%d+)")
+                if r and g and b then
+                    table.insert(colors, Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)))
+                else
+                    -- thử hex #RRGGBB
+                    local hex = part:match("#?(%x%x%x%x%x%x)")
+                    if hex then
+                        local rv = tonumber(hex:sub(1,2),16)
+                        local gv = tonumber(hex:sub(3,4),16)
+                        local bv = tonumber(hex:sub(5,6),16)
+                        if rv and gv and bv then
+                            table.insert(colors, Color3.fromRGB(rv,gv,bv))
+                        end
+                    end
+                end
+            end
+            if #colors >= 2 then
+                local grad = Instance.new("UIGradient")
+                grad.Name = "TogBgGrad"
+                local keypoints = {}
+                for i,col in ipairs(colors) do
+                    local t = (i-1)/(#colors-1)
+                    table.insert(keypoints, ColorSequenceKeypoint.new(t, col))
+                end
+                grad.Color = ColorSequence.new(keypoints)
+                grad.Rotation = 90
+                grad.Parent = togBtn
+                -- xoay nhẹ nếu rainbow bật
+                if cfg.rainbow then
+                    task.spawn(function()
+                        while grad.Parent do
+                            for rot=0,360,2 do
+                                if not grad.Parent then break end
+                                pcall(function() grad.Rotation = rot end)
+                                task.wait(0.04)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+        -- rainbow border
+        local rs = togBtn:FindFirstChildOfClass("UIStroke")
+        -- chúng ta đã có rainbowStroke, cập nhật lại
+        if cfg.rainbow then
+            -- đảm bảo có stroke cầu vồng
+            local stroke = togBtn:FindFirstChild("RainbowStroke")
+            if not stroke then
+                stroke = Instance.new("UIStroke")
+                stroke.Name = "RainbowStroke"
+                stroke.Thickness = 2.5
+                stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                stroke.Parent = togBtn
+            end
+            stroke.Enabled = true
+            -- gradient cho viền
+            local g = stroke:FindFirstChild("Grad")
+            if not g then
+                g = Instance.new("UIGradient")
+                g.Name = "Grad"
+                g.Color = ColorSequence.new{
+                    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)),
+                    ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255,255,0)),
+                    ColorSequenceKeypoint.new(0.40, Color3.fromRGB(0,255,0)),
+                    ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0,255,255)),
+                    ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0,0,255)),
+                    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255,0,255)),
+                }
+                g.Parent = stroke
+                task.spawn(function()
+                    while g.Parent do
+                        for rot=0,360,3 do
+                            if not g.Parent then break end
+                            pcall(function() g.Rotation = rot end)
+                            task.wait(0.03)
+                        end
+                    end
+                end)
+            end
+        else
+            local stroke = togBtn:FindFirstChild("RainbowStroke")
+            if stroke then stroke.Enabled = false end
+        end
+    end)
+end
+
+function S.TogCustom.SetImage(id)
+    S.TogCustom.imageId = tostring(id or "")
+    S.TogCustom.useImage = (S.TogCustom.imageId ~= "")
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return S.TogCustom.imageId
+end
+
+function S.TogCustom.ClearImage()
+    S.TogCustom.imageId = ""
+    S.TogCustom.useImage = false
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return true
+end
+
+function S.TogCustom.SetBgColor(r,g,b)
+    r = math.clamp(tonumber(r) or 18,0,255)
+    g = math.clamp(tonumber(g) or 18,0,255)
+    b = math.clamp(tonumber(b) or 22,0,255)
+    S.TogCustom.bgColor = {r=r,g=g,b=b}
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return S.TogCustom.bgColor
+end
+
+function S.TogCustom.SetTrans(t)
+    t = math.clamp(tonumber(t) or 0.15,0,1)
+    S.TogCustom.bgTrans = t
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return t
+end
+
+function S.TogCustom.SetSize(s)
+    s = math.clamp(tonumber(s) or 56,32,120)
+    S.TogCustom.size = s
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return s
+end
+
+function S.TogCustom.SetRainbow(on)
+    S.TogCustom.rainbow = (on == true)
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return S.TogCustom.rainbow
+end
+
+function S.TogCustom.SetGradient(str)
+    S.TogCustom.gradient = tostring(str or "")
+    S.TogCustom.Apply()
+    S.TogCustom.Save()
+    return S.TogCustom.gradient
+end
+
 
 -- ----------------------------------------------------------------------------
 S.compatAdded  = S.compatAdded or {}   -- tên các hàm đã bù (để báo lại cho người dùng)
@@ -11853,6 +12089,164 @@ do
         refreshStorage()
         flash(clearBtn, "✅ Đã xoá", 1.6)
     end)
+
+
+    -- ---------- [5] TÙY CHỈNH NÚT BẬT/ẨN MENU (taodepzai v5.0) ----------
+    local c5 = card("🎨  NÚT BẬT/ẨN MENU - TÙY CHỈNH HÌNH ẢNH & NỀN", 320)
+    line(c5, "Đổi hình ảnh nút tròn, nền trong suốt, nhiều màu kết hợp với ảnh. Lưu lại thì thoát ra vào lại vẫn còn.", 24, C.MUTED, 20)
+
+    local imgPreview = New("ImageLabel", {
+        Size=UDim2.new(0,48,0,48), Position=UDim2.new(0,8,0,48),
+        BackgroundColor3=Color3.fromRGB(18,18,22), BackgroundTransparency=0.2,
+        BorderSizePixel=0, ZIndex=7,
+    }, c5)
+    Corner(imgPreview, UDim.new(1,0))
+    Stroke(imgPreview, C.BORDER, 1)
+
+    local imgIn = New("TextBox", {
+        Size=UDim2.new(1, -180, 0, 22), Position=UDim2.new(0,64,0,48),
+        PlaceholderText="Dán ID ảnh: 12345678 hoặc rbxassetid://12345678",
+        Text="", ClearTextOnFocus=false,
+        BackgroundColor3=C.SURFACE2, BackgroundTransparency=0.06,
+        TextColor3=C.DARK, PlaceholderColor3=C.GRAY, Font=Enum.Font.GothamMedium,
+        TextSize=9, ZIndex=7,
+    }, c5)
+    Corner(imgIn, UDim.new(0,6))
+
+    local applyImg = act(c5, "✔ Đặt ảnh", 8, 78, 70, C.GREEN)
+    local delImg = act(c5, "🗑 Xóa ảnh", 84, 78, 66, C.RED)
+    local previewBtn = act(c5, "👁 Xem", 156, 78, 46, C.BLUE)
+
+    line(c5, "Nền nút:", 108, C.MUTED, 12)
+    local rIn = New("TextBox", {Size=UDim2.new(0,36,0,20), Position=UDim2.new(0,8,0,124), Text="18", PlaceholderText="R", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=9, ZIndex=7}, c5)
+    local gIn = New("TextBox", {Size=UDim2.new(0,36,0,20), Position=UDim2.new(0,48,0,124), Text="18", PlaceholderText="G", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=9, ZIndex=7}, c5)
+    local bIn = New("TextBox", {Size=UDim2.new(0,36,0,20), Position=UDim2.new(0,88,0,124), Text="22", PlaceholderText="B", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=9, ZIndex=7}, c5)
+    Corner(rIn, UDim.new(0,5)); Corner(gIn, UDim.new(0,5)); Corner(bIn, UDim.new(0,5))
+    local applyBg = act(c5, "✔ Màu nền", 130, 124, 70, C.GREEN)
+
+    line(c5, "Trong suốt (0=đục, 1=trong):", 150, C.MUTED, 12)
+    local transIn = New("TextBox", {Size=UDim2.new(0,40,0,20), Position=UDim2.new(0,8,0,166), Text="0.15", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=9, ZIndex=7}, c5)
+    Corner(transIn, UDim.new(0,5))
+    local sizeIn = New("TextBox", {Size=UDim2.new(0,40,0,20), Position=UDim2.new(0,56,0,166), Text="56", PlaceholderText="Size", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=9, ZIndex=7}, c5)
+    Corner(sizeIn, UDim.new(0,5))
+    local applyTrans = act(c5, "✔ Áp dụng", 102, 166, 70, C.GREEN)
+    local rainbowBtn = act(c5, "🌈 Viền: BẬT", 178, 166, 80, C.GREEN)
+
+    line(c5, "Nhiều màu kết hợp (VD: 255,0,0;0,255,0;0,0,255 hoặc #FF0000,#00FF00):", 192, C.MUTED, 12)
+    local gradIn = New("TextBox", {
+        Size=UDim2.new(1, -90, 0, 22), Position=UDim2.new(0,8,0,208),
+        PlaceholderText="255,0,0;0,255,0;0,0,255",
+        Text="", BackgroundColor3=C.SURFACE2, TextColor3=C.DARK, Font=Enum.Font.GothamMedium, TextSize=8, ZIndex=7,
+    }, c5)
+    Corner(gradIn, UDim.new(0,6))
+    local applyGrad = act(c5, "✔ Gradient", 8, 236, 80, C.PURPLE)
+    local clearGrad = act(c5, "🗑 Xóa màu", 94, 236, 70, C.RED)
+    local saveTog = act(c5, "💾 Lưu", 170, 236, 50, C.BLUE)
+
+    local statusTog = line(c5, "", 264, C.MUTED, 18)
+
+    local function refreshTogUI()
+        local cfg = S.TogCustom or {}
+        imgIn.Text = tostring(cfg.imageId or "")
+        rIn.Text = tostring(cfg.bgColor and cfg.bgColor.r or 18)
+        gIn.Text = tostring(cfg.bgColor and cfg.bgColor.g or 18)
+        bIn.Text = tostring(cfg.bgColor and cfg.bgColor.b or 22)
+        transIn.Text = tostring(cfg.bgTrans or 0.15)
+        sizeIn.Text = tostring(cfg.size or 56)
+        gradIn.Text = tostring(cfg.gradient or "")
+        rainbowBtn.Text = (cfg.rainbow ~= false) and "🌈 Viền: BẬT" or "🌈 Viền: TẮT"
+        rainbowBtn.BackgroundColor3 = (cfg.rainbow ~= false) and C.GREEN or C.GRAY
+        -- preview
+        pcall(function()
+            if cfg.imageId and cfg.imageId ~= "" then
+                local id = tostring(cfg.imageId)
+                if id:match("^%d+$") then id = "rbxassetid://"..id end
+                imgPreview.Image = id
+            else
+                imgPreview.Image = ""
+            end
+        end)
+        statusTog.Text = "✅ Đã áp dụng - thoát ra vào lại vẫn còn (lưu trong "..Store.SAVE_FILE..")"
+    end
+
+    applyImg.Activated:Connect(function()
+        local id = tostring(imgIn.Text or ""):gsub("%s+","")
+        if id == "" then
+            flash(applyImg, "⚠️ Trống", 1.2)
+            return
+        end
+        S.TogCustom.SetImage(id)
+        refreshTogUI()
+        flash(applyImg, "✅ Đã đặt", 1.2)
+    end)
+
+    delImg.Activated:Connect(function()
+        S.TogCustom.ClearImage()
+        imgIn.Text = ""
+        refreshTogUI()
+        flash(delImg, "🗑 Đã xóa", 1.2)
+    end)
+
+    previewBtn.Activated:Connect(function()
+        local id = tostring(imgIn.Text or ""):gsub("%s+","")
+        if id == "" then id = S.TogCustom.imageId or "" end
+        if id == "" then
+            flash(previewBtn, "⚠️ Chưa có ảnh", 1.2)
+            return
+        end
+        if id:match("^%d+$") then id = "rbxassetid://"..id end
+        imgPreview.Image = id
+        flash(previewBtn, "👁 Đã xem", 1)
+    end)
+
+    applyBg.Activated:Connect(function()
+        local r = tonumber(rIn.Text) or 18
+        local g = tonumber(gIn.Text) or 18
+        local b = tonumber(bIn.Text) or 22
+        S.TogCustom.SetBgColor(r,g,b)
+        refreshTogUI()
+        flash(applyBg, "✅ Màu nền", 1.2)
+    end)
+
+    applyTrans.Activated:Connect(function()
+        local t = tonumber(transIn.Text) or 0.15
+        local s = tonumber(sizeIn.Text) or 56
+        S.TogCustom.SetTrans(t)
+        S.TogCustom.SetSize(s)
+        refreshTogUI()
+        flash(applyTrans, "✅ Đã áp dụng", 1.2)
+    end)
+
+    rainbowBtn.Activated:Connect(function()
+        local on = not (S.TogCustom.rainbow ~= false)
+        S.TogCustom.SetRainbow(on)
+        refreshTogUI()
+        flash(rainbowBtn, on and "🌈 BẬT" or "🌈 TẮT", 1)
+    end)
+
+    applyGrad.Activated:Connect(function()
+        local str = tostring(gradIn.Text or "")
+        S.TogCustom.SetGradient(str)
+        refreshTogUI()
+        flash(applyGrad, "✅ Gradient", 1.2)
+    end)
+
+    clearGrad.Activated:Connect(function()
+        gradIn.Text = ""
+        S.TogCustom.SetGradient("")
+        refreshTogUI()
+        flash(clearGrad, "🗑 Đã xóa", 1)
+    end)
+
+    saveTog.Activated:Connect(function()
+        local ok = Store.save()
+        refreshTogUI()
+        flash(saveTog, ok and "💾 Đã lưu" or "❌ Lỗi", 1.4)
+    end)
+
+    refreshTogUI()
+    S.refreshTogUI = refreshTogUI
+
 
     setTab.CanvasSize = UDim2.new(0, 0, 0, sy + 8)
     S.settingsTab = setTab
