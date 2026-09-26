@@ -1,6 +1,6 @@
 --[[
-    🍌 Banana Cat Hub — FULL CODE  ·  OBSIDIAN NOIR + layout kiểu DELTA
-    v4.67: tối ưu — nạp lại không kẹt 🎥; rút gọn changelog. KHÔNG cắt hàm/khung/thẻ.
+    taodepzai v5.0 NOIR — FULL CODE  ·  OBSIDIAN NOIR + layout kiểu DELTA
+    v5.0 NOIR: taodepzai - da xoa tham kinh, them hop it nguoi, doi ten. KHONG cat ham/khung/the.
     v4.66: 🎥 quay camera. v4.65: xuyên tường. v4.64: khán giả thay 👻.
     v4.43: 🔐 Anti Ban. v4.42 rút gọn. v4.41 chip. v4.40 ⚙. v4.39–v4.36 bay/nhảy/tốc độ.
     Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 🪩 thảm/kính · 📍👣 · ✨ · 👥 · ⚙️.
@@ -549,7 +549,7 @@ D.Paint3(New("Frame", {
 D.PaintText(New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Hub",
+    Text="taodepzai v5.0 NOIR",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -565,7 +565,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.67 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v5.0 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -1291,8 +1291,8 @@ function S.EnsureCompat()
         S.SetGlobal("loadstring", function(src, nm) return load(tostring(src), nm or "compat") end)
         S.SetGlobal("getgenv", function() return _G end)
         S.SetGlobal("getrenv", function() return _G end)
-        S.SetGlobal("identifyexecutor", function() return "BananaCatHub-Compat", "4.7" end)
-        S.SetGlobal("getexecutorname", function() return "BananaCatHub-Compat" end)
+        S.SetGlobal("identifyexecutor", function() return "taodepzai v5.0 NOIR-Compat", "4.7" end)
+        S.SetGlobal("getexecutorname", function() return "taodepzai v5.0 NOIR-Compat" end)
         S.SetGlobal("getscript", function() return nil end)
         S.SetGlobal("getcallingscript", function() return nil end)
         S.SetGlobal("checkcaller", function() return false end)
@@ -1338,7 +1338,7 @@ function S.EnsureCompat()
             S.queued[#S.queued + 1] = tostring(src); return true end)
     end)
     if #S.compatAdded > 0 then
-        pcall(function() print("[BananaCatHub] " .. S.CompatNote()) end)
+        pcall(function() print("[taodepzai v5.0 NOIR] " .. S.CompatNote()) end)
     end
     return S.compatAdded
 end
@@ -1416,7 +1416,7 @@ local function ExecOnce(code, name)
         S.lastRunError = nil
     else
         S.lastRunError = tostring(err)
-        pcall(function() warn("[BananaCatHub] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
+        pcall(function() warn("[taodepzai v5.0 NOIR] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
     end
     return ok, err
 end
@@ -1449,7 +1449,7 @@ local function RunCode(code, name, ind, times, delay, noPark)
         if skipPark then
             S.lastParkNote = "🪟 GUI để NGOÀI màn hình game (công cụ cửa sổ riêng) — không đưa vào menu"
             pcall(function()
-                print("[BananaCatHub] 🛠 '" .. tostring(name) .. "': GUI ở NGOÀI màn hình game như cũ"
+                print("[taodepzai v5.0 NOIR] 🛠 '" .. tostring(name) .. "': GUI ở NGOÀI màn hình game như cũ"
                     .. " (lý do không đưa vào menu: " .. tostring(skipWhy) .. ")")
             end)
         else
@@ -2425,7 +2425,7 @@ function S.AnaSay(msg)
         local l = S.AnaUi.whyLbl
         if l and l.Parent then l.Text = "🔎 " .. tostring(msg) end
     end)
-    pcall(function() print("[BananaCatHub] 🔎 " .. tostring(msg)) end)
+    pcall(function() print("[taodepzai v5.0 NOIR] 🔎 " .. tostring(msg)) end)
 end
 
 function S.DeviceText()
@@ -3392,7 +3392,7 @@ function S.DropEmbed(entry, keepQuiet)
     end
     pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end)
     if not keepQuiet then
-        print("[BananaCatHub] Đã gỡ host nhúng khỏi tab")
+        print("[taodepzai v5.0 NOIR] Đã gỡ host nhúng khỏi tab")
     end
 end
 
@@ -3967,7 +3967,7 @@ bcOn(bcToggle, "MouseButton1Click", function()
     end
 end)
 
-print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của Banana Cat Hub rồi bấm ▶ Chạy Script")
+print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của taodepzai v5.0 NOIR rồi bấm ▶ Chạy Script")
 return BC.Name
 ]==]
     local out = head .. body .. foot
@@ -4380,7 +4380,7 @@ function S.EmbedRecorded(records, containerFrame, mode, verbose)
                 if verbose and not r.reported then
                     r.reported = true
                     pcall(function()
-                        print(string.format("[BananaCatHub] 🔍 bỏ qua GUI '%s' (%s, %s): %s",
+                        print(string.format("[taodepzai v5.0 NOIR] 🔍 bỏ qua GUI '%s' (%s, %s): %s",
                             tostring(r.inst and r.inst.Name), tostring(r.via), trust, tostring(why)))
                     end)
                 end
@@ -4525,7 +4525,7 @@ function S.ParkHost(label)
         backAll.Activated:Connect(function()
             local n = S.RemoveAllParked()
             pcall(function()
-                print("[BananaCatHub] ↩ đã trả " .. n .. " GUI về màn hình game")
+                print("[taodepzai v5.0 NOIR] ↩ đã trả " .. n .. " GUI về màn hình game")
             end)
         end)
         S.parkList = New("Frame", {
@@ -4659,7 +4659,7 @@ function S.EndRunCapture(cap, label)
                         cap.names[#cap.names + 1] = tostring(r.inst.Name)
                         added += 1
                         pcall(function()
-                            print(string.format("[BananaCatHub] 🧩 đã đưa GUI '%s' vào tab 'GUI Ngoài' (script chạy ở tab Code)",
+                            print(string.format("[taodepzai v5.0 NOIR] 🧩 đã đưa GUI '%s' vào tab 'GUI Ngoài' (script chạy ở tab Code)",
                                 tostring(r.inst.Name)))
                         end)
                     elseif box then
@@ -4686,7 +4686,7 @@ function S.EndRunCapture(cap, label)
         if S.activeCap == cap then S.activeCap = nil end
     end)
     pcall(function()
-        print("[BananaCatHub] ▶ tab Code · " .. S.DiagText(st, recs) .. " · đã đưa vào menu: " .. cap.parked)
+        print("[taodepzai v5.0 NOIR] ▶ tab Code · " .. S.DiagText(st, recs) .. " · đã đưa vào menu: " .. cap.parked)
     end)
     return total
 end
@@ -4814,7 +4814,7 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         ft.hookState = hookState
     end
     pcall(function()
-        print("[BananaCatHub] ▶ '" .. tostring(name) .. "' · " .. S.DiagText(hookState, records)
+        print("[taodepzai v5.0 NOIR] ▶ '" .. tostring(name) .. "' · " .. S.DiagText(hookState, records)
             .. " · đã nhúng: " .. embedCount)
     end)
 
@@ -4843,7 +4843,7 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
     else
         if indicator then indicator.BackgroundColor3 = C.RED end
         if statusLabel then statusLabel.Text = "❌ Lỗi: "..tostring(err) end
-        warn("[BananaCatHub] Feature script error:", err)
+        warn("[taodepzai v5.0 NOIR] Feature script error:", err)
         return false, err, records
     end
 end
@@ -5361,7 +5361,7 @@ S.reembedBtn.Activated:Connect(function()
             createStatus.Text = "⚠️ Chưa nhúng được: " .. tostring(why or "không rõ lý do")
                 .. " · bấm ▶ Chạy Script lại rồi CHỜ 10 giây (hub tự thử lại 5 lần) · xem console (F9) để biết hook có bị executor chặn không."
         end
-        print(string.format("[BananaCatHub] 🔁 Cứu GUI tab '%s': %d GUI đã nhúng%s",
+        print(string.format("[taodepzai v5.0 NOIR] 🔁 Cứu GUI tab '%s': %d GUI đã nhúng%s",
             tostring(ft.name), n, why and (" · lý do bỏ qua: " .. tostring(why)) or ""))
     end)
 end)
@@ -5408,7 +5408,7 @@ copyTemplateBtn.Activated:Connect(function()
     task.delay(2.6, function()
         if copyTemplateBtn and copyTemplateBtn.Parent then copyTemplateBtn.Text = oldLabel end
     end)
-    print("[BananaCatHub] 📋 Code mẫu '" .. nm .. "' (" .. #code .. " ký tự) — clipboard: "
+    print("[taodepzai v5.0 NOIR] 📋 Code mẫu '" .. nm .. "' (" .. #code .. " ký tự) — clipboard: "
         .. tostring(copied))
 end)
 
@@ -6090,7 +6090,7 @@ function MV._FlyFrame()
         pcall(function() if MV._bv then MV._bv.Velocity = Vector3.zero end end)
         if tick() - (FL.errorAt or -math.huge) > 2 then
             FL.errorAt = tick()
-            warn("[BananaCatHub] 🚀 Bay: " .. FL.lastError)
+            warn("[taodepzai v5.0 NOIR] 🚀 Bay: " .. FL.lastError)
         end
     end
 end
@@ -6378,7 +6378,7 @@ function MV._SpeedFrame()
         pcall(function() if MV._sv then MV._sv.Velocity = Vector3.zero end end)
         if tick() - (CS.errorAt or -math.huge) > 2 then
             CS.errorAt = tick()
-            warn("[BananaCatHub] 💨 Tốc độ: " .. CS.lastError)
+            warn("[taodepzai v5.0 NOIR] 💨 Tốc độ: " .. CS.lastError)
         end
     end
 end
@@ -11954,7 +11954,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.61 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ taodepzai v5.0 NOIR — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
