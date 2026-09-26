@@ -456,53 +456,64 @@ local gui = New("ScreenGui", {
 }, targetGui)
 
 local togBtn = New("TextButton", {
-    Size=UDim2.new(0,50,0,50),
-    Position=UDim2.new(1,-60,1,-60),
+    Size=UDim2.new(0,56,0,56),
+    Position=UDim2.new(1,-68,1,-68),
     Text="🎩",
-    BackgroundColor3=Color3.fromRGB(0,0,0),
-    BackgroundTransparency=1, -- trong suốt
+    BackgroundColor3=Color3.fromRGB(18,18,22),
+    BackgroundTransparency=0.15, -- trong suốt 85% (nhìn xuyên thấu)
     TextColor3=Color3.fromRGB(255,255,255),
     Font=Enum.Font.GothamBold,
-    TextSize=26,
+    TextSize=28,
     BorderSizePixel=0,
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
--- viền cầu vồng
-local rainbowStroke = Stroke(togBtn, Color3.fromRGB(255,255,255), 2.8)
+-- viền cầu vồng dày, rõ
+local rainbowStroke = Instance.new("UIStroke")
+rainbowStroke.Thickness = 3.5
+rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+rainbowStroke.Color = Color3.fromRGB(255,255,255)
+rainbowStroke.Parent = togBtn
 pcall(function()
-    rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    local grad = New("UIGradient", {
-        Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)),
-            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255,127,0)),
-            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255,255,0)),
-            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0,255,0)),
-            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0,0,255)),
-            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(75,0,130)),
-            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255,0,0)),
-        },
-        Rotation = 0,
-    }, rainbowStroke)
-    -- xoay cầu vồng liên tục
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)),
+        ColorSequenceKeypoint.new(0.14, Color3.fromRGB(255,128,0)),
+        ColorSequenceKeypoint.new(0.28, Color3.fromRGB(255,255,0)),
+        ColorSequenceKeypoint.new(0.42, Color3.fromRGB(0,255,0)),
+        ColorSequenceKeypoint.new(0.56, Color3.fromRGB(0,255,255)),
+        ColorSequenceKeypoint.new(0.70, Color3.fromRGB(0,0,255)),
+        ColorSequenceKeypoint.new(0.84, Color3.fromRGB(128,0,255)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255,0,0)),
+    }
+    grad.Rotation = 0
+    grad.Parent = rainbowStroke
+    -- xoay cầu vồng liên tục mượt hơn
     task.spawn(function()
         while true do
             if not togBtn.Parent then break end
-            for rot = 0, 360, 3 do
+            for rot = 0, 360, 2 do
                 if not togBtn.Parent then break end
                 pcall(function() grad.Rotation = rot end)
-                task.wait(0.03)
+                task.wait(0.02)
             end
         end
     end)
 end)
-D.Tactile(togBtn, 0.05)
--- giữ hiệu ứng glow nhẹ cho dễ thấy
+-- viền trắng trong để chữ nổi hơn
+local innerStroke = Instance.new("UIStroke")
+innerStroke.Thickness = 1
+innerStroke.Color = Color3.fromRGB(0,0,0)
+innerStroke.Transparency = 0.5
+innerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+innerStroke.Parent = togBtn
+D.Tactile(togBtn, 0.08)
+-- glow cầu vồng nhẹ
 pcall(function()
-    local glow = D.Glow(togBtn, Color3.fromRGB(255,255,255), 12, 0.85)
+    local glow = D.Glow(togBtn, Color3.fromRGB(255,255,255), 14, 0.7)
     if glow then
         glow.Color = Color3.fromRGB(255,255,255)
-        D.Breathe(glow, {BackgroundTransparency = 0.9}, 2)
+        D.Breathe(glow, {BackgroundTransparency = 0.85}, 1.8)
     end
 end)
 
