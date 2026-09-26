@@ -458,7 +458,7 @@ local gui = New("ScreenGui", {
 local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
     Position=UDim2.new(1,-60,1,-60),
-    Text="🎩",
+    Text="",
     BackgroundColor3=Color3.fromRGB(0,0,0),
     BackgroundTransparency=1, -- trong suốt hoàn toàn, không che màn hình
     TextColor3=Color3.fromRGB(255,255,255),
@@ -7858,7 +7858,7 @@ end
 function MV.SetRunMode(on)
     MV.runMode = false
     pcall(function() if main then main.Visible = true end end)
-    pcall(function() if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "🎩" end end)
+    pcall(function() if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "" end end)
     MV._menuWasOpen = nil
     MV.SyncHud()
     return false, "tinh nang chay tren tham da bi xoa"
@@ -11864,7 +11864,7 @@ end
 
 local function ToggleMainFrame()
     main.Visible = not main.Visible
-    togBtn.Text = main.Visible and "✕" or "🎩"
+    togBtn.Text = main.Visible and "✕" or ""
     if not main.Visible then ReleaseHubFocus() end   -- v4.4b: đóng menu là phải trả input cho game
     if main.Visible then
         pcall(function()
@@ -11888,8 +11888,8 @@ end
 closeBtn.Activated:Connect(function()
     pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)
     main.Visible = false
-    togBtn.Text = "🎩"
-    ReleaseHubFocus()   -- v4.5: đóng bằng ✕ cũng phải trả input cho game (trước đây chỉ có nút 🎩 làm)
+    togBtn.Text = ""
+    ReleaseHubFocus()   -- v4.5: đóng bằng ✕ cũng phải trả input cho game (trước đây chỉ có nút  làm)
 end)
 
 dragLockBtn.Activated:Connect(function()
