@@ -470,17 +470,23 @@ local togBtn = New("TextButton", {
 -- Đặt _G.taodepzaiToggleImage = "rbxassetid://123456789" trước khi chạy script.
 -- Để trống thì giữ biểu tượng chữ cũ; không thay TextButton để giữ kéo/thả và click.
 local toggleImageId = tostring(_G.taodepzaiToggleImage or "")
-local toggleImage = New("ImageLabel", {
-    Name="GameToggleImage",
-    Size=UDim2.new(1,0,1,0),
-    BackgroundTransparency=1,
-    Image=toggleImageId,
-    ScaleType=Enum.ScaleType.Crop,
-    Visible=toggleImageId:match("^rbxassetid://%d+$") ~= nil,
-    ZIndex=1001,
-}, togBtn)
-Corner(toggleImage, UDim.new(1,0))
-if toggleImage.Visible then togBtn.TextTransparency = 1 end
+if toggleImageId:match("^rbxassetid://%d+$") then
+    -- Ảnh là tuỳ chọn: nếu executor/game không hỗ trợ, nút chữ vẫn hoạt động.
+    local okImage, imageError = pcall(function()
+        local toggleImage = New("ImageLabel", {
+            Name="GameToggleImage",
+            Size=UDim2.new(1,0,1,0),
+            BackgroundTransparency=1,
+            Image=toggleImageId,
+            ScaleType=Enum.ScaleType.Crop,
+            Active=false,
+            ZIndex=1001,
+        }, togBtn)
+        Corner(toggleImage, UDim.new(1,0))
+        togBtn.TextTransparency = 1
+    end)
+    if not okImage then warn("[taodepzai] Không nạp được ảnh nút: " .. tostring(imageError)) end
+end
 Corner(togBtn, UDim.new(1,0))
 Stroke(togBtn, C.ACCENT2, 1.4)
 D.Paint3(togBtn, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 135)
