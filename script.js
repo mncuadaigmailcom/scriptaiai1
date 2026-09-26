@@ -508,14 +508,7 @@ innerStroke.Transparency = 0.5
 innerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 innerStroke.Parent = togBtn
 D.Tactile(togBtn, 0.08)
--- glow cầu vồng nhẹ
-pcall(function()
-    local glow = D.Glow(togBtn, Color3.fromRGB(255,255,255), 14, 0.7)
-    if glow then
-        glow.Color = Color3.fromRGB(255,255,255)
-        D.Breathe(glow, {BackgroundTransparency = 0.85}, 1.8)
-    end
-end)
+-- đã bỏ glow toàn màn hình để không che góc phải khi kéo nút vào giữa
 
 local main = New("Frame", {
     Size=UDim2.new(0,540,0,340),
