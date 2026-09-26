@@ -456,24 +456,54 @@ local gui = New("ScreenGui", {
 }, targetGui)
 
 local togBtn = New("TextButton", {
-    Size=UDim2.new(0,48,0,48),
+    Size=UDim2.new(0,50,0,50),
     Position=UDim2.new(1,-60,1,-60),
     Text="🎩",
-    BackgroundColor3=C.ACCENT,
-    BackgroundTransparency=0.03,
-    TextColor3=C.INK,
+    BackgroundColor3=Color3.fromRGB(0,0,0),
+    BackgroundTransparency=1, -- trong suốt
+    TextColor3=Color3.fromRGB(255,255,255),
     Font=Enum.Font.GothamBold,
-    TextSize=24,
+    TextSize=26,
     BorderSizePixel=0,
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
-Stroke(togBtn, C.ACCENT2, 1.4)
-D.Paint3(togBtn, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 135)
-D.Tactile(togBtn, 0.03)
+-- viền cầu vồng
+local rainbowStroke = Stroke(togBtn, Color3.fromRGB(255,255,255), 2.8)
 pcall(function()
-    local glow = D.Glow(togBtn, C.GLOW, 9, 0.9)
-    if glow then D.Breathe(glow, {BackgroundTransparency = 0.975}, 2.4) end
+    rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    local grad = New("UIGradient", {
+        Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)),
+            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255,127,0)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255,255,0)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0,255,0)),
+            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0,0,255)),
+            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(75,0,130)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255,0,0)),
+        },
+        Rotation = 0,
+    }, rainbowStroke)
+    -- xoay cầu vồng liên tục
+    task.spawn(function()
+        while true do
+            if not togBtn.Parent then break end
+            for rot = 0, 360, 3 do
+                if not togBtn.Parent then break end
+                pcall(function() grad.Rotation = rot end)
+                task.wait(0.03)
+            end
+        end
+    end)
+end)
+D.Tactile(togBtn, 0.05)
+-- giữ hiệu ứng glow nhẹ cho dễ thấy
+pcall(function()
+    local glow = D.Glow(togBtn, Color3.fromRGB(255,255,255), 12, 0.85)
+    if glow then
+        glow.Color = Color3.fromRGB(255,255,255)
+        D.Breathe(glow, {BackgroundTransparency = 0.9}, 2)
+    end
 end)
 
 local main = New("Frame", {
