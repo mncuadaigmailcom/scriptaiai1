@@ -467,6 +467,20 @@ local togBtn = New("TextButton", {
     BorderSizePixel=0,
     ZIndex=1000,
 }, gui)
+-- Đặt _G.taodepzaiToggleImage = "rbxassetid://123456789" trước khi chạy script.
+-- Để trống thì giữ biểu tượng chữ cũ; không thay TextButton để giữ kéo/thả và click.
+local toggleImageId = tostring(_G.taodepzaiToggleImage or "")
+local toggleImage = New("ImageLabel", {
+    Name="GameToggleImage",
+    Size=UDim2.new(1,0,1,0),
+    BackgroundTransparency=1,
+    Image=toggleImageId,
+    ScaleType=Enum.ScaleType.Crop,
+    Visible=toggleImageId:match("^rbxassetid://%d+$") ~= nil,
+    ZIndex=1001,
+}, togBtn)
+Corner(toggleImage, UDim.new(1,0))
+if toggleImage.Visible then togBtn.TextTransparency = 1 end
 Corner(togBtn, UDim.new(1,0))
 Stroke(togBtn, C.ACCENT2, 1.4)
 D.Paint3(togBtn, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 135)
@@ -549,7 +563,7 @@ D.Paint3(New("Frame", {
 D.PaintText(New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Hub",
+    Text="taodepzai",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -3967,7 +3981,7 @@ bcOn(bcToggle, "MouseButton1Click", function()
     end
 end)
 
-print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của Banana Cat Hub rồi bấm ▶ Chạy Script")
+print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của taodepzai rồi bấm ▶ Chạy Script")
 return BC.Name
 ]==]
     local out = head .. body .. foot
@@ -12725,7 +12739,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.61 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ taodepzai v4.67 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
