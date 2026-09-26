@@ -3,7 +3,7 @@
     v4.67: tối ưu — nạp lại không kẹt 🎥; rút gọn changelog. KHÔNG cắt hàm/khung/thẻ.
     v4.66: 🎥 quay camera. v4.65: xuyên tường. v4.64: khán giả thay 👻.
     v4.43: 🔐 Anti Ban. v4.42 rút gọn. v4.41 chip. v4.40 ⚙. v4.39–v4.36 bay/nhảy/tốc độ.
-    Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 📍👣 · ✨ · 👥 · ⚙️ (ĐÃ XÓA 🪩 thảm/kính).
+    Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 🪩 thảm/kính · 📍👣 · ✨ · 👥 · ⚙️.
     Test: node tests/run.js
 --]]
 local Players = game:GetService("Players")
@@ -5673,7 +5673,7 @@ function MV._NcAssist()
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
         return
     end
-    local onCarpet = false -- [REMOVED] tham kinh
+    local onCarpet = (MV.carpet == true) or (MV.runMode == true)
     local h, r = MV.Hum(), MV.Root()
     if not h or not r then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
@@ -5913,7 +5913,7 @@ end
 
 -- ---------- v4.12.2: VÒNG CANH GÁC (lý do nhiều game "không hoạt động") ----------
 function MV._NeedWatch()
-    return (MV.fly or MV.noclip or MV.infJump or MV.speed
+    return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.runMode
             or MV.sprint or MV.highJump or (MV.Safe and MV.Safe.on)) == true
 end
 function MV._KeepAlive()
@@ -6115,7 +6115,7 @@ function MV.SetFly(on)
         local r, h = MV.Root(), MV.Hum()
         if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để bay" end
         if MV.Safe and MV.Safe.on then MV.Safe.Stop() end
-        -- [REMOVED] glassFly
+        if MV._glassFlyActive then MV.StopGlassFly() end
         if MV._playerFlyActive then MV.StopPlayerFly() end
         if MV.runMode then MV.SetRunMode(false) end
         if not MV.fly then MV.ClearFlyInput() end
@@ -7033,7 +7033,7 @@ function MV.Safe.Set(on)
         if SF._ncPrev ~= nil then
             local was = SF._ncPrev
             SF._ncPrev = nil
-            local stillFlying = (MV._playerFlyActive == true)
+            local stillFlying = (MV._glassFlyActive == true) or (MV._playerFlyActive == true)
             if not stillFlying then
                 pcall(function() MV.SetNoclip(was) end)
             end
@@ -7504,7 +7504,6 @@ function MV.SetCarpetSlack(n)
     return MV.carpetSlack
 end
 function MV.CreateCarpet(y)
-    -- [REMOVED] tinh nang tham kinh da bi xoa
     pcall(function() if MV._carpet then MV._carpet:Destroy() end end)
     MV._carpet = nil
 end
@@ -7514,7 +7513,7 @@ function MV.SetCarpet(on)
     MV._carpet = nil
     MV._carpetRetries = 0
     pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
-    return false, "tinh nang tham kinh da bi xoa theo yeu cau"
+    return false, "tinh nang tham kinh da bi xoa"
 end
 
 -- ---------- v4.24: ĐẶT KÍNH DƯỚI CHÂN (đặt nhiều tấm kính cố định) ----------
@@ -7760,7 +7759,10 @@ end
 
 -- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
 function MV.Nudge(dy)
-    if MV.fly then
+    if MV.carpet then
+        MV.carpetY = (MV.carpetY or MV.FootY() or 0) + dy
+        return true, "thảm"
+    elseif MV.fly then
         local r = MV.Root()
         if r then r.CFrame = CFrame.new(r.Position.X, r.Position.Y + dy, r.Position.Z) end
         return true, "bay"
@@ -7821,7 +7823,9 @@ function MV.SyncHud()
         local on = (MV.fly or MV.runMode)
         if safeOn or MV.fly then on = false end -- 🚀 dùng HUD điều khiển tay, 🪩/🏃 giữ HUD cũ
         hud.Visible = (on == true)
-        -- [REMOVED] _hudCarpet (tham kinh)
+        if MV._hudCarpet then                       -- xám như bản gốc, XANH khi thảm đang bật
+            MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY
+        end
     end)
     if MV.SyncFlyHud then MV.SyncFlyHud() end
 end
@@ -7833,7 +7837,7 @@ function MV.SetRunMode(on)
     pcall(function() if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "🍌" end end)
     MV._menuWasOpen = nil
     MV.SyncHud()
-    return false, "tinh nang chay tren tham da bi xoa (tham kinh)"
+    return false, "tinh nang chay tren tham da bi xoa"
 end
 
 -- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
@@ -7861,8 +7865,8 @@ S.MoveActionState = {
     highjump= function() return S.Move.highJump end,
     speed   = function() return S.Move.speed   end,
     camspeed= function() return S.Move.sprint  end,
-    -- [REMOVED] carpet/runmode
-    runmode = function() return false end,
+    carpet  = function() return S.Move.carpet  end,
+    runmode = function() return S.Move.runMode end,
     loc_all  = function() return S.Loc and S.Loc.on   end,
     loc_solo = function() return S.Loc and S.Loc.solo end,
     spec_on  = function() return S.Spec and S.Spec.on   end,
@@ -7906,7 +7910,6 @@ function MV.Status()
             t[#t + 1] = string.format("👟 chạy %g", MV.walkSpeed)
         end
     end
-    -- [REMOVED] tham kinh / dat kinh
     if MV._playerFlyActive then
         local pn = MV._playerFlyTarget and tostring(MV._playerFlyTarget.Name) or "?"
         local sp = MV.GetPlayerFlySpeed and MV.GetPlayerFlySpeed() or (MV.playerFlySpeed or 0)
@@ -8290,9 +8293,7 @@ function S.RunHubAction(id)
                                  .. " · JumpPower " .. tostring(S.Move.jumpPower))
                             or ("👟 Chạy độ: TẮT — về tốc độ game (" .. tostring(S.Move._baseWS) .. ")")
     elseif id == "carpet" then
-        return "⚠️ Tính năng thảm kính đã bị xóa theo yêu cầu (🪩)"
-    elseif id == "runmode" then
-        return "⚠️ Tính năng chạy trên thảm đã bị xóa (thảm kính)"
+        return "⚠️ Tính năng thảm kính đã bị xóa (🪩)"
     elseif id == "placeglass" then
         return "⚠️ Tính năng đặt kính đã bị xóa"
     elseif id == "clearglass" then
@@ -8322,7 +8323,8 @@ function S.RunHubAction(id)
         if S.SyncLocPanel then pcall(S.SyncLocPanel) end
         S.Rebuild()
         return "⏹ đã dừng bay tới người chơi"
-    -- ---------- v4.13: ĐỊNH VỊ NGƯỜI CHƠI ----------
+    elseif id == "runmode" then
+        return "⚠️ Tính năng chạy trên thảm đã bị xóa"
     elseif id == "loc_all" then
         pcall(function() S.Loc.Set(not S.Loc.on) end)
         S.Rebuild()
@@ -8408,6 +8410,1170 @@ function S.RunHubAction(id)
         return "🛑 đã tắt hết: " .. S.Move.Status()
     end
     return "⚠️ không rõ thao tác: " .. tostring(id)
+end
+
+function D.CardBtn(parent, text, posX, w, color)
+    local b = New("TextButton", {
+        Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(1, posX, 0, 16),
+        Text = text, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
+        TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 9,
+        BorderSizePixel = 0, ZIndex = 8,
+    }, parent)
+    Corner(b, UDim.new(0, 7))
+    Stroke(b, D.Edge(color or C.SURFACE3), 1.1)
+    D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(182,187,201), 90)   -- v4.9: bevel sâu hơn
+    D.Tactile(b, 0.08)
+    return b
+end
+
+D.hubTab = AddTab("Script Hub", "📚", 3)
+
+D.hubSearchBox = New("TextBox", {
+    Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 8),
+    PlaceholderText = "🔍  Tìm script hoặc tiện ích...", Text = "", ClearTextOnFocus = false,
+    BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.08, TextColor3 = C.DARK,
+    PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+Corner(D.hubSearchBox, UDim.new(0, 10))
+Stroke(D.hubSearchBox, C.BORDER, 1)
+New("UIPadding", {PaddingLeft = UDim.new(0, 9)}, D.hubSearchBox)
+
+D.hubChips = New("Frame", {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 38),
+    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+New("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5),
+    SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center,
+}, D.hubChips)
+
+D.hubList = New("ScrollingFrame", {
+    Size = UDim2.new(1, -16, 1, -146), Position = UDim2.new(0, 8, 0, 64),   -- v4.6.3: bớt 54px cho khung 🌐 Server
+    BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness = 3, ClipsDescendants = true, ZIndex = 6,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, D.hubTab)
+New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, D.hubList)
+
+D.hubStatus = New("TextLabel", {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 1, -24),
+    Text = "📚 Bấm ▶ để chạy script, ⚡ để thực hiện tiện ích · ⭐ để ghim lên đầu",
+    BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6,
+}, D.hubTab)
+
+-- ---------- v4.6.3: KHUNG 🌐 SERVER nằm ngay dưới danh sách thẻ ----------
+D.hubSrvPanel = New("Frame", {
+    Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 54), Position = UDim2.new(0, 8, 1, -80),
+    BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+Corner(D.hubSrvPanel, UDim.new(0, 10))
+Stroke(D.hubSrvPanel, C.BORDER, 1)
+
+D.hubJobLbl = New("TextLabel", {
+    Size = UDim2.new(1, -44, 0, 14), Position = UDim2.new(0, 8, 0, 5),
+    Text = "🌐 Mã server: đang đọc...", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+    Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+}, D.hubSrvPanel)
+
+D.hubJobCopy = New("TextButton", {
+    Size = UDim2.new(0, 26, 0, 16), Position = UDim2.new(1, -32, 0, 4), Text = "📋",
+    BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.1, TextColor3 = C.INK,
+    Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 7,
+}, D.hubSrvPanel)
+Corner(D.hubJobCopy, UDim.new(0, 6))
+D.Tactile(D.hubJobCopy, 0.1)
+
+D.hubJobIn = New("TextBox", {
+    Size = UDim2.new(1, -124, 0, 24), Position = UDim2.new(0, 8, 0, 24),
+    PlaceholderText = "🎟 Dán mã server (JobId) vào đây...", Text = "", ClearTextOnFocus = false,
+    BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+    PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+}, D.hubSrvPanel)
+Corner(D.hubJobIn, UDim.new(0, 8))
+Stroke(D.hubJobIn, C.BORDER, 1)
+New("UIPadding", {PaddingLeft = UDim.new(0, 7)}, D.hubJobIn)
+
+D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -110, 52, C.GREEN)
+D.hubJoinBtn.Position = UDim2.new(1, -110, 0, 24)
+D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -54, 50, C.PURPLE)
+D.hubHopBtn.Position = UDim2.new(1, -54, 0, 24)
+
+function S.SyncServerPanel()
+    pcall(function()
+        if not D.hubJobLbl then return end
+        local jid = S.GetJobId()
+        if jid then
+            D.hubJobLbl.Text = "🌐 Mã server: " .. jid
+            D.hubJobLbl.TextColor3 = C.DARK
+        else
+            D.hubJobLbl.Text = "🌐 Không đọc được mã server (Studio/server đơn) — 🔄 Reset vẫn dùng được"
+            D.hubJobLbl.TextColor3 = C.MUTED
+        end
+    end)
+end
+
+D.hubJobCopy.Activated:Connect(function()
+    local jid = S.GetJobId()
+    if not jid then
+        D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)")
+        return
+    end
+    local okCp = S.CopyToClipboard(jid)
+    pcall(function() D.hubJobIn.Text = jid end)
+    D.Say(okCp and ("📋 Đã copy mã server: " .. jid)
+              or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW)
+end)
+
+D.hubJoinBtn.Activated:Connect(function()
+    local id = tostring(D.hubJobIn.Text or "")
+    id = id:gsub("^%s+", ""):gsub("%s+$", "")
+    id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
+    if id == "" then
+        D.Say("⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào")
+        ReleaseHubFocus()
+        return
+    end
+    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
+    ReleaseHubFocus()   -- nhả focus ô nhập, không thì game chặn input sau khi teleport
+    local okJ, errJ = pcall(function() S.JoinServer(id) end)
+    if not okJ then
+        D.Say("⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ))
+    end
+end)
+
+D.hubHopBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    D.Say("🔀 Đang đi lấy mã server...", C.YELLOW)
+    D.hubStatus.Text = S.RunHubAction("hopserver")
+end)
+
+function S.Rebuild()
+    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+end
+
+S.HubPanelCat = {
+    HubTune_Panel = "Di chuyển",
+    HubFly_Panel = "Di chuyển",
+    HubSpeed_Panel = "Di chuyển",
+    HubHighJump_Panel = "Di chuyển",
+    HubMove_Panel = "Di chuyển",
+    HubSafe_Panel = "Di chuyển",
+    HubGlow_Panel = "Tiện ích",
+    HubFree_Panel = "Tiện ích",
+    HubAntiBan_Panel = "Server",
+}
+function S.SyncHubPanels()
+    local list = D.hubList
+    if not list or not list.Parent then return end
+    local cat = S.hubCat or "Tất cả"
+    for _, c in ipairs(list:GetChildren()) do
+        local want = S.HubPanelCat[c.Name]
+        if want then
+            c.Visible = (cat == "Tất cả") or (cat == want)
+        end
+    end
+end
+
+function S.RebuildHubList()
+    local list = D.hubList
+    if not list or not list.Parent then return end
+    local stale = {}
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("Frame") and c.Name:sub(1, 8) == "HubCard_" then stale[#stale + 1] = c end
+    end
+    for _, c in ipairs(stale) do pcall(function() c:Destroy() end) end
+
+    local q = tostring(S.hubSearch or ""):lower()
+    local cat = S.hubCat or "Tất cả"
+    local items = {}
+    for _, it in ipairs(S.ScriptHubList) do
+        local okCat = (cat == "Tất cả") or (it.cat == cat)
+        local okQ = (q == "")
+            or tostring(it.name):lower():find(q, 1, true) ~= nil
+            or tostring(it.desc or ""):lower():find(q, 1, true) ~= nil
+            or tostring(it.cat or ""):lower():find(q, 1, true) ~= nil
+        if okCat and okQ then items[#items + 1] = it end
+    end
+    table.sort(items, function(a, b)
+        local fa = S.hubFavs[a.name] and 1 or 0
+        local fb = S.hubFavs[b.name] and 1 or 0
+        if fa ~= fb then return fa > fb end
+        return (a.ord or 99) < (b.ord or 99)
+    end)
+
+    for i, it in ipairs(items) do
+        local card = New("Frame", {
+            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i + 1,
+            BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+        }, list)
+        Corner(card, UDim.new(0, 10))
+        Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.HAIRLINE, 1)   -- v4.9: viền tách khối rõ hơn
+        D.Shade(card, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)   -- v4.9: thẻ có khối
+
+        local ico = New("TextLabel", {
+            Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(0, 8, 0, 11), Text = it.icon,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 16, BorderSizePixel = 0, ZIndex = 7,
+        }, card)
+        Corner(ico, UDim.new(0, 9))
+        D.Shade(ico, Color3.fromRGB(255,255,255), Color3.fromRGB(176,181,196), 90)
+        Stroke(ico, C.HAIRLINE, 1)
+
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 14), Position = UDim2.new(0, 50, 0, 8),
+            Text = tostring(it.name) .. (S.hubFavs[it.name] and "  ⭐" or ""),
+            BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, card)
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 10), Position = UDim2.new(0, 50, 0, 22),
+            Text = string.upper(tostring(it.cat or "")), BackgroundTransparency = 1,
+            TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 8,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, card)
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 20), Position = UDim2.new(0, 50, 0, 33),
+            Text = tostring(it.desc or ""), BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+        }, card)
+
+        local isAction = (it.action ~= nil)
+        local runText
+        if isAction then
+            if it.action == "crosshair" then
+                runText = (S.crosshairOn and "🎯 TẮT") or "🎯 BẬT"
+            elseif S.MoveActionState and S.MoveActionState[it.action] then
+                local on = false
+                pcall(function() on = S.MoveActionState[it.action]() end)
+                runText = tostring(it.icon) .. " " .. ((on and "TẮT") or "BẬT")
+            else
+                runText = "⚡ Chạy"
+            end
+        else
+            runText = "▶ Chạy"
+        end
+        local runBtn = D.CardBtn(card, runText, -166, 78, isAction and C.SURFACE3 or C.GREEN)
+        runBtn.Activated:Connect(function()
+            ReleaseHubFocus()
+            if it.code then
+                local okR = RunCode(it.code, it.name, nil, 1, 0, it.noPark == true)
+                D.Say((okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
+                    .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
+                    .. " · xem chi tiết ở tab 💻 Code", C.YELLOW)
+            else
+                D.Say(S.RunHubAction(it.action), C.YELLOW)
+            end
+        end)
+
+        if it.code then
+            local copyBtn = D.CardBtn(card, "📋", -84, 24, C.BLUE)
+            copyBtn.Activated:Connect(function()
+                local did = S.CopyToClipboard(it.code)
+                D.Say(did and ("📋 đã copy loadstring của '" .. it.name .. "'")
+                           or "⚠️ executor này không hỗ trợ clipboard", did and C.GREEN or C.RED)
+            end)
+            local saveBtn = D.CardBtn(card, "💾", -56, 24, C.PURPLE)
+            saveBtn.Activated:Connect(function()
+                local nm = it.name
+                local cnt = 1
+                while true do
+                    local ex = false
+                    for _, s in ipairs(scripts) do if s.name == nm then ex = true break end end
+                    if not ex then break end
+                    cnt += 1
+                    nm = it.name .. " (" .. cnt .. ")"
+                end
+                table.insert(scripts, {name = nm, code = it.code, expanded = false})
+                pcall(function() if RebuildScripts then RebuildScripts() end end)
+                pcall(function() Store.saveSoon() end)
+                D.Say("💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu", C.GREEN)
+            end)
+        end
+
+        local favBtn = D.CardBtn(card, S.hubFavs[it.name] and "⭐" or "☆", -28, 24,
+            S.hubFavs[it.name] and C.YELLOW or C.SURFACE3)
+        favBtn.Activated:Connect(function()
+            if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
+            pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
+            S.RebuildHubList()
+            D.Say(S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
+                                      or ("☆ đã bỏ ghim '" .. it.name .. "'"), C.MUTED)
+        end)
+    end
+
+    pcall(function()
+        if S.SyncHubPanels then S.SyncHubPanels() end
+        local panelH = 0
+        for _, c in ipairs(list:GetChildren()) do
+            if c:IsA("Frame") and c.Name:sub(1, 8) ~= "HubCard_" and c.Visible ~= false then
+                panelH = panelH + ((c.Size and c.Size.Y.Offset) or 0) + 6
+            end
+        end
+        list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6 + panelH)
+    end)
+    if S.SyncFlyPanel then pcall(S.SyncFlyPanel) end          -- v4.36: Bay + xuyên tường độc lập
+    if S.SyncSpeedPanel then pcall(S.SyncSpeedPanel) end      -- v4.37: 💨 tốc độ theo camera
+    if S.SyncHighJumpPanel then pcall(S.SyncHighJumpPanel) end -- v4.38: 🦘 nhảy cao
+    if S.SyncTunePanel then pcall(S.SyncTunePanel) end         -- v4.40: ⚙ tuỳ chỉnh gom
+    if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
+    if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
+    if S.SyncFreePanel then pcall(S.SyncFreePanel) end         -- v4.64: 🎥 khán giả
+    if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
+    if S.SyncAntiBanPanel then pcall(S.SyncAntiBanPanel) end   -- v4.43: 🔐 anti ban
+    if #items == 0 and D.hubStatus then
+        D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
+    end
+end
+
+-- ---------- v4.40: KHUNG ⚙ TUỲ CHỈNH (Bay · Tốc độ camera · Nhảy cao · Di chuyển) ----------
+do
+    local P = New("Frame", {
+        Name = "HubTune_Panel", Size = UDim2.new(1, 0, 0, 172), LayoutOrder = -4,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "⚙ TUỲ CHỈNH — 🚀 Bay · 💨 Tốc độ camera · 🦘 Nhảy cao · 👟 Di chuyển",
+        BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local function box(name, x, y, val)
+        local b = New("TextBox", {
+            Name = name, Size = UDim2.new(0, 52, 0, 22), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+            TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local flyBtn = button("TuneFly", "🚀 Bay: TẮT", 8, 24, 110, C.GRAY)
+    local flyBox = box("TuneFlySpeed", 122, 24, MV.flySpeed)
+    local flyApply = button("TuneFlyApply", "✔", 178, 24, 32, C.GREEN)
+    local flyStop = button("TuneFlyStop", "⏹", 214, 24, 32, C.RED)
+
+    local spdBtn = button("TuneSprint", "💨 Tốc độ: TẮT", 8, 50, 110, C.GRAY)
+    local spdBox = box("TuneSprintSpeed", 122, 50, MV.sprintSpeed)
+    local spdApply = button("TuneSprintApply", "✔", 178, 50, 32, C.GREEN)
+    local spdStop = button("TuneSprintStop", "⏹", 214, 50, 32, C.RED)
+
+    local hjBtn = button("TuneHighJump", "🦘 Nhảy cao: TẮT", 8, 76, 110, C.GRAY)
+    local hjBox = box("TuneHighJumpSpeed", 122, 76, MV.highJumpSpeed)
+    local hjApply = button("TuneHighJumpApply", "✔", 178, 76, 32, C.GREEN)
+    local hjStop = button("TuneHighJumpStop", "⏹", 214, 76, 32, C.RED)
+
+    lab("👟 Chạy", 254, 24, 48)
+    local wsBox = box("TuneWalkSpeed", 304, 24, (MV.speedMode == "x") and ("x" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed))
+    lab("🦘 Lực nhảy", 254, 50, 70)
+    local jpBox = box("TuneJumpPower", 324, 50, MV.jumpPower)
+    local mvApply = button("TuneMoveApply", "✔ Di chuyển", 254, 76, 122, C.GREEN)
+
+    local status = New("TextLabel", {
+        Name = "TuneStatus", Size = UDim2.new(1, -16, 0, 28), Position = UDim2.new(0, 8, 0, 102),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 134),
+        Text = "💡 ✔ = áp tốc độ dòng đó. 👟 gõ x3 = theo game ×3, gõ số = cố định. Thảm/kính/bay-tới vẫn ở khung ⚙ bên dưới.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function paintToggle(b, on, label)
+        b.Text = label .. (on and "BẬT" or "TẮT")
+        D.SetBg(b, on and C.GREEN or C.GRAY)
+    end
+    local function focused()
+        return UserInputService:GetFocusedTextBox()
+    end
+    function S.SyncTunePanel()
+        if not (P and P.Parent) then return end
+        paintToggle(flyBtn, MV.fly, "🚀 Bay: ")
+        paintToggle(spdBtn, MV.sprint, "💨 Tốc độ: ")
+        paintToggle(hjBtn, MV.highJump, "🦘 Nhảy cao: ")
+        local tb = focused()
+        if tb ~= flyBox then flyBox.Text = tostring(MV.flySpeed) end
+        if tb ~= spdBox then spdBox.Text = tostring(MV.sprintSpeed) end
+        if tb ~= hjBox then hjBox.Text = tostring(MV.highJumpSpeed) end
+        if tb ~= wsBox then
+            wsBox.Text = (MV.speedMode == "x") and ("x" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed)
+        end
+        if tb ~= jpBox then jpBox.Text = tostring(MV.jumpPower) end
+        status.Text = (MV.Status and MV.Status()) or ""
+    end
+
+    flyBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("fly"), C.YELLOW) end)
+    spdBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("camspeed"), C.YELLOW) end)
+    hjBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("highjump"), C.YELLOW) end)
+    flyStop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetFly(false); S.Rebuild()
+        D.Say("🚀 Bay: TẮT", C.YELLOW)
+    end)
+    spdStop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetSprint(false); S.Rebuild()
+        D.Say("💨 Tốc độ theo camera: TẮT", C.YELLOW)
+    end)
+    hjStop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetHighJump(false); S.Rebuild()
+        D.Say("🦘 Nhảy cao: TẮT", C.YELLOW)
+    end)
+    local function applyFly()
+        ReleaseHubFocus()
+        local ok, result = MV.SetFlySpeed(flyBox.Text)
+        D.Say(ok and ("💨 Tốc độ bay: " .. tostring(result)) or ("⚠️ " .. tostring(result)), ok and C.GREEN or C.YELLOW)
+        S.SyncTunePanel()
+    end
+    local function applySprint()
+        ReleaseHubFocus()
+        local ok, result = MV.SetSprintSpeed(spdBox.Text)
+        D.Say(ok and ("💨 Tốc độ chạy camera: " .. tostring(result)) or ("⚠️ " .. tostring(result)), ok and C.GREEN or C.YELLOW)
+        S.SyncTunePanel()
+    end
+    local function applyHj()
+        ReleaseHubFocus()
+        local ok, result = MV.SetHighJumpSpeed(hjBox.Text)
+        D.Say(ok and ("💨 Tốc độ nhảy cao: " .. tostring(result)) or ("⚠️ " .. tostring(result)), ok and C.GREEN or C.YELLOW)
+        S.SyncTunePanel()
+    end
+    flyApply.Activated:Connect(applyFly)
+    spdApply.Activated:Connect(applySprint)
+    hjApply.Activated:Connect(applyHj)
+    flyBox.FocusLost:Connect(function(enter) if enter then applyFly() end end)
+    spdBox.FocusLost:Connect(function(enter) if enter then applySprint() end end)
+    hjBox.FocusLost:Connect(function(enter) if enter then applyHj() end end)
+    mvApply.Activated:Connect(function()
+        ReleaseHubFocus()
+        local wmul = tostring(wsBox.Text or ""):match("^[xX×]%s*([%d%.]+)")
+        if wmul then
+            MV.speedMode = "x"
+            MV.speedMul = mvClamp(tonumber(wmul), 1, 20)
+        else
+            local w = tonumber(wsBox.Text)
+            if w then
+                MV.speedMode = "num"
+                MV.walkSpeed = mvClamp(w, 0, 500, 16)
+            end
+        end
+        local j = tonumber(jpBox.Text)
+        if j then MV.jumpPower = mvClamp(j, 0, 500, 50) end
+        pcall(function() if MV.speed then MV.ApplyChar() end end)
+        if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end
+        S.SyncTunePanel()
+        D.Say(string.format("⚙ di chuyển: chạy %s · lực nhảy %d",
+            (MV.speedMode == "x") and ("×" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed),
+            MV.jumpPower), C.GREEN)
+    end)
+    S.tuneBtns = {panel = P, fly = flyBtn, sprint = spdBtn, highjump = hjBtn, flySpeed = flyBox, sprintSpeed = spdBox, highJumpSpeed = hjBox, walk = wsBox, jump = jpBox}
+    S.SyncTunePanel()
+end
+-- ---------- HẾT KHUNG ⚙ TUỲ CHỈNH ----------
+
+-- ---------- v4.43: KHUNG 🔐 ANTI BAN ----------
+do
+    local P = New("Frame", {
+        Name = "HubAntiBan_Panel", Size = UDim2.new(1, 0, 0, 88), LayoutOrder = 3,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🔐 ANTI BAN — tự hop server khác khi bị nghi / định ban",
+        BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function abtn(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = abtn("AntiBanOn", "🔐 TẮT", 8, 24, 88, C.GRAY)
+    local hopBtn = abtn("AntiBanHopNow", "🔀 Hop ngay", 100, 24, 88, C.PURPLE)
+    New("TextLabel", {
+        Size = UDim2.new(0, 52, 0, 22), Position = UDim2.new(0, 194, 0, 24),
+        Text = "⏳ chờ s", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local cdBox = New("TextBox", {
+        Name = "AntiBanCooldown", Size = UDim2.new(0, 44, 0, 22), Position = UDim2.new(0, 246, 0, 24),
+        Text = tostring(S.AntiBan.cooldown), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(cdBox, UDim.new(0, 6))
+    local st = New("TextLabel", {
+        Name = "AntiBanStatus", Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 50),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncAntiBanPanel()
+        pcall(function()
+            onBtn.Text = S.AntiBan.on and "🔐 BẬT" or "🔐 TẮT"
+            D.SetBg(onBtn, S.AntiBan.on and C.GREEN or C.GRAY)
+            if UserInputService:GetFocusedTextBox() ~= cdBox then
+                cdBox.Text = tostring(S.AntiBan.cooldown or 10)
+            end
+            st.Text = S.AntiBanStatus() .. " · kick/ban/error → hop. Bay/xuyên bị reset tốc độ 3 lần/4s → hop. Không vào lại đúng server cũ."
+        end)
+    end
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.RunHubAction("antiban")
+        S.SyncAntiBanPanel()
+    end)
+    hopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if not S.AntiBan.on then S.AntiBanSet(true) end
+        local n = tonumber(cdBox.Text)
+        if n then S.AntiBan.cooldown = math.clamp(n, 3, 60) end
+        S.AntiBanHop("manual")
+        S.SyncAntiBanPanel()
+    end)
+    cdBox.FocusLost:Connect(function()
+        local n = tonumber(cdBox.Text)
+        if n then S.AntiBan.cooldown = math.clamp(n, 3, 60) end
+        S.SyncAntiBanPanel()
+    end)
+    S.SyncAntiBanPanel()
+end
+-- ---------- HẾT KHUNG 🔐 ANTI BAN ----------
+
+-- ---------- v4.36: KHUNG 🚀 BAY THEO CAMERA (công tắc 🧱 độc lập) ----------
+do
+    local P = New("Frame", {
+        Name = "HubFly_Panel", Size = UDim2.new(1, 0, 0, 154), LayoutOrder = -1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🚀 BAY THEO CAMERA — điều khiển tay", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("FlyToggle", "🚀 Bay: TẮT", 8, 24, 100, C.GRAY)
+    local ncBtn = button("FlyNoclip", "🧱 Xuyên tường: TẮT", 114, 24, 158, C.GRAY)
+    local hudBtn = button("FlyHudToggle", "📱 Nút ảo: BẬT", 278, 24, 124, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(0, 128, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ (1–2000)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "FlySpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 140, 0, 54),
+        Text = tostring(MV.flySpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("FlySpeedApply", "✔ Áp dụng", 202, 54, 92, C.GREEN)
+    local stop = button("FlyStop", "⏹ Dừng bay", 300, 54, 102, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 46), Position = UDim2.new(0, 8, 0, 84),
+        Text = "WASD / joystick: bay theo camera cả lên và xuống. Nhìn xuống 60° + tiến tới = bay xuống 60°. "
+            .. "Space / ⬆: lên; Shift/Ctrl / ⬇: xuống. Thả điều khiển: đứng lơ lửng. "
+            .. "🧱 là công tắc riêng, Bay không tự bật/tắt xuyên tường.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "FlyPanelStatus", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 134),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncFlyPanel()
+        local function paint(b, on, label)
+            b.Text = label .. (on and "BẬT" or "TẮT")
+            D.SetBg(b, on and C.GREEN or C.GRAY)
+        end
+        paint(onBtn, MV.fly, "🚀 Bay: ")
+        paint(ncBtn, MV.noclip, "🧱 Xuyên tường: ")
+        paint(hudBtn, MV.Flight.showHud, "📱 Nút ảo: ")
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.flySpeed) end
+        status.Text = MV.fly and ("🚀 Đang bay theo camera · tốc độ " .. tostring(MV.flySpeed) .. " · thả phím để dừng tại chỗ")
+            or "🚀 Đã tắt bay · 🧱 xuyên tường " .. (MV.noclip and "BẬT" or "TẮT")
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("fly"), C.YELLOW) end)
+    ncBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("noclip"), C.YELLOW) end)
+    hudBtn.Activated:Connect(function() ReleaseHubFocus(); MV.SetFlyHud(not MV.Flight.showHud) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetFlySpeed(value)
+        if ok then D.Say("💨 Tốc độ bay: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncFlyPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetFly(false); S.Rebuild()
+        D.Say("🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱", C.YELLOW)
+    end)
+    S.flyBtns = {on = onBtn, noclip = ncBtn, hud = hudBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncFlyPanel()
+end
+-- ---------- HẾT KHUNG 🚀 BAY THEO CAMERA ----------
+
+-- ---------- v4.37: KHUNG 💨 TỐC ĐỘ THEO CAMERA (không xuyên tường, không nút ảo) ----------
+do
+    local P = New("Frame", {
+        Name = "HubSpeed_Panel", Size = UDim2.new(1, 0, 0, 130), LayoutOrder = -2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "💨 TỐC ĐỘ THEO CAMERA — mặt đất, nhảy/rơi theo game", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("SpeedToggle", "💨 Tốc độ: TẮT", 8, 24, 132, C.GRAY)
+    local stop = button("SpeedStop", "⏹ Dừng", 146, 24, 80, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(0, 128, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ (1–2000)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "SprintSpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 140, 0, 54),
+        Text = tostring(MV.sprintSpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("SpeedApply", "✔ Áp dụng", 202, 54, 92, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 82),
+        Text = "WASD / joystick game: chạy theo hướng camera trên mặt đất. Nhảy = Space của game. "
+            .. "Rơi theo trọng lực game. Không xuyên tường, không nút ảo.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "SpeedPanelStatus", Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 112),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncSpeedPanel()
+        onBtn.Text = "💨 Tốc độ: " .. (MV.sprint and "BẬT" or "TẮT")
+        D.SetBg(onBtn, MV.sprint and C.GREEN or C.GRAY)
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.sprintSpeed) end
+        status.Text = MV.sprint
+            and ("💨 Đang chạy theo camera · tốc độ " .. tostring(MV.sprintSpeed) .. " · nhảy/rơi theo game")
+            or "💨 Đã tắt · va chạm tường + nhảy + trọng lực = của game"
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("camspeed"), C.YELLOW) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetSprintSpeed(value)
+        if ok then D.Say("💨 Tốc độ chạy: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncSpeedPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetSprint(false); S.Rebuild()
+        D.Say("💨 Tốc độ theo camera: TẮT", C.YELLOW)
+    end)
+    S.speedBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncSpeedPanel()
+end
+-- ---------- HẾT KHUNG 💨 TỐC ĐỘ THEO CAMERA ----------
+
+-- ---------- v4.38: KHUNG 🦘 NHẢY CAO (công tắc độc lập kiểu 👤 Né người) ----------
+do
+    local P = New("Frame", {
+        Name = "HubHighJump_Panel", Size = UDim2.new(1, 0, 0, 118), LayoutOrder = -3,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🦘 NHẢY CAO — BẬT/TẮT độc lập (kiểu 👤 Né người)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local function button(name, text, x, y, w, color)
+        local b = New("TextButton", {
+            Name = name, Text = text, Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(0, x, 0, y),
+            BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
+            Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)); D.Tactile(b, 0.08)
+        return b
+    end
+    local onBtn = button("HighJumpToggle", "🦘 Nhảy cao: TẮT", 8, 24, 148, C.GRAY)
+    local stop = button("HighJumpStop", "⏹ Dừng", 162, 24, 80, C.RED)
+    New("TextLabel", {
+        Size = UDim2.new(0, 148, 0, 24), Position = UDim2.new(0, 8, 0, 54),
+        Text = "💨 Tốc độ nhảy (1–500)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local speed = New("TextBox", {
+        Name = "HighJumpSpeed", Size = UDim2.new(0, 56, 0, 24), Position = UDim2.new(0, 160, 0, 54),
+        Text = tostring(MV.highJumpSpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(speed, UDim.new(0, 6))
+    local apply = button("HighJumpApply", "✔ Áp dụng", 222, 54, 92, C.GREEN)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 82),
+        Text = "BẬT rồi bấm Space: nhảy cao theo số trên. Rơi theo game. Không xuyên tường, không nút ảo.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local status = New("TextLabel", {
+        Name = "HighJumpStatus", Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 100),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    function S.SyncHighJumpPanel()
+        onBtn.Text = "🦘 Nhảy cao: " .. (MV.highJump and "BẬT" or "TẮT")
+        D.SetBg(onBtn, MV.highJump and C.GREEN or C.GRAY)
+        if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.highJumpSpeed) end
+        status.Text = MV.highJump
+            and ("🦘 Đang nhảy cao · tốc độ " .. tostring(MV.highJumpSpeed) .. " · rơi theo trọng lực game")
+            or "🦘 Đã tắt · nhảy = của game (🦘 vô hạn vẫn độc lập)"
+    end
+    onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("highjump"), C.YELLOW) end)
+    local function applySpeed()
+        local value = speed.Text
+        ReleaseHubFocus()
+        local ok, result = MV.SetHighJumpSpeed(value)
+        if ok then D.Say("💨 Tốc độ nhảy cao: " .. tostring(result), C.GREEN)
+        else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
+        S.SyncHighJumpPanel()
+    end
+    apply.Activated:Connect(applySpeed)
+    speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
+    stop.Activated:Connect(function()
+        ReleaseHubFocus(); MV.SetHighJump(false); S.Rebuild()
+        D.Say("🦘 Nhảy cao: TẮT", C.YELLOW)
+    end)
+    S.highJumpBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P}
+    S.SyncHighJumpPanel()
+end
+-- ---------- HẾT KHUNG 🦘 NHẢY CAO ----------
+
+-- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN (DA XOA THAM KINH) ----------
+-- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN (DA XOA THAM KINH) ----------
+do
+    local PH = 180
+    local P = New("Frame", {
+        Name = "HubMove_Panel",
+        Size = UDim2.new(1, 0, 0, PH),
+        LayoutOrder = 0,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    local function title(txt)
+        New("TextLabel", {
+            Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        Stroke(b, C.BORDER, 1)
+        return b
+    end
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
+            TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold,
+            TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function say(msg, good) D.Say(msg, good and C.GREEN or C.RED) end
+
+    title("⚙ Tuỳ chỉnh di chuyển (áp dụng ngay)")
+
+    lab("🚀 Bay", 8, 22, 52)
+    local flyIn = box(62, 22, 44, S.Move.flySpeed)
+    lab("👟 Chạy", 114, 22, 50)
+    local wsIn = box(166, 22, 40, (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed))
+    lab("🦘 Nhảy", 214, 22, 46)
+    local jpIn = box(262, 22, 40, S.Move.jumpPower)
+    local ap1 = act("✔", 308, 22, 28, C.GREEN)
+
+    lab("0=auto tốc độ bay người", 8, 48, 140)
+    local speedPlayerBox = box(150, 48, 44, S.Move.playerFlySpeed or 0)
+    local applyPlayerSpeedBtn = act("✔ Tốc bay người", 200, 48, 110, C.GREEN)
+
+    local upBtn  = act("⬆ Nâng", 8, 74, 62, C.BLUE)
+    local dnBtn  = act("⬇ Hạ", 76, 74, 56, C.BLUE)
+    local stopBtn = act("🛑 Tắt hết", 138, 74, 76, C.RED)
+    local st = New("TextLabel", {
+        Size = UDim2.new(1, -230, 0, 20), Position = UDim2.new(0, 222, 0, 74),
+        Text = S.Move.Status(), BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    ap1.Activated:Connect(function()
+        ReleaseHubFocus()
+        local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text)
+        if f then
+            S.Move.flySpeed = (f >= 1 and f <= 2000) and f or S.Move.flySpeed
+            S.Move.SyncFlyHud()
+        end
+        local wmul = tostring(wsIn.Text or ""):match("^[xX×]%s*([%d%.]+)")
+        if wmul then
+            S.Move.speedMode = "x"
+            S.Move.speedMul  = mvClamp(tonumber(wmul), 1, 20)
+        elseif w then
+            S.Move.speedMode = "num"
+            S.Move.walkSpeed = (w >= 1 and w <= 500) and w or S.Move.walkSpeed
+        end
+        if j then S.Move.jumpPower = (j >= 0 and j <= 500) and j or S.Move.jumpPower end
+        flyIn.Text = tostring(S.Move.flySpeed)
+        wsIn.Text  = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
+        jpIn.Text  = tostring(S.Move.jumpPower)
+        pcall(function() if S.Move.speed then S.Move.ApplyChar() end end)
+        say(string.format("⚙ đã áp dụng: bay %d · chạy %s · nhảy %d%s",
+            S.Move.flySpeed,
+            (S.Move.speedMode == "x") and ("×" .. tostring(S.Move.speedMul) .. " (theo game)") or tostring(S.Move.walkSpeed),
+            S.Move.jumpPower,
+            (S.Move.speedMode == "x" and S.Move.speed) and (" = " .. tostring(S.Move.WantSpeed())) or ""), true)
+    end)
+
+    upBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, what = S.Move.Nudge(2.5)
+        say(ok and ("⬆ đã nâng " .. tostring(what) .. " lên 2.5") or "⬆ bật Bay trước đã", ok == true)
+        st.Text = S.Move.Status()
+    end)
+    dnBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, what = S.Move.Nudge(-2.5)
+        say(ok and ("⬇ đã hạ " .. tostring(what) .. " xuống 2.5") or "⬇ bật Bay trước đã", ok == true)
+        st.Text = S.Move.Status()
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        D.Say(S.RunHubAction("movestop"), C.YELLOW)
+        st.Text = S.Move.Status()
+    end)
+
+    local pcBtn
+    local TXT_PASS_ON  = "🧲 Đẩy xuyên khi kẹt: BẬT"
+    local TXT_PASS_OFF = "🧲 Đẩy xuyên khi kẹt: TẮT"
+    local function paintPass()
+        local on = (S.Move.ncPass ~= false)
+        pcBtn.Text = on and TXT_PASS_ON or TXT_PASS_OFF
+        pcBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+        pcBtn.TextColor3 = D.BestText(pcBtn.BackgroundColor3)
+    end
+    pcBtn = act(TXT_PASS_ON, 8, 100, 168, C.GREEN)
+    S.Move._passBtn = pcBtn
+    pcBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.ncPass = (S.Move.ncPass == false)
+        paintPass()
+        say(S.Move.ncPass and "🧲 tự đẩy xuyên: BẬT" or "🧲 tự đẩy xuyên: TẮT", true)
+    end)
+
+    local flyPlayerBtn = act("🚀 Bay tới người gần nhất", 184, 100, 150, C.ACCENT)
+    local stopPlayerFlyBtn = act("⏹ Dừng bay người", 340, 100, 110, C.RED)
+
+    local function paintGlass()
+        local pFlying = S.Move._playerFlyActive == true
+        flyPlayerBtn.Text = pFlying and ("🚀 Đang bay tới " .. tostring(S.Move._playerFlyTarget and S.Move._playerFlyTarget.Name or "?")) or "🚀 Bay tới người gần nhất"
+        flyPlayerBtn.BackgroundColor3 = pFlying and C.GREEN or C.ACCENT
+        flyPlayerBtn.TextColor3 = D.BestText(flyPlayerBtn.BackgroundColor3)
+        if speedPlayerBox then speedPlayerBox.Text = tostring(S.Move.playerFlySpeed or 0) end
+    end
+    flyPlayerBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local target = nil
+        if S.Loc and S.Loc.Nearest then target = S.Loc.Nearest() end
+        if not target then
+            say("⚠️ không có người chơi nào để bay tới", false)
+            return
+        end
+        local ok, res = S.Move.FlyToPlayer(target)
+        st.Text = S.Move.Status()
+        paintGlass()
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        say(ok and ("🚀 đang bay tới " .. tostring(target.Name)) or ("⚠️ " .. tostring(res)), ok==true)
+    end)
+    stopPlayerFlyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.StopPlayerFly()
+        st.Text = S.Move.Status()
+        paintGlass()
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        say("⏹ đã dừng bay tới người", true)
+    end)
+    applyPlayerSpeedBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local v = tonumber(tostring(speedPlayerBox.Text or ""):match("%-?%d+%.?%d*"))
+        if v == nil then v = S.Move.playerFlySpeed or 0 end
+        S.Move.SetPlayerFlySpeed(v)
+        speedPlayerBox.Text = tostring(S.Move.playerFlySpeed or 0)
+        st.Text = S.Move.Status()
+        paintGlass()
+        local sp = S.Move.GetPlayerFlySpeed and S.Move.GetPlayerFlySpeed() or S.Move.playerFlySpeed or 0
+        if (tonumber(S.Move.playerFlySpeed) or 0) == 0 then
+            say(string.format("🚀 tốc độ bay tới người: auto (%g = tốc độ game)", sp), true)
+        else
+            say("🚀 tốc độ bay tới người: " .. tostring(sp), true)
+        end
+        if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end
+        if S.SyncLocPanel then pcall(S.SyncLocPanel) end
+    end)
+    paintGlass()
+    S.Move._glassBtns = { flyPlayer = flyPlayerBtn, stopPlayer = stopPlayerFlyBtn, speedPlayerBox = speedPlayerBox, paint = paintGlass }
+
+    function S.RefreshMovePanel()
+        pcall(function()
+            st.Text = S.Move.Status()
+            flyIn.Text = tostring(S.Move.flySpeed)
+            wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
+            jpIn.Text = tostring(S.Move.jumpPower)
+            paintPass()
+            if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end
+        end)
+    end
+end
+
+S.Loc = {
+
+    on = false,             -- 👁️ định vị TẤT CẢ người chơi
+    solo = false,           -- 🎯 chỉ định vị ĐÚNG 1 người (S.Loc.target)
+    target = nil,
+    maxDist = 0,            -- 0 = không giới hạn; >0 = chỉ hiện người trong bán kính này (stud)
+    _gui = nil, _items = {}, _friend = {}, _downAt = {},
+    _acc = 0, _listAcc = 0, _bound = false,
+}
+local LOC = S.Loc
+local LOCC = {
+    normal = { fill = Color3.fromRGB(0, 255, 100),   out = Color3.fromRGB(255, 255, 255), txt = Color3.fromRGB(0, 255, 100) },
+    friend = { fill = Color3.fromRGB(255, 105, 180), out = Color3.fromRGB(255, 182, 193), txt = Color3.fromRGB(255, 182, 193) },
+    down   = { fill = Color3.fromRGB(200, 0, 0),     out = Color3.fromRGB(255, 100, 100), txt = Color3.fromRGB(255, 100, 100) },
+    fdown  = { fill = Color3.fromRGB(138, 43, 226),  out = Color3.fromRGB(200, 150, 255), txt = Color3.fromRGB(200, 150, 255) },
+}
+local function locRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+local function locTime(sec)                      -- số giây -> "mm:ss"
+    local v = math.max(0, math.floor(tonumber(sec) or 0))
+    return string.format("%02d:%02d", math.floor(v / 60), v % 60)
+end
+function S.Loc.Root()
+    local c = player.Character
+    return (c and c:FindFirstChild("HumanoidRootPart")) or nil
+end
+function S.Loc.CharOf(p)
+    local c = p and p.Character
+    if not c then return nil end
+    local r = c:FindFirstChild("HumanoidRootPart")
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if r and h then return c, r, h end
+    return nil
+end
+function S.Loc.IsFriend(p)
+    local uid = p and p.UserId
+    if uid == nil then return false end
+    if LOC._friend[uid] == nil then
+        local ok, res = pcall(function() return player:IsFriendsWith(uid) end)
+        LOC._friend[uid] = (ok and res == true) or false
+    end
+    return LOC._friend[uid] == true
+end
+function S.Loc.IsDown(h)
+    if not h then return false end
+    if h.PlatformStand == true then return true end
+    if (tonumber(h.Health) or 1) <= 0 then return true end
+    return false
+end
+function S.Loc.NoteDown(p, down)
+    if p == nil then return end
+    if down then
+        if not LOC._downAt[p] then LOC._downAt[p] = tick() end
+    else
+        LOC._downAt[p] = nil
+    end
+end
+function S.Loc.DownSecs(p)
+    local st = LOC._downAt[p]
+    if not st then return 0 end
+    return tick() - st
+end
+function S.Loc.Dist(p)
+    local r = LOC.Root()
+    local _, pr = LOC.CharOf(p)
+    if not r or not pr then return nil end
+    return (r.Position - pr.Position).Magnitude
+end
+function S.Loc.Nearest()
+    local best, bd = nil, nil
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local d = LOC.Dist(p)
+            if d and (bd == nil or d < bd) then best, bd = p, d end
+            if not best then best = p end
+        end
+    end
+    return best
+end
+function S.Loc.Wanted(p)
+    if p == nil or p == player then return false end
+    if LOC.solo then return LOC.target == p end
+    return LOC.on == true
+end
+function S.Loc.Gui()
+    if LOC._gui and LOC._gui.Parent then return LOC._gui end
+    LOC._gui = New("ScreenGui", {
+        Name = "BC_LocEsp", ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    }, gui)
+    return LOC._gui
+end
+function S.Loc.Kill(p)
+    local it = LOC._items[p]
+    if not it then return end
+    pcall(function() if it.hl then it.hl:Destroy() end end)
+    pcall(function() if it.bb then it.bb:Destroy() end end)
+    LOC._items[p] = nil
+end
+function S.Loc.Clear()
+    for p, _ in pairs(LOC._items) do LOC.Kill(p) end
+    pcall(function() if LOC._gui then LOC._gui:ClearAllChildren() end end)
+end
+function S.Loc.Make(p)
+    local c, r = LOC.CharOf(p)
+    if not c then return end
+    LOC.Kill(p)
+    local g = LOC.Gui()
+    local hl = New("Highlight", {
+        Name = tostring(p.Name) .. "_HL", Adornee = c,
+        FillColor = LOCC.normal.fill, FillTransparency = 0.55,
+        OutlineColor = LOCC.normal.out, OutlineTransparency = 0,
+    }, g)
+    local bb = New("BillboardGui", {
+        Name = tostring(p.Name) .. "_BB", Adornee = r,
+        Size = UDim2.new(0, 170, 0, 46), StudsOffset = Vector3.new(0, 3.6, 0),
+        AlwaysOnTop = true,
+    }, g)
+    local lbl = New("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+        TextColor3 = LOCC.normal.txt, Font = Enum.Font.GothamBold, TextSize = 11,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), TextStrokeTransparency = 0.35,
+    }, bb)
+    LOC._items[p] = { hl = hl, bb = bb, lbl = lbl }
+    LOC.TickOne(p)
+end
+function S.Loc.TickOne(p)
+    local it = LOC._items[p]
+    if not it then return end
+    local c, r, h = LOC.CharOf(p)
+    if not c then LOC.Kill(p); return end
+    local down, fr = LOC.IsDown(h), LOC.IsFriend(p)
+    S.Loc.NoteDown(p, down)
+    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+    local r0 = LOC.Root()
+    local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil
+    local far = (LOC.maxDist > 0 and dist ~= nil and dist > LOC.maxDist)
+    it.hl.FillColor = col.fill
+    it.hl.OutlineColor = col.out
+    it.lbl.TextColor3 = col.txt
+    it.hl.Enabled = not far
+    it.bb.Enabled = not far
+    local mid = {}
+    if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end
+    if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end
+    mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
+    it.lbl.Text = p.Name .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")   -- v4.34: Name vốn là chuỗi, khỏi tostring
+end
+function S.Loc.Tick()
+    for p, _ in pairs(LOC._items) do
+        if not LOC.Wanted(p) then
+            LOC.Kill(p)
+        else
+            pcall(LOC.TickOne, p)
+        end
+    end
+    if not (LOC.on or LOC.solo) then return end
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if not ok or not list then return end
+    for _, p in ipairs(list) do
+        if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then
+            pcall(function() LOC.Make(p) end)
+        end
+    end
 end
 function S.Loc.Bind(on)
     if on and not LOC._bound then
@@ -8520,7 +9686,7 @@ do
     New("TextLabel", {
         Name = "PlayerTitle",
         Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 8),
-        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI",
+        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI & ĐẶT KÍNH",
         BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
@@ -8528,7 +9694,7 @@ do
     New("TextLabel", {
         Name = "PlayerNote",
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 26),
-        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì."
+        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì · 🧱 = đặt kính dưới chân, quản lý xóa lẻ trong menu này."
              .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
@@ -10299,10 +11465,8 @@ do
     end)
 end
 
--- ---------- KHUNG 🧱 ĐẶT KÍNH & 🚀 BAY TỚI KÍNH (DA XOA - CHI GIU BAY TOI NGUOI O SCRIPT HUB) ----------
+-- ---------- KHUNG 🧱 ĐẶT KÍNH & 🚀 BAY TỚI KÍNH (DA XOA) ----------
 do
-    -- [REMOVED] Tinh nang tham kinh / dat kinh da bi xoa theo yeu cau
-    -- De tranh vo giao dien, khong tang D.playerY
     pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
     end)
