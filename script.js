@@ -1,26 +1,8 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  OBSIDIAN NOIR + layout kiểu DELTA
-    v4.66: 🎥 Khán giả — quay được camera (LockCenter + GetMouseDelta mỗi frame).
-    v4.65: 🎥 Khán giả — camera xuyên tường (tự lưu vị trí, ghi lúc Last, không Popper).
-    v4.64: 🎥 Khán giả — camera bay khắp nơi (giống 🚀), nhân vật đứng yên. Xóa 👻 toàn hình.
-    v4.63: 👻 Toàn hình — nhảy: ảo không bám Away, không trượt XZ, camera không nghiêng.
-    v4.62: 👻 Toàn hình — nhảy không làm nhân vật ảo trượt một hướng.
-    v4.61: 👻 Toàn hình — tắt/trận mới: camera bám Humanoid nhân vật hiện tại.
-    v4.60: 👻 Toàn hình — nhân vật ảo trong suốt đi theo mình, camera bám theo ghost.
-    v4.59: 👻 Toàn hình — ngụy CFrame tới người chơi (không FireServer); Evade vẫn LTM + đi được.
-    v4.58: 👻 Toàn hình Evade — mình trong suốt (LTM) và đi được (không kéo CFrame).
-    v4.57: 👻 Toàn hình — đi được (không CFrame lúc physics/camera; NetHide chỉ Last).
-    v4.56: 👻 Toàn hình — người khác không thấy cả Evade (ngụy CFrame Last; không clone camera).
-    v4.55: 👻 Toàn hình — Evade không giật (không kéo CFrame/clone camera; LocalShow trước Camera).
-    v4.54: 👻 Toàn hình — người khác không thấy (ngụy CFrame tới mọi client, không FireServer).
-    v4.53: 👻 Toàn hình — sửa phóng lên trời (ghost không Humanoid/vật lý, không parent workspace).
-    v4.52: 👻 Toàn hình — mình thấy trong suốt, người khác không thấy; không FireServer.
-    v4.51: xóa 👻 toàn hình an toàn · tối ưu mượt (bỏ vòng RenderStep Last mỗi frame).
-    v4.43: 🔐 Anti Ban — tự hop server khác khi bị kick/ban hoặc server nghi.
-    v4.42: rút gọn comment/header — KHÔNG cắt hàm, khung, thẻ hay hành vi.
-    v4.41: chip Script Hub ẩn khung sai nhóm (Admin không còn 🦘/✨/🚀).
-    v4.40: khung ⚙ TUỲ CHỈNH — 🚀 Bay · 💨 Tốc độ camera · 🦘 Nhảy cao · 👟 Di chuyển.
-    v4.39: dọn thẻ trùng Script Hub. v4.38 nhảy cao. v4.37 tốc độ theo camera. v4.36 bay theo camera.
+    v4.67: tối ưu — nạp lại không kẹt 🎥; rút gọn changelog. KHÔNG cắt hàm/khung/thẻ.
+    v4.66: 🎥 quay camera. v4.65: xuyên tường. v4.64: khán giả thay 👻.
+    v4.43: 🔐 Anti Ban. v4.42 rút gọn. v4.41 chip. v4.40 ⚙. v4.39–v4.36 bay/nhảy/tốc độ.
     Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 🪩 thảm/kính · 📍👣 · ✨ · 👥 · ⚙️.
     Test: node tests/run.js
 --]]
@@ -61,6 +43,10 @@ if _G.BananaCatHub_Connections then
     end
 end
 _G.BananaCatHub_Connections = {}
+pcall(function()
+    local f = _G.BananaCatHub_Free
+    if type(f) == "table" and f.Stop then pcall(f.Stop) end
+end)
 
 pcall(function()
     local old = _G.BananaCatHub_SpecCam
@@ -579,7 +565,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.66 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.67 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -8192,6 +8178,7 @@ end
 
 -- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
 function MV.StopAll()
+    pcall(function() if S.Free and S.Free.Stop then S.Free.Stop() end end)
     if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Stop() end) end
     pcall(function() MV.StopGlassFly() end)
     pcall(function() MV.StopPlayerFly() end)
@@ -11129,16 +11116,6 @@ end
 function S.Free.Bind(on)
     if on and not FR._bound then
         FR._bound = true
-        if not FR._mouse then
-            FR._mouse = UserInputService.InputChanged:Connect(function(i)
-                if not FR.on then return end
-                if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-                if UserInputService:GetFocusedTextBox() then return end
-                local d = i.Delta
-                FR._mdx = (FR._mdx or 0) + (d and d.X or 0)
-                FR._mdy = (FR._mdy or 0) + (d and d.Y or 0)
-            end)
-        end
         pcall(function()
             RunService:BindToRenderStep("BC_FreeCam", Enum.RenderPriority.Last.Value, function(dt)
                 pcall(S.Free.Step, dt)
@@ -11153,7 +11130,6 @@ function S.Free.Bind(on)
         FR._bound = false
         pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
         pcall(function() if FR._step then FR._step:Disconnect() end end)
-        pcall(function() if FR._mouse then FR._mouse:Disconnect() end end)
         FR._step, FR._mouse = nil, nil
     end
 end
@@ -11206,6 +11182,7 @@ do
         end)
     end))
 end
+_G.BananaCatHub_Free = S.Free
 -- ---------- HẾT 🎥 KHÁN GIẢ ----------
 
 S.Glow = {
