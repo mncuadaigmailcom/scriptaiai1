@@ -7998,6 +7998,91 @@ function S.HopServer()
         .. " người) · tìm được " .. #cand .. " server khác để chọn, đã bỏ qua server hiện tại"
 end
 
+
+function S.HopLowServer()
+    local me = tostring(S.GetJobId() or "")
+    local cand, cursor = {}, ""
+    local pages = 0
+    local maxPages = 8 -- quét 800 server để tìm server vắng nhất
+    for _ = 1, maxPages do
+        pages = pages + 1
+        local ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
+        if not ok then
+            -- nếu lỗi http, thử lại 1 lần
+            task.wait(0.3)
+            ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
+        end
+        if not ok or type(list) ~= "table" then break end
+        for _, sv in ipairs(list) do
+            local sid = (sv and sv.id) and tostring(sv.id) or nil
+            local playing = tonumber(sv and sv.playing) or 0
+            local maxp = tonumber(sv and sv.maxPlayers) or 0
+            if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
+                -- chỉ lấy server còn chỗ và không phải server hiện tại
+                cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp}
+            end
+        end
+        if not nextCursor or nextCursor == "" then break end
+        cursor = nextCursor
+        task.wait(0.15) -- tránh spam api
+    end
+    if #cand == 0 then
+        return "⚠️ Không tìm thấy server nào còn chỗ trống (đã quét "..pages.." trang)"
+    end
+    -- sắp xếp theo số người chơi tăng dần (ít người nhất lên đầu)
+    table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end)
+    local minPlay = cand[1].playing
+    -- lấy tất cả server có số người = minPlay (hoặc chênh lệch 1) để random cho đỡ trùng
+    local best = {}
+    for _, sv in ipairs(cand) do
+        if sv.playing <= minPlay + 1 then
+            best[#best+1] = sv
+        else
+            break
+        end
+    end
+    local pick = best[math.random(1, #best)]
+    S.JoinServer(pick.id)
+    return "🔀 [ÍT NGƯỜI] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · đã quét " .. #cand .. " server qua " .. pages .. " trang, vắng nhất " .. minPlay .. " người"
+end
+
+function S.HopEmptyServer()
+    local me = tostring(S.GetJobId() or "")
+    local cand, cursor = {}, ""
+    local pages = 0
+    local maxPages = 10
+    for _ = 1, maxPages do
+        pages = pages + 1
+        local ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
+        if not ok then
+            task.wait(0.3)
+            ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
+        end
+        if not ok or type(list) ~= "table" then break end
+        for _, sv in ipairs(list) do
+            local sid = (sv and sv.id) and tostring(sv.id) or nil
+            local playing = tonumber(sv and sv.playing) or 0
+            local maxp = tonumber(sv and sv.maxPlayers) or 0
+            if sid and sid ~= me and (maxp <= 0 or playing < maxp) and playing <= 3 then
+                cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp}
+            end
+        end
+        if #cand >= 5 then break end -- đủ 5 server vắng thì dừng sớm
+        if not nextCursor or nextCursor == "" then break end
+        cursor = nextCursor
+        task.wait(0.15)
+    end
+    if #cand == 0 then
+        -- fallback sang HopLowServer nếu không có server siêu vắng
+        return S.HopLowServer()
+    end
+    table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end)
+    local pick = cand[math.random(1, #cand)]
+    S.JoinServer(pick.id)
+    return "🔀 [SIÊU VẮNG ≤3] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm thấy " .. #cand .. " server vắng qua " .. pages .. " trang"
+end
+
+
 -- ---------- 🔐 ANTI BAN (v4.43) ----------
 S.AntiBan = S.AntiBan or {
     on = (_G.BananaCatHub_AntiBan == true),
@@ -8158,6 +8243,10 @@ S.ScriptHubList = {
      desc="Vào lại ĐÚNG server đang chơi (giữ nguyên bạn bè/người chơi cùng server). Studio thì nạp lại game."},
     {icon="🔀", name="Hop Server", cat="Server", ord=10, action="hopserver",
      desc="Tự đi lấy mã server: đọc danh sách server công khai, bỏ server hiện tại + server đầy, nhảy sang 1 server khác."},
+    {icon="👥", name="Hop Server Ít Người", cat="Server", ord=10.1, action="hoplow",
+     desc="Quét 800 server (8 trang) tìm server VẮNG NHẤT (ít người nhất), ưu tiên server chỉ 1-2 người, rồi nhảy sang. Dùng khi muốn farm yên tĩnh."},
+    {icon="🌙", name="Hop Server Siêu Vắng (≤3)", cat="Server", ord=10.2, action="hopempty",
+     desc="Chỉ tìm server có ≤3 người đang chơi (siêu vắng). Nếu không có, tự động fallback sang tìm server ít người nhất. Quét tối đa 10 trang."},
     {icon="🔐", name="Anti Ban", cat="Server", ord=10.5, action="antiban",
      desc="Tự hop SANG SERVER KHÁC (cùng game) khi bị kick/ban hoặc server nghi hành động (bay/xuyên/tốc độ bị reset). Đánh lạc hướng chủ server. Bấm lại để TẮT."},
     {icon="🌐", name="Lấy mã server (JobId)", cat="Server", ord=11, action="getjobid",
@@ -8232,6 +8321,22 @@ function S.RunHubAction(id)
         if not okHp then
             return "⚠️ Hop server thất bại: " .. tostring(msg)
                 .. " — vẫn dùng được ô 🎟 dán mã server bên dưới để vào thủ công"
+        end
+        return tostring(msg)
+    elseif id == "hoplow" then
+        local msg = "⚠️ chưa hop được"
+        local okHp = pcall(function() msg = S.HopLowServer() end)
+        if not okHp then
+            return "⚠️ Hop ít người thất bại: " .. tostring(msg)
+                .. " — thử lại hoặc dùng ô 🎟 dán mã thủ công"
+        end
+        return tostring(msg)
+    elseif id == "hopempty" then
+        local msg = "⚠️ chưa hop được"
+        local okHp = pcall(function() msg = S.HopEmptyServer() end)
+        if not okHp then
+            return "⚠️ Hop siêu vắng thất bại: " .. tostring(msg)
+                .. " — thử lại hoặc dùng ô 🎟"
         end
         return tostring(msg)
     elseif id == "antiban" then
@@ -8466,7 +8571,7 @@ D.hubStatus = New("TextLabel", {
 
 -- ---------- v4.6.3: KHUNG 🌐 SERVER nằm ngay dưới danh sách thẻ ----------
 D.hubSrvPanel = New("Frame", {
-    Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 54), Position = UDim2.new(0, 8, 1, -80),
+    Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 80), Position = UDim2.new(0, 8, 1, -80),
     BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6,
 }, D.hubTab)
 Corner(D.hubSrvPanel, UDim.new(0, 10))
@@ -8502,6 +8607,13 @@ D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -110, 52, C.GREEN)
 D.hubJoinBtn.Position = UDim2.new(1, -110, 0, 24)
 D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -54, 50, C.PURPLE)
 D.hubHopBtn.Position = UDim2.new(1, -54, 0, 24)
+
+-- Nút hop ít người
+D.hubLowBtn = D.CardBtn(D.hubSrvPanel, "👥 Ít", -110, 40, C.BLUE)
+D.hubLowBtn.Position = UDim2.new(1, -110, 0, 52)
+D.hubEmptyBtn = D.CardBtn(D.hubSrvPanel, "🌙 Vắng", -62, 44, C.ORANGE)
+D.hubEmptyBtn.Position = UDim2.new(1, -62, 0, 52)
+
 
 function S.SyncServerPanel()
     pcall(function()
@@ -8551,6 +8663,19 @@ D.hubHopBtn.Activated:Connect(function()
     D.Say("🔀 Đang đi lấy mã server...", C.YELLOW)
     D.hubStatus.Text = S.RunHubAction("hopserver")
 end)
+
+D.hubLowBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    D.Say("👥 Đang quét 800 server tìm server ÍT NGƯỜI nhất...", C.YELLOW)
+    D.hubStatus.Text = S.RunHubAction("hoplow")
+end)
+
+D.hubEmptyBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    D.Say("🌙 Đang tìm server SIÊU VẮNG ≤3 người...", C.YELLOW)
+    D.hubStatus.Text = S.RunHubAction("hopempty")
+end)
+
 
 function S.Rebuild()
     pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
