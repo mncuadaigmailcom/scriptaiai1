@@ -1,5 +1,20 @@
 --[[
     🍌 Banana Cat Hub — FULL CODE  ·  OBSIDIAN NOIR + layout kiểu DELTA
+    v4.66: 🎥 Khán giả — quay được camera (LockCenter + GetMouseDelta mỗi frame).
+    v4.65: 🎥 Khán giả — camera xuyên tường (tự lưu vị trí, ghi lúc Last, không Popper).
+    v4.64: 🎥 Khán giả — camera bay khắp nơi (giống 🚀), nhân vật đứng yên. Xóa 👻 toàn hình.
+    v4.63: 👻 Toàn hình — nhảy: ảo không bám Away, không trượt XZ, camera không nghiêng.
+    v4.62: 👻 Toàn hình — nhảy không làm nhân vật ảo trượt một hướng.
+    v4.61: 👻 Toàn hình — tắt/trận mới: camera bám Humanoid nhân vật hiện tại.
+    v4.60: 👻 Toàn hình — nhân vật ảo trong suốt đi theo mình, camera bám theo ghost.
+    v4.59: 👻 Toàn hình — ngụy CFrame tới người chơi (không FireServer); Evade vẫn LTM + đi được.
+    v4.58: 👻 Toàn hình Evade — mình trong suốt (LTM) và đi được (không kéo CFrame).
+    v4.57: 👻 Toàn hình — đi được (không CFrame lúc physics/camera; NetHide chỉ Last).
+    v4.56: 👻 Toàn hình — người khác không thấy cả Evade (ngụy CFrame Last; không clone camera).
+    v4.55: 👻 Toàn hình — Evade không giật (không kéo CFrame/clone camera; LocalShow trước Camera).
+    v4.54: 👻 Toàn hình — người khác không thấy (ngụy CFrame tới mọi client, không FireServer).
+    v4.53: 👻 Toàn hình — sửa phóng lên trời (ghost không Humanoid/vật lý, không parent workspace).
+    v4.52: 👻 Toàn hình — mình thấy trong suốt, người khác không thấy; không FireServer.
     v4.51: xóa 👻 toàn hình an toàn · tối ưu mượt (bỏ vòng RenderStep Last mỗi frame).
     v4.43: 🔐 Anti Ban — tự hop server khác khi bị kick/ban hoặc server nghi.
     v4.42: rút gọn comment/header — KHÔNG cắt hàm, khung, thẻ hay hành vi.
@@ -97,7 +112,9 @@ end
 pcall(function() RunService:UnbindFromRenderStep("Fly") end)
 pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Speed") end)
+pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Invis") end)
+pcall(function() RunService:UnbindFromRenderStep("BC_InvisNet") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_SafeInvis") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_SafeInvisFly") end)
 
@@ -562,7 +579,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.51 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.66 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -3636,7 +3653,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.51",
+    Version = "4.61",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     TabArea = function(self, nm) return S.TabArea(nm) end,
@@ -8203,6 +8220,7 @@ S.MoveActionState = {
     loc_solo = function() return S.Loc and S.Loc.solo end,
     spec_on  = function() return S.Spec and S.Spec.on   end,
     glow     = function() return S.Glow and S.Glow.on   end,
+    freecam  = function() return S.Free and S.Free.on end,
     safefly  = function() return S.Move.Safe and S.Move.Safe.on end,
 }
 
@@ -8519,6 +8537,8 @@ S.ScriptHubList = {
      desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Thảm kính BÁM THEO chân (chạy trên không). Đặt kính cố định / bay tới kính / bay tới người nằm ở khung ⚙ trên danh sách và tab 👥 Người Chơi — không lặp thẻ."},
+    {icon="🎥", name="Khán giả", cat="Tiện ích", ord=21.5, action="freecam",
+     desc="Camera BAY khắp nơi giống 🚀 (WASD · Space/Shift · nhìn chuột). Nhân vật MÌNH đứng yên tại chỗ. Tắt thì trả camera. Không FireServer. Không cướp 🚀💨🦘🛡✨🔐."},
     {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
      desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
     {icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly",
@@ -8776,6 +8796,18 @@ function S.RunHubAction(id)
         S.Rebuild()
         return "🚫 " .. S.Glow.Status()
 
+    -- ---------- v4.64: 🎥 KHÁN GIẢ ----------
+    elseif id == "freecam" then
+        pcall(function() S.Free.Set(not S.Free.on) end)
+        pcall(function() if S.SyncFreePanel then S.SyncFreePanel() end end)
+        S.Rebuild()
+        return S.Free.Status()
+    elseif id == "freecam_off" then
+        pcall(function() S.Free.Stop() end)
+        pcall(function() if S.SyncFreePanel then S.SyncFreePanel() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Free.Status()
+
     -- ---------- v4.14: 👣 XEM NGƯỜI CHƠI ----------
     elseif id == "spec_on" then
         if S.Spec and S.Spec.on then
@@ -8960,6 +8992,7 @@ S.HubPanelCat = {
     HubMove_Panel = "Di chuyển",
     HubSafe_Panel = "Di chuyển",
     HubGlow_Panel = "Tiện ích",
+    HubFree_Panel = "Tiện ích",
     HubAntiBan_Panel = "Server",
 }
 function S.SyncHubPanels()
@@ -9118,6 +9151,7 @@ function S.RebuildHubList()
     if S.SyncTunePanel then pcall(S.SyncTunePanel) end         -- v4.40: ⚙ tuỳ chỉnh gom
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
+    if S.SyncFreePanel then pcall(S.SyncFreePanel) end         -- v4.64: 🎥 khán giả
     if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
     if S.SyncAntiBanPanel then pcall(S.SyncAntiBanPanel) end   -- v4.43: 🔐 anti ban
     if #items == 0 and D.hubStatus then
@@ -10975,6 +11009,205 @@ function S.Spec.Sync()
     end)
 end
 
+-- ---------- 🎥 KHÁN GIẢ (v4.64) ----------
+S.Free = {
+    on = false, speed = 50,
+    _bound = false, _cf = nil, _wasAnchored = nil, _hrp = nil,
+    _camType = nil, _camSub = nil, _yaw = 0, _pitch = 0,
+    _mdx = 0, _mdy = 0, _step = nil, _mouse = nil, _pos = nil, _mouseBeh = nil,
+}
+local FR = S.Free
+function S.Free.Char() return player and player.Character or nil end
+function S.Free.HRP(ch)
+    ch = ch or S.Free.Char()
+    return ch and ch:FindFirstChild("HumanoidRootPart")
+end
+function S.Free.HoldChar()
+    -- Nhân vật ĐỨNG YÊN. Không cướp bay / đứng nền / xuyên tường.
+    if not FR.on then return end
+    local hrp = S.Free.HRP()
+    if not hrp then return end
+    if FR._hrp ~= hrp then
+        FR._hrp = hrp
+        FR._wasAnchored = hrp.Anchored
+        FR._cf = hrp.CFrame
+    end
+    if not FR._cf then FR._cf = hrp.CFrame end
+    hrp.Anchored = true
+    hrp.CFrame = FR._cf
+end
+function S.Free.ReleaseChar()
+    local hrp = FR._hrp or S.Free.HRP()
+    if hrp and hrp.Parent then
+        pcall(function()
+            hrp.Anchored = (FR._wasAnchored == true)
+            if FR._cf then hrp.CFrame = FR._cf end
+        end)
+    end
+    FR._hrp, FR._wasAnchored, FR._cf = nil, nil, nil
+end
+function S.Free.AimCam()
+    -- Lỗi: Scriptable tắt chuột game; InputChanged.Delta = 0 nếu không LockCenter → không quay được.
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if FR._camType == nil then FR._camType = cam.CameraType end
+    if FR._camSub == nil then FR._camSub = cam.CameraSubject end
+    cam.CameraType = Enum.CameraType.Scriptable
+    pcall(function() cam.CameraSubject = nil end)
+    pcall(function()
+        if FR._mouseBeh == nil then FR._mouseBeh = UserInputService.MouseBehavior end
+        if UserInputService:GetFocusedTextBox() then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            return
+        end
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        local d = UserInputService:GetMouseDelta()
+        if d then
+            FR._mdx = (FR._mdx or 0) + d.X
+            FR._mdy = (FR._mdy or 0) + d.Y
+        end
+    end)
+end
+function S.Free.RestoreCam()
+    local cam = workspace.CurrentCamera
+    FR._yaw, FR._pitch, FR._mdx, FR._mdy = 0, 0, 0, 0
+    pcall(function()
+        UserInputService.MouseBehavior = FR._mouseBeh or Enum.MouseBehavior.Default
+    end)
+    FR._mouseBeh = nil
+    if not cam then FR._camType, FR._camSub, FR._pos = nil, nil, nil return end
+    local t = FR._camType
+    pcall(function()
+        if t and t ~= Enum.CameraType.Scriptable then
+            cam.CameraType = t
+        else
+            cam.CameraType = Enum.CameraType.Custom
+        end
+    end)
+    local ch = S.Free.Char()
+    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    local sub = hum or FR._camSub
+    if sub then pcall(function() cam.CameraSubject = sub end) end
+    FR._camType, FR._camSub, FR._pos = nil, nil, nil
+end
+function S.Free.Look()
+    local yaw = FR._yaw or 0
+    local pitch = FR._pitch or 0
+    yaw = yaw - (FR._mdx or 0) * 0.004
+    pitch = pitch - (FR._mdy or 0) * 0.004
+    if pitch > 1.4 then pitch = 1.4 elseif pitch < -1.4 then pitch = -1.4 end
+    FR._mdx, FR._mdy = 0, 0
+    FR._yaw, FR._pitch = yaw, pitch
+    return CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
+end
+function S.Free.Step(dt)
+    -- Lỗi: lấy vị trí camera đã bị Popper + Camera+1 → không xuyên tường.
+    -- Sửa: FR._pos tự lưu; Scriptable mỗi frame; ghi lúc Last.
+    if not FR.on then return end
+    S.Free.HoldChar()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    S.Free.AimCam()
+    dt = tonumber(dt) or 0.016
+    if dt < 0 then dt = 0 end
+    if dt > 0.1 then dt = 0.1 end
+    local look = S.Free.Look()
+    local pos = FR._pos
+    if not pos then return end
+    local ch = S.Free.Char()
+    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    local cf = CFrame.new(pos) * look
+    local input = Vector3.zero
+    pcall(function()
+        input = MV._ReadFlyInput(cf, hum)
+    end)
+    local vel = MV.FlyVelocity(cf, input, FR.speed)
+    pos = pos + vel * dt
+    FR._pos = pos
+    cam.CFrame = CFrame.new(pos) * look
+end
+function S.Free.Bind(on)
+    if on and not FR._bound then
+        FR._bound = true
+        if not FR._mouse then
+            FR._mouse = UserInputService.InputChanged:Connect(function(i)
+                if not FR.on then return end
+                if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+                if UserInputService:GetFocusedTextBox() then return end
+                local d = i.Delta
+                FR._mdx = (FR._mdx or 0) + (d and d.X or 0)
+                FR._mdy = (FR._mdy or 0) + (d and d.Y or 0)
+            end)
+        end
+        pcall(function()
+            RunService:BindToRenderStep("BC_FreeCam", Enum.RenderPriority.Last.Value, function(dt)
+                pcall(S.Free.Step, dt)
+            end)
+        end)
+        if not FR._step then
+            FR._step = RunService.Stepped:Connect(function()
+                if FR.on then pcall(S.Free.HoldChar) end
+            end)
+        end
+    elseif (not on) and FR._bound then
+        FR._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
+        pcall(function() if FR._step then FR._step:Disconnect() end end)
+        pcall(function() if FR._mouse then FR._mouse:Disconnect() end end)
+        FR._step, FR._mouse = nil, nil
+    end
+end
+function S.Free.Set(on)
+    on = (on == true)
+    if on then
+        if S.Spec and S.Spec.on then pcall(function() S.Spec.Stop() end) end
+        local cam = workspace.CurrentCamera
+        if cam then
+            local look = cam.CFrame.LookVector
+            local y = look.Y
+            if y > 1 then y = 1 elseif y < -1 then y = -1 end
+            FR._yaw = math.atan2(-look.X, -look.Z)
+            FR._pitch = math.asin(y)
+            FR._mdx, FR._mdy = 0, 0
+            FR._pos = cam.CFrame.Position
+        end
+        FR.on = true
+        S.Free.HoldChar()
+        S.Free.AimCam()
+        S.Free.Bind(true)
+        S.Free.Step(0)
+    else
+        FR.on = false
+        S.Free.Bind(false)
+        S.Free.ReleaseChar()
+        S.Free.RestoreCam()
+    end
+    if S.SyncFreePanel then pcall(S.SyncFreePanel) end
+    return FR.on
+end
+function S.Free.Stop() return S.Free.Set(false) end
+function S.Free.SetSpeed(n)
+    n = tonumber(n)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return false, FR.speed end
+    FR.speed = mvClamp(n, 1, 2000, 50)
+    if S.SyncFreePanel then pcall(S.SyncFreePanel) end
+    return true, FR.speed
+end
+function S.Free.Status()
+    if not FR.on then return "🎥 khán giả: đang TẮT · nhân vật đi bình thường" end
+    return string.format("🎥 khán giả: BẬT · camera bay (WASD · Space/Shift) · nhân vật đứng yên · 💨 %g", FR.speed)
+end
+do
+    trackConn(player.CharacterAdded:Connect(function()
+        FR._hrp, FR._wasAnchored, FR._cf = nil, nil, nil
+        if not FR.on then return end
+        task.defer(function()
+            if FR.on then S.Free.HoldChar() end
+        end)
+    end))
+end
+-- ---------- HẾT 🎥 KHÁN GIẢ ----------
+
 S.Glow = {
     on = false, width = 18, bright = 3,
     color = Color3.fromRGB(120, 220, 255),
@@ -11259,6 +11492,110 @@ do
     end)
     paint()
 end
+
+
+-- ---------- v4.64: KHUNG 🎥 KHÁN GIẢ ----------
+do
+    local PH = 108
+    local P = New("Frame", {
+        Name = "HubFree_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Name = "FreeTitle",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🎥 KHÁN GIẢ (camera bay khắp nơi · nhân vật đứng yên)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name)
+        local b = New("TextButton", {
+            Name = name or "FreeBtn",
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+
+    local onBtn = act("🎥 BẬT", 8, 22, 92, C.GRAY, "FreeOn")
+    local stopBtn = act("🚫 Tắt", 106, 22, 70, C.RED, "FreeStop")
+    local statusLbl = New("TextLabel", {
+        Name = "FreeStatus",
+        Size = UDim2.new(1, -192, 0, 20), Position = UDim2.new(0, 182, 0, 22),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 7,
+    }, P)
+
+    New("TextLabel", {
+        Size = UDim2.new(0, 36, 0, 20), Position = UDim2.new(0, 8, 0, 46),
+        Text = "💨", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    local spdIn = New("TextBox", {
+        Size = UDim2.new(0, 52, 0, 20), Position = UDim2.new(0, 36, 0, 46),
+        Text = tostring(FR.speed), ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(spdIn, UDim.new(0, 6))
+    local applyBtn = act("✔ Áp dụng", 94, 46, 84, C.SURFACE3, "FreeApply")
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 70),
+        Text = "WASD + Space/Shift bay camera giống 🚀. Chuột xoay nhìn. Nhân vật đứng yên. Không FireServer. Không cướp bay/nhảy/🛡.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        onBtn.Text = FR.on and "🎥 TẮT" or "🎥 BẬT"
+        onBtn.BackgroundColor3 = FR.on and C.GREEN or C.GRAY
+        onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
+        spdIn.Text = tostring(FR.speed)
+        statusLbl.Text = S.Free.Status()
+    end
+    S.SyncFreePanel = paint
+    S.Free.RefreshPanel = paint
+
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Free.Set(not FR.on)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Free.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Free.Stop()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Free.Status(), 1.8, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local n = tonumber(tostring(spdIn.Text or ""):match("%-?%d+%.?%d*"))
+        if n then S.Free.SetSpeed(n) end
+        if not FR.on then S.Free.Set(true) end
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Free.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    paint()
+end
+-- ---------- HẾT KHUNG 🎥 KHÁN GIẢ ----------
 
 -- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
 do
@@ -12411,7 +12748,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.51 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.61 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
