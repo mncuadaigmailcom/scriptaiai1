@@ -25,6 +25,12 @@ do local old = _G.BananaCatHub_MV
         old._wdToken = nil if type(old._wd) == "thread" then pcall(task.cancel, old._wd) end
         old._wd = nil end end
 
+pcall(function()
+    local oldPerf = _G.BananaCatHub_Perf
+    if type(oldPerf) == "table" and type(oldPerf.Stop) == "function" then pcall(oldPerf.Stop) end
+    _G.BananaCatHub_Perf = nil
+end)
+
 if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Connections) do
         pcall(function() c:Disconnect() end) end
 end _G.BananaCatHub_Connections = {}
@@ -506,6 +512,7 @@ local function SwitchTab(index)
                     D.pageTitle.TextTransparency = 0 end
             end end) end
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
+    pcall(function() if S.PagePerf and S.PagePerf.OnTabChanged then S.PagePerf.OnTabChanged() end end)
 end
 
 local function OpenFirstPage() local idx, best = 1, nil
@@ -573,6 +580,74 @@ S = { dragMenu     = false,
     parkCodeGuis = true,
     embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
 }
+
+-- v5.2 PERF: Quản lý tạm dừng tính năng theo trang để mượt hơn (không mất tính năng)
+S.PagePerf = S.PagePerf or {
+    currentTab = nil,
+    mainVisible = true,
+    _paused = {},
+    _lastMainVisible = true,
+}
+function S.PagePerf.IsMainVisible()
+    local ok, vis = pcall(function() return main and main.Visible == true end)
+    return ok and vis == true
+end
+function S.PagePerf.GetActiveTabName()
+    local ok, name = pcall(function()
+        if D and D.activeName then return tostring(D.activeName) end
+        if activeTab and activeTab.Name then return tostring(activeTab.Name) end
+        return nil
+    end)
+    if ok then return name end
+    return nil
+end
+function S.PagePerf.IsTabVisible(tab)
+    if not tab then return false end
+    local ok, vis = pcall(function() return tab.Visible == true end)
+    return ok and vis == true
+end
+function S.PagePerf.ShouldRunForPlayerTab()
+    if not S.PagePerf.IsMainVisible() then
+        return false
+    end
+    local pt = D and D.playerTab
+    if not pt then return false end
+    return S.PagePerf.IsTabVisible(pt)
+end
+function S.PagePerf.ShouldRunForSupportTab()
+    if not S.PagePerf.IsMainVisible() then return false end
+    local st = nil
+    pcall(function()
+        if S.AnaUi and S.AnaUi.supportTabIndex and tabContent and tabContent[S.AnaUi.supportTabIndex] then
+            st = tabContent[S.AnaUi.supportTabIndex]
+        end
+    end)
+    if not st then
+        local ok, t = pcall(function() return supportTab end)
+        if ok then st = t end
+    end
+    if not st then return false end
+    return S.PagePerf.IsTabVisible(st)
+end
+function S.PagePerf.OnTabChanged()
+    pcall(function()
+        S.PagePerf.currentTab = S.PagePerf.GetActiveTabName()
+        S.PagePerf.mainVisible = S.PagePerf.IsMainVisible()
+        if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
+        if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
+        if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end
+        if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
+    end)
+end
+function S.PagePerf.OnMainVisibilityChanged()
+    pcall(function()
+        S.PagePerf.mainVisible = S.PagePerf.IsMainVisible()
+        if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
+        if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
+        if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end
+        if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
+    end)
+end
 
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER" S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
 function S.SanitizeCode(c) if type(c) ~= "string" then return c end
@@ -1344,9 +1419,36 @@ local function coordNA(all) coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl,
         lookValLbl.Text = "Look: N/A" stateValLbl.Text = "State: N/A"
         hpValLbl.Text = "HP: N/A" end end
 
-local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
-    if coordAcc < 0.05 then return end coordAcc = 0
-    if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end
+-- v5.2 PERF: S.Coord quản lý kết nối tọa độ — chỉ chạy khi ở tab Hỗ Trợ
+S.Coord = S.Coord or { _conn = nil, _bound = false }
+function S.Coord.IsActive()
+    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then
+        return S.PagePerf.ShouldRunForSupportTab()
+    end
+    local ok1 = pcall(function() return main and main.Visible end)
+    local ok2 = pcall(function() return supportTab and supportTab.Visible end)
+    return ok1 and ok2
+end
+function S.Coord.Bind(on)
+    on = (on == true)
+    if on and not S.Coord._bound then
+        S.Coord._bound = true
+    elseif (not on) and S.Coord._bound then
+        S.Coord._bound = false
+        if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end
+        return
+    end
+    if not S.Coord._bound then return end
+    if S.Coord._conn then return end
+    S.Coord._conn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
+        if coordAcc < 0.05 then return end coordAcc = 0
+        if not S.Coord.IsActive() then return end
+        -- perf: nếu không active thì ngắt luôn để đỡ gọi mỗi frame
+        if S.PagePerf and not S.PagePerf.ShouldRunForSupportTab() then
+            -- vẫn giữ kết nối nhưng không làm gì, sẽ được RefreshBind ngắt ở tab change
+            return
+        end
+        if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end
     local char = player.Character if not char then
         coordNA(true) return end
 
@@ -1388,7 +1490,20 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt) coordA
     if placeLbl.Text == "Place: ..." and (os.clock() - (D.placeTryAt or -99)) >= 10 then D.placeTryAt = os.clock()
         pcall(function() local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             placeLbl.Text = "Place: "..game.PlaceId.." — "..info.Name end)
-    end end) trackConn(coordUpdateConn)
+    end end)
+    S.Coord._conn = S.Coord._conn or nil
+    if S.Coord._conn then trackConn(S.Coord._conn) end
+end
+function S.Coord.RefreshBind()
+    if S.Coord.IsActive() then
+        S.Coord.Bind(true)
+    else
+        if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end
+        S.Coord._bound = false
+    end
+end
+-- Khởi tạo: chỉ bind khi đang ở tab Hỗ Trợ
+pcall(function() S.Coord.RefreshBind() end)
 
 local currentHighlight = nil
 
@@ -1913,24 +2028,37 @@ function SV.Step(dt) dt = num(dt)
 local function setText(lbl, s) if lbl and lbl.Text ~= s then lbl.Text = s end
 end
 
--- ---------- vẽ số liệu ra widget + HUD ----------
+-- ---------- vẽ số liệu ra widget + HUD — v5.2 PERF: chỉ vẽ label khi ở tab Hỗ Trợ ----------
 function SV.Sync() local base = num(SV.base) or 0
     local ratio = (base > 0) and (SV.ws / base) or 0 local scale = math.max(SV.max, base, 1)
     local pct = SV.live / scale
-    if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end   -- KHÔNG dùng math.clamp (chỉ có trong Luau)
+    if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end
     local bpct = base / scale if bpct < 0 then bpct = 0 elseif bpct > 1 then bpct = 1 end
-    setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src))) setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
-        (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or "")) setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
-    setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max))) if SV.btn then
-        setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT") if SV._btnOn ~= SV.on then
-            SV._btnOn = SV.on SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY
-        end end if SV.barFill and SV._barPct ~= pct then
-        SV._barPct = pct SV.barFill.Size = UDim2.new(pct, 0, 1, 0)
-    end if SV.barBase and SV._barBase ~= bpct then
-        SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0)
-    end if SV.hud then
+    local isSupportVisible = true
+    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then
+        isSupportVisible = S.PagePerf.ShouldRunForSupportTab()
+    end
+    if isSupportVisible then
+        setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src))) setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
+            (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or "")) setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
+        setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max))) if SV.btn then
+            setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT") if SV._btnOn ~= SV.on then
+                SV._btnOn = SV.on SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY
+            end end if SV.barFill and SV._barPct ~= pct then
+            SV._barPct = pct SV.barFill.Size = UDim2.new(pct, 0, 1, 0)
+        end if SV.barBase and SV._barBase ~= bpct then
+            SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0)
+        end
+    end
+    if SV.hud then
         if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
             fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max))) end end
+function SV.OnTabChanged()
+    -- v5.2: khi đổi tab, sync lại để label hiện đúng nếu vừa quay lại tab Hỗ Trợ
+    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab() then
+        pcall(SV.Sync)
+    end
+end
 
 function SV.Status() return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max))
 end
@@ -3824,9 +3952,12 @@ MV.CamSpeed = CS
 
 function MV._DestroySpeedParts() if MV._sv then MV._sv:Destroy(); MV._sv = nil end
 end function MV._EnsureSpeed()
-    local r, h = MV.Root(), MV.Hum() if not MV.sprint then return nil end
-    if MV.fly or (MV.Safe and MV.Safe.on) then MV._DestroySpeedParts()
-        CS.root = nil return nil end
+    if not MV.sprint then return nil end
+    -- Bay mục tiêu có BodyVelocity riêng; tránh để chạy camera ghi đè vận tốc ngang.
+    if MV.fly or MV._playerFlyActive or MV._glassFlyActive or MV._objFlyActive or (MV.Safe and MV.Safe.on) then
+        MV._DestroySpeedParts() CS.root = nil return nil
+    end
+    local r, h = MV.Root(), MV.Hum()
     if not r or not h or h.Health <= 0 then MV._DestroySpeedParts()
         CS.root = nil return nil
     end if CS.root ~= r then
@@ -4194,8 +4325,14 @@ function MV.Safe.Step(dt) if not SF.on then return end
     end end function MV.Safe.Set(on)
     if on == true and MV.fly then MV.SetFly(false) end -- không để hai BodyVelocity tranh lực
     SF.on = (on == true) if SF.on then
-        if SF.noclip and SF._ncPrev == nil then SF._ncPrev = MV.noclip == true
-            pcall(function() MV.SetNoclip(true) end) end
+        if SF.noclip and SF._ncPrev == nil then
+            if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then
+                SF._ncPrev = MV._glassFlyNcPrev
+            else
+                SF._ncPrev = MV.noclip == true
+            end
+            pcall(function() MV.SetNoclip(true) end)
+        end
         pcall(MV.Safe._EnsureBV) MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
         SF._root = MV.Root() pcall(MV._Watchdog) SF._lastFrameAt = tick()
         pcall(MV.Safe.Bind) pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
@@ -4212,7 +4349,13 @@ function MV.Safe.Step(dt) if not SF.on then return end
     end return SF.on
 end function MV.Safe.SetNoclipAuto(b) SF.noclip = (b == true)
     if SF.on then if SF.noclip then
-            if SF._ncPrev == nil then SF._ncPrev = MV.noclip == true end pcall(function() MV.SetNoclip(true) end)
+            if SF._ncPrev == nil then
+                if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then
+                    SF._ncPrev = MV._glassFlyNcPrev
+                else
+                    SF._ncPrev = MV.noclip == true
+                end
+            end pcall(function() MV.SetNoclip(true) end)
         elseif SF._ncPrev ~= nil then local was = SF._ncPrev
             SF._ncPrev = nil pcall(function() MV.SetNoclip(was) end) end
     end return SF.noclip
@@ -4663,10 +4806,20 @@ function MV.FlyToGlass(idx) local list = MV.GetPlacedGlasses() local n = math.fl
         for i, item in ipairs(list) do if tonumber(item.id) == n then rec, n = item, i break end
         end end
     if not rec then return false, "không tìm thấy tấm kính" end if not MV.Root() then return false, "chưa có nhân vật để bay" end
-    if MV.fly then pcall(function() MV.SetFly(false) end) end if MV._playerFlyActive then pcall(function() MV.StopPlayerFly() end) end if MV._glassFlyNcPrev == nil and (not MV.Safe or MV.Safe.noclip ~= true) then
-        MV._glassFlyNcPrev = MV.noclip == true end
+    if MV.fly then pcall(function() MV.SetFly(false) end) end
+    if MV._playerFlyActive then pcall(function() MV.StopPlayerFly() end) end
+    if MV._objFlyActive then pcall(function() MV.StopObjectFly() end) end
+    local safeOwnsNoclip = MV.Safe and MV.Safe.on == true and MV.Safe.noclip == true
+    if MV._glassFlyNcPrev == nil then
+        if safeOwnsNoclip and MV.Safe._ncPrev ~= nil then
+            MV._glassFlyNcPrev = MV.Safe._ncPrev
+        else
+            MV._glassFlyNcPrev = MV.noclip == true
+        end
+    end
     MV._glassFlyTarget = rec MV._glassFlyIdx = n
-    MV._glassFlyActive = true pcall(function() MV.SetNoclip(true) end)
+    MV._glassFlyActive = true pcall(function() MV._EnsureSpeed() end)
+    pcall(function() MV.SetNoclip(true) end)
     pcall(function() MV._EnsureGlassFlyBV() end) pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end)
     local okBind = pcall(function() RunService:BindToRenderStep("BC_GlassFly", Enum.RenderPriority.Camera.Value - 1, function(dt) pcall(MV._GlassFlyStep, dt)
         end) end)
@@ -4746,13 +4899,20 @@ function MV._PlayerFlyStep(dt) if not MV._playerFlyActive then return end
 
 function MV.FlyToPlayer(p) if not p or not p.Parent then return false, "người chơi không tồn tại" end
     if p == player then return false, "không thể bay tới chính mình" end if not MV.Root() then return false, "chưa có nhân vật" end
-    if MV.fly then MV.SetFly(false) end if MV._playerFlyNcPrev == nil and (not MV.Safe or MV.Safe._ncPrev == nil) then
+    if MV.fly then MV.SetFly(false) end
+    if MV._glassFlyActive then pcall(function() MV.StopGlassFly() end) end
+    if MV._objFlyActive then pcall(function() MV.StopObjectFly() end) end
+    if MV._playerFlyNcPrev == nil and (not MV.Safe or MV.Safe._ncPrev == nil) then
         MV._playerFlyNcPrev = MV.noclip == true end
     MV._playerFlyTarget = p MV._playerFlyActive = true MV._playerFlyPos = nil
+    pcall(function() MV._EnsureSpeed() end)
     pcall(function() MV.SetNoclip(true) end) pcall(function() MV._EnsurePlayerFlyBV() end)
-    pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end) pcall(function()
+    pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end)
+    local okBind = pcall(function()
         RunService:BindToRenderStep("BC_PlayerFly", Enum.RenderPriority.Camera.Value - 1, function(dt) pcall(MV._PlayerFlyStep, dt)
         end) end)
+    if not okBind then MV.StopPlayerFly()
+        return false, "executor không bind được bay tới người chơi" end
     MV._Watchdog() return true, p end
 
 -- ---------- v5.1: 🚀 BAY TỚI VẬT ĐANG ĐỊNH VỊ (bám theo vật, tự dừng nếu vật biến mất) ----------
@@ -4825,7 +4985,8 @@ function MV.FlyToObject(target, speed) if target == nil then return false, "chư
     end) if not part then return false, "vật không còn trong game" end if speed ~= nil then pcall(function() MV.SetObjectFlySpeed(speed) end) end
     if MV.fly then pcall(function() MV.SetFly(false) end) end if MV._playerFlyActive then pcall(function() MV.StopPlayerFly() end) end
     if MV._glassFlyActive then pcall(function() MV.StopGlassFly() end) end if MV._objFlyNcPrev == nil then MV._objFlyNcPrev = (MV.noclip == true) end
-    MV._objFlyTarget = target MV._objFlyActive = true pcall(function() MV.SetNoclip(true) end)
+    MV._objFlyTarget = target MV._objFlyActive = true pcall(function() MV._EnsureSpeed() end)
+    pcall(function() MV.SetNoclip(true) end)
     pcall(function() MV._EnsureObjFlyBV() end) pcall(function() RunService:UnbindFromRenderStep("BC_ObjFly") end)
     local okBind = pcall(function() RunService:BindToRenderStep("BC_ObjFly", Enum.RenderPriority.Camera.Value - 1, function(dt)
             pcall(MV._ObjectFlyStep, dt) end) end)
@@ -5374,7 +5535,429 @@ end)
 function S.Rebuild() pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
 end
 
-S.HubPanelCat = { HubTune_Panel = "Di chuyển",
+-- ---------- v5.4: CPU + ĐỒ HỌA NHẸ + GIẢM TẦM NHÌN CÓ THỂ ĐIỀU CHỈNH ----------
+do
+    local STUDS_PER_METER = 1 / 0.28 -- quy đổi xấp xỉ theo kích thước chuẩn Roblox
+    local PALE_COLOR = Color3.fromRGB(224, 224, 224)
+    local modeList = {
+        {id = "cpu", title = "🧠 CPU", x = 8, y = 42},
+        {id = "range", title = "🌫 Giảm tầm nhìn", x = 140, y = 42},
+        {id = "quality", title = "🎨 Giảm lag nhẹ", x = 8, y = 68},
+    }
+    local Perf = {
+        Modes = {cpu = false, range = false, quality = false},
+        ViewDistanceMeters = 30,
+        Saved = setmetatable({}, {__mode = "k"}),
+        ScanToken = 0,
+        Worker = nil,
+        Buttons = {},
+        Status = nil,
+        RangeAtmosphere = nil,
+    }
+    S.Perf = Perf
+    _G.BananaCatHub_Perf = Perf
+
+    function Perf.GetViewDistanceStuds()
+        return Perf.ViewDistanceMeters * STUDS_PER_METER
+    end
+
+    function Perf.SyncRangeFog()
+        local lighting = game:GetService("Lighting")
+        local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
+        if Perf.RangeAtmosphere and Perf.RangeAtmosphere ~= atmosphere then
+            Perf.RestoreProperty(Perf.RangeAtmosphere, "Density")
+            Perf.RangeAtmosphere = nil
+        end
+
+        local fogStart, fogEnd = nil, nil
+        if Perf.Modes.range and atmosphere then
+            -- Atmosphere uses density instead of legacy FogStart/FogEnd; add more haze without removing it.
+            local saved = Perf.Saved[atmosphere]
+            local originalDensity = saved and saved.Density or atmosphere.Density
+            local densityIncrease = math.clamp(40 / Perf.GetViewDistanceStuds(), 0.01, 0.7)
+            Perf.RangeAtmosphere = atmosphere
+            Perf.Write(atmosphere, "Density", math.clamp(originalDensity + densityIncrease, 0, 1))
+        elseif Perf.Modes.range then
+            fogEnd = Perf.GetViewDistanceStuds()
+            fogStart = fogEnd * 0.75
+        elseif Perf.RangeAtmosphere then
+            Perf.RestoreProperty(Perf.RangeAtmosphere, "Density")
+            Perf.RangeAtmosphere = nil
+        end
+        Perf.Write(lighting, "FogStart", fogStart)
+        Perf.Write(lighting, "FogEnd", fogEnd)
+    end
+
+    function Perf.HasActive()
+        for _, on in pairs(Perf.Modes) do
+            if on then return true end
+        end
+        return false
+    end
+
+    function Perf.RestoreProperty(instance, property)
+        local saved = Perf.Saved[instance]
+        local original = saved and saved[property]
+        if original == nil then return end
+        saved[property] = nil
+        pcall(function() instance[property] = original end)
+        if next(saved) == nil then Perf.Saved[instance] = nil end
+    end
+
+    function Perf.RestoreInstance(instance)
+        local saved = Perf.Saved[instance]
+        if not saved then return end
+        local properties = {}
+        for property in pairs(saved) do properties[#properties + 1] = property end
+        for _, property in ipairs(properties) do Perf.RestoreProperty(instance, property) end
+    end
+
+    function Perf.RestoreAll(yieldEvery, token)
+        local instances = {}
+        for instance in pairs(Perf.Saved) do instances[#instances + 1] = instance end
+        for index, instance in ipairs(instances) do
+            if token and token ~= Perf.ScanToken then return false end
+            Perf.RestoreInstance(instance)
+            if yieldEvery and index % yieldEvery == 0 then task.wait() end
+        end
+        return true
+    end
+
+    function Perf.Write(instance, property, value)
+        if value == nil then
+            Perf.RestoreProperty(instance, property)
+            return
+        end
+        local saved = Perf.Saved[instance]
+        if not saved then saved = {}; Perf.Saved[instance] = saved end
+        if saved[property] == nil then
+            local ok, original = pcall(function() return instance[property] end)
+            if not ok then return end
+            saved[property] = original
+        end
+        pcall(function() instance[property] = value end)
+    end
+
+    function Perf.IsVisualEffect(instance)
+        return instance:IsA("PostEffect") or instance:IsA("ParticleEmitter")
+            or instance:IsA("Trail") or instance:IsA("Beam")
+            or instance:IsA("Fire") or instance:IsA("Smoke")
+            or instance:IsA("Sparkles") or instance:IsA("Light")
+    end
+
+    function Perf.ApplyInstance(instance)
+        local character = player.Character
+        if character and (instance == character or instance:IsDescendantOf(character)) then
+            Perf.RestoreInstance(instance)
+            return
+        end
+
+        local desired = {}
+        local saved = Perf.Saved[instance]
+        local isPart = instance:IsA("BasePart")
+        if Perf.Modes.cpu and isPart then
+            desired.Material = Enum.Material.Plastic
+            desired.Reflectance = 0
+            desired.CastShadow = false
+            if instance:IsA("MeshPart") then
+                desired.RenderFidelity = Enum.RenderFidelity.Performance
+            end
+        end
+        if Perf.Modes.quality and isPart then
+            desired.Material = Enum.Material.Plastic
+            if instance:IsA("MeshPart") then
+                desired.RenderFidelity = Enum.RenderFidelity.Performance
+            end
+            local originalColor = saved and saved.Color or instance.Color
+            desired.Color = originalColor:Lerp(PALE_COLOR, 0.22)
+        end
+        if Perf.Modes.cpu and Perf.IsVisualEffect(instance) then desired.Enabled = false end
+
+        if saved then
+            local restore = {}
+            for property in pairs(saved) do
+                if desired[property] == nil then restore[#restore + 1] = property end
+            end
+            for _, property in ipairs(restore) do Perf.RestoreProperty(instance, property) end
+        end
+        for property, value in pairs(desired) do Perf.Write(instance, property, value) end
+    end
+
+    function Perf.UpdateGlobals()
+        local shadows = nil
+        if Perf.Modes.cpu then shadows = false end
+        local lighting = game:GetService("Lighting")
+        Perf.Write(lighting, "GlobalShadows", shadows)
+        Perf.SyncRangeFog()
+
+        local terrain = workspace.Terrain
+        local terrainDecoration, waveSize, waveSpeed = nil, nil, nil
+        if Perf.Modes.cpu then terrainDecoration, waveSize, waveSpeed = false, 0, 0 end
+        Perf.Write(terrain, "Decoration", terrainDecoration)
+        Perf.Write(terrain, "WaterWaveSize", waveSize)
+        Perf.Write(terrain, "WaterWaveSpeed", waveSpeed)
+    end
+
+    function Perf.SyncPanel()
+        for _, item in ipairs(modeList) do
+            local button = Perf.Buttons[item.id]
+            if button and button.Parent then
+                local on = Perf.Modes[item.id] == true
+                button.Text = item.title .. ": " .. (on and "BẬT" or "TẮT")
+                D.SetBg(button, on and C.GREEN or C.SURFACE2)
+            end
+        end
+    end
+    S.SyncPerfPanel = Perf.SyncPanel
+
+    function Perf.QueueScan()
+        Perf.ScanToken += 1
+        local token = Perf.ScanToken
+        if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end
+
+        if not Perf.Modes.cpu and not Perf.Modes.quality then
+            if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "↩ Đang khôi phục cài đặt hình ảnh..." end
+            Perf.Worker = task.spawn(function()
+                Perf.UpdateGlobals()
+                Perf.RestoreAll(240, token)
+                if token ~= Perf.ScanToken then return end
+                Perf.UpdateGlobals()
+                if token == Perf.ScanToken then
+                    Perf.Worker = nil
+                    if Perf.Status and Perf.Status.Parent then
+                        Perf.Status.Text = Perf.Modes.range
+                            and "✅ Giảm tầm nhìn đang bật; cảnh xa mờ đi, không xóa vật thể."
+                            or "✅ Đã khôi phục hình ảnh gốc."
+                    end
+                end
+            end)
+            return true
+        end
+
+        if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⏳ Đang áp dụng chế độ đồ họa theo từng lô..." end
+        Perf.Worker = task.spawn(function()
+            Perf.UpdateGlobals()
+            local roots = {workspace, game:GetService("Lighting")}
+            local camera = workspace.CurrentCamera
+            if camera then roots[#roots + 1] = camera end
+            local visited = setmetatable({}, {__mode = "k"})
+            local batchSize = 90
+            local processed = 0
+
+            for _, root in ipairs(roots) do
+                local stack = {root}
+                while #stack > 0 do
+                    if token ~= Perf.ScanToken then return end
+                    local parent = table.remove(stack)
+                    local ok, children = pcall(function() return parent:GetChildren() end)
+                    if ok and type(children) == "table" then
+                        for _, child in ipairs(children) do
+                            if token ~= Perf.ScanToken then return end
+                            if not visited[child] then
+                                visited[child] = true
+                                processed += 1
+                                pcall(Perf.ApplyInstance, child)
+                                stack[#stack + 1] = child
+                                if processed % batchSize == 0 then task.wait() end
+                            end
+                        end
+                    end
+                end
+            end
+
+            if token == Perf.ScanToken then
+                Perf.Worker = nil
+                if Perf.Status and Perf.Status.Parent then
+                    local modeText = Perf.Modes.cpu and Perf.Modes.quality and "CPU + đồ họa nhẹ"
+                        or (Perf.Modes.quality and "đồ họa nhẹ" or "CPU")
+                    Perf.Status.Text = string.format("✅ Đã áp dụng %s cho %d đối tượng.", modeText, processed)
+                end
+            end
+        end)
+        return true
+    end
+
+    function Perf.Toggle(id)
+        if Perf.Modes[id] == nil then return end
+        Perf.Modes[id] = not Perf.Modes[id]
+        if id == "cpu" or id == "quality" then Perf.QueueScan() else
+            Perf.UpdateGlobals()
+            if Perf.Status and Perf.Status.Parent then
+                Perf.Status.Text = Perf.Modes.range
+                    and ("🌫 Tầm nhìn đã giảm còn " .. tostring(Perf.ViewDistanceMeters) .. " m.")
+                    or "↩ Đã khôi phục tầm nhìn gốc."
+            end
+        end
+        Perf.SyncPanel()
+        local note
+        if id == "cpu" then
+            note = "🧠 CPU: giảm tải hiệu ứng và quét theo lô."
+        elseif id == "quality" then
+            note = "🎨 Giảm chi tiết và làm màu nhạt hơn; giữ nguyên ánh sáng, bóng và hiệu ứng."
+        else
+            note = "🌫 Tầm nhìn tối đa " .. tostring(Perf.ViewDistanceMeters) .. " m (~"
+                .. tostring(math.floor(Perf.GetViewDistanceStuds() + 0.5)) .. " studs); cảnh xa mờ dần, không xóa vật thể."
+        end
+        D.Say((Perf.Modes[id] and "✅ " or "↩ ") .. note, C.YELLOW)
+    end
+
+    function Perf.ApplyViewDistance(text)
+        local value = tonumber(text)
+        if not value or value ~= value or value == math.huge or value == -math.huge then
+            if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⚠️ Nhập tầm nhìn từ 5 đến 1000 mét." end
+            return
+        end
+        Perf.ViewDistanceMeters = math.clamp(math.floor(value + 0.5), 5, 1000)
+        if Perf.DistanceBox and Perf.DistanceBox.Parent then
+            Perf.DistanceBox.Text = tostring(Perf.ViewDistanceMeters)
+        end
+        if Perf.Modes.range then Perf.SyncRangeFog() end
+        if Perf.Status and Perf.Status.Parent then
+            Perf.Status.Text = string.format(
+                "🌫 Đã đặt %dm (~%d studs); %s.",
+                Perf.ViewDistanceMeters, math.floor(Perf.GetViewDistanceStuds() + 0.5),
+                Perf.Modes.range and "đã áp dụng" or "bật Giảm tầm nhìn để áp dụng"
+            )
+        end
+    end
+
+    function Perf.Reset()
+        for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
+        Perf.QueueScan()
+        Perf.SyncPanel()
+    end
+
+    function Perf.Stop()
+        for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
+        Perf.ScanToken += 1
+        if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end
+        Perf.RestoreAll()
+    end
+
+    local panel = New("Frame", {
+        Name = "HubPerf_Panel", Size = UDim2.new(1, 0, 0, 184), LayoutOrder = -5,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(panel, UDim.new(0, 10)); Stroke(panel, C.HAIRLINE, 1)
+    D.Shade(panel, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
+    New("TextLabel", {
+        Size = UDim2.new(1, -174, 0, 16), Position = UDim2.new(0, 8, 0, 4),
+        Text = "⚡ GIẢM LAG · TẦM NHÌN", BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+        Font = Enum.Font.GothamBold, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, panel)
+    Perf.FpsLabel = New("TextLabel", {
+        Name = "HubPerfFPS", Size = UDim2.new(0, 60, 0, 18), Position = UDim2.new(1, -152, 0, 3),
+        Text = "FPS: --", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Center,
+        TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 7,
+    }, panel)
+    local fpsFrames, fpsElapsed = 0, 0
+    trackConn(RunService.RenderStepped:Connect(function(dt)
+        local delta = tonumber(dt) or 0
+        if delta <= 0 then return end
+        fpsFrames += 1
+        fpsElapsed += delta
+        if fpsElapsed < 0.5 then return end
+        local fps = math.floor(fpsFrames / fpsElapsed + 0.5)
+        fpsFrames, fpsElapsed = 0, 0
+        if not Perf.FpsLabel or not Perf.FpsLabel.Parent then return end
+        local shown = math.clamp(fps, 0, 999)
+        Perf.FpsLabel.Text = "FPS: " .. tostring(shown)
+        Perf.FpsLabel.TextColor3 = (shown >= 50 and C.GREEN) or (shown >= 30 and C.YELLOW) or C.RED
+    end))
+    local resetButton = New("TextButton", {
+        Name = "HubPerfReset", Size = UDim2.new(0, 74, 0, 18), Position = UDim2.new(1, -82, 0, 3),
+        Text = "↩ Hoàn tác", BackgroundColor3 = C.RED, TextColor3 = C.WHITE, Font = Enum.Font.GothamBold,
+        TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
+    }, panel)
+    Corner(resetButton, UDim.new(0, 5)); D.Tactile(resetButton, 0.08)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 20),
+        Text = "Đồ họa nhẹ giữ ánh sáng và hiệu ứng; sương mù chỉ làm mờ cảnh xa.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, panel)
+
+    for _, item in ipairs(modeList) do
+        local modeId = item.id
+        local button = New("TextButton", {
+            Name = "HubPerf_" .. modeId, Size = UDim2.new(0, 124, 0, 22),
+            Position = UDim2.new(0, item.x, 0, item.y),
+            Text = item.title .. ": TẮT", BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK,
+            Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
+        }, panel)
+        Corner(button, UDim.new(0, 6)); D.Tactile(button, 0.08)
+        Perf.Buttons[modeId] = button
+        button.Activated:Connect(function() ReleaseHubFocus(); Perf.Toggle(modeId) end)
+    end
+
+    New("TextLabel", {
+        Size = UDim2.new(0, 96, 0, 20), Position = UDim2.new(0, 8, 0, 96),
+        Text = "Tầm nhìn (m)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, panel)
+    Perf.DistanceBox = New("TextBox", {
+        Name = "HubPerfViewDistance", Size = UDim2.new(0, 56, 0, 20), Position = UDim2.new(0, 106, 0, 96),
+        Text = tostring(Perf.ViewDistanceMeters), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+    }, panel)
+    Corner(Perf.DistanceBox, UDim.new(0, 5))
+    local applyRangeButton = New("TextButton", {
+        Size = UDim2.new(0, 72, 0, 20), Position = UDim2.new(0, 168, 0, 96),
+        Text = "✔ Áp dụng", BackgroundColor3 = C.BLUE, TextColor3 = C.WHITE,
+        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
+    }, panel)
+    Corner(applyRangeButton, UDim.new(0, 5)); D.Tactile(applyRangeButton, 0.08)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 12), Position = UDim2.new(0, 8, 0, 120),
+        Text = "1 m ≈ 3,57 studs · nhập từ 5 đến 1000 m.", BackgroundTransparency = 1,
+        TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, panel)
+    Perf.Status = New("TextLabel", {
+        Name = "HubPerfStatus", Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 136),
+        Text = "Đồ họa nhẹ giữ hiệu ứng ánh sáng; CPU và tầm nhìn bật riêng.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, panel)
+
+    resetButton.Activated:Connect(function()
+        ReleaseHubFocus()
+        Perf.Reset()
+        D.Say("↩ Đang khôi phục CPU, đồ họa và tầm nhìn gốc.", C.YELLOW)
+    end)
+    applyRangeButton.Activated:Connect(function()
+        ReleaseHubFocus()
+        Perf.ApplyViewDistance(Perf.DistanceBox.Text)
+    end)
+    trackConn(Perf.DistanceBox.FocusLost:Connect(function(enter)
+        if enter then Perf.ApplyViewDistance(Perf.DistanceBox.Text) end
+    end))
+
+    local function watchRoot(root)
+        if not root then return end
+        trackConn(root.DescendantAdded:Connect(function(instance)
+            if instance:IsA("Atmosphere") and Perf.Modes.range then task.defer(Perf.SyncRangeFog) end
+            if not Perf.Modes.cpu and not Perf.Modes.quality then return end
+            task.defer(function()
+                if not Perf.Modes.cpu and not Perf.Modes.quality then return end
+                pcall(Perf.ApplyInstance, instance)
+            end)
+        end))
+        trackConn(root.DescendantRemoving:Connect(function(instance)
+            if instance == Perf.RangeAtmosphere and Perf.Modes.range then task.defer(Perf.SyncRangeFog) end
+        end))
+    end
+    watchRoot(workspace)
+    watchRoot(game:GetService("Lighting"))
+    trackConn(player.CharacterAdded:Connect(function(character)
+        task.defer(function()
+            for _, instance in ipairs(character:GetDescendants()) do Perf.RestoreInstance(instance) end
+        end)
+    end))
+    Perf.SyncPanel()
+end
+S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển",
     HubFly_Panel = "Di chuyển", HubSpeed_Panel = "Di chuyển",
     HubHighJump_Panel = "Di chuyển", HubMove_Panel = "Di chuyển",
     HubSafe_Panel = "Di chuyển", HubGlow_Panel = "Tiện ích",
@@ -5465,6 +6048,7 @@ function S.RebuildHubList() local list = D.hubList
     if S.SyncFreePanel then pcall(S.SyncFreePanel) end         -- v4.64: 🎥 khán giả
     if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
     if S.SyncAntiBanPanel then pcall(S.SyncAntiBanPanel) end   -- v4.43: 🔐 anti ban
+    if S.SyncPerfPanel then pcall(S.SyncPerfPanel) end         -- v5.3: ⚡️ giảm lag
     if #items == 0 and D.hubStatus then D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end end
 
@@ -5869,6 +6453,15 @@ end function S.Loc.TickOne(p) local it = LOC._items[p]
     if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
     it.lbl.Text = p.Name .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")   -- v4.34: Name vốn là chuỗi, khỏi tostring
 end function S.Loc.Tick()
+    -- v5.2 PERF: nếu menu mở nhưng không ở tab Người Chơi thì tạm dừng cập nhật ESP để mượt
+    if S.PagePerf and S.PagePerf.IsMainVisible() then
+        local pt = D and D.playerTab
+        if pt and not S.PagePerf.IsTabVisible(pt) then
+            -- menu mở ở tab khác: chỉ cập nhật list 1 lần/giây, không cập nhật ESP thế giới liên tục
+            -- để mượt hơn, bỏ qua TickOne nặng, chỉ giữ list
+            return
+        end
+    end
     for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then
             LOC.Kill(p) else
             pcall(LOC.TickOne, p) end
@@ -5876,12 +6469,26 @@ end function S.Loc.Tick()
     if not ok or not list then return end for _, p in ipairs(list) do
         if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then pcall(function() LOC.Make(p) end)
         end end
-end function S.Loc.Bind(on)
+end function S.Loc.OnPerfTick()
+    -- v5.2: được gọi khi đổi tab / đóng menu để quyết định có cần giảm tần suất không
+    -- Không cần làm gì thêm vì Tick đã tự check IsTabVisible
+end
+function S.Loc.Bind(on)
     if on and not LOC._bound then LOC._bound = true pcall(function()
             RunService:BindToRenderStep("BC_Loc", Enum.RenderPriority.Camera.Value - 2, function(dt) LOC._acc = (LOC._acc or 0) + (tonumber(dt) or 0.016)
-                if LOC._acc < 0.2 then return end LOC._acc = 0
-                pcall(function() LOC.Tick() end) LOC._listAcc = (LOC._listAcc or 0) + 0.2
-                if LOC._listAcc >= 1 then LOC._listAcc = 0 if LOC.RefreshList then pcall(LOC.RefreshList) end
+                -- v5.2: khi không ở tab Người Chơi thì tăng interval lên 0.5s thay vì 0.2s
+                local interval = 0.2
+                if S.PagePerf and S.PagePerf.IsMainVisible() then
+                    local pt = D and D.playerTab
+                    if pt and not S.PagePerf.IsTabVisible(pt) then interval = 0.8 end
+                end
+                if LOC._acc < interval then return end LOC._acc = 0
+                pcall(function() LOC.Tick() end) LOC._listAcc = (LOC._listAcc or 0) + interval
+                if LOC._listAcc >= 1.5 then LOC._listAcc = 0
+                    -- chỉ refresh list UI khi đang ở tab Người Chơi
+                    if not S.PagePerf or S.PagePerf.ShouldRunForPlayerTab() then
+                        if LOC.RefreshList then pcall(LOC.RefreshList) end
+                    end
                 end end)
         end) elseif (not on) and LOC._bound then
         LOC._bound = false pcall(function() RunService:UnbindFromRenderStep("BC_Loc") end)
@@ -6675,14 +7282,30 @@ do local PH = 200
                  or "📱 nút ảo 🛡: TẮT — đã ẩn cụm nút nổi", 1.8, C.ACCENT) end
     end) paint() end
 
--- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) ----------
+-- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) — v5.2 PERF: chỉ chạy khi menu mở và ở tab liên quan ----------
 do local acc = 0
     RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt) acc = acc + (tonumber(dt) or 0.016)
         if acc < 2 then return end acc = 0 pcall(function()
+            -- v5.2: nếu menu đóng thì dừng hẳn việc refresh list UI
+            if S.PagePerf and not S.PagePerf.IsMainVisible() then return end
+            if main and not main.Visible then return end
             local visible = false local function open(t) if t and t.Visible == true then return true end return false end
             if open(D.playerTab) or open(D.hubTab) then visible = true end if not visible then return end
-            if S.Loc.RefreshList then S.Loc.RefreshList() end if S.Spec.RefreshList then S.Spec.RefreshList() end if S.GlassRefreshList then S.GlassRefreshList() end
-            if S.ObjTrack and S.ObjTrack.RefreshList then pcall(S.ObjTrack.RefreshList) end   -- v5.1: 🌳
+            -- v5.2: chỉ refresh list khi tab tương ứng đang mở, tránh làm việc thừa
+            local playerVisible = open(D.playerTab)
+            local hubVisible = open(D.hubTab)
+            if playerVisible then
+                if S.Loc.RefreshList then S.Loc.RefreshList() end
+                if S.Spec.RefreshList then S.Spec.RefreshList() end
+                if S.GlassRefreshList then S.GlassRefreshList() end
+                if S.ObjTrack and S.ObjTrack.RefreshList then pcall(S.ObjTrack.RefreshList) end
+            end
+            if hubVisible then
+                -- hub list ít nặng hơn nhưng vẫn chỉ refresh khi ở hub tab
+                if S.Loc.RefreshList and not playerVisible then
+                    -- nếu chỉ ở hub tab, không cần refresh Loc (đã có ở player tab)
+                end
+            end
         end) end)
 end
 
@@ -7079,6 +7702,15 @@ function OT.MatchesNorm(n) if n == "" or #OT.keys == 0 then return false end
         if n:find(keys[i], 1, true) then return true end end
     return false end
 
+-- Gộp part vào Model cha nếu mọi từ khóa khớp part cũng khớp Model;
+-- một từ khóa riêng của part vẫn được giữ làm kết quả độc lập.
+function OT.SharedNameMatch(a, b) local na, nb = OT.NormCached(a), OT.NormCached(b)
+    local shared = false for i = 1, #OT.keys do local key = OT.keys[i]
+        local inPart, inModel = na:find(key, 1, true) ~= nil, nb:find(key, 1, true) ~= nil
+        if inPart and not inModel then return false end
+        if inPart and inModel then shared = true end
+    end return shared end
+
 -- Dán PATH thì đi thẳng theo từng đoạn tên (không phải quét cả workspace để dò path nữa)
 function OT.ResolvePath(key) local segs = {}
     for s in tostring(key or ""):gmatch("[^%.]+") do s = s:gsub("^%s+", ""):gsub("%s+$", "")
@@ -7344,12 +7976,13 @@ function OT.ScanBegin() OT.RefreshPaths()
 end
 
 -- Phân loại 1 vật khớp: BasePart -> chính nó; Model/Folder -> part đại diện.
--- Part nằm trong Model/Folder cũng khớp tên thì bỏ qua (cấp trên đã đại diện) — chống trùng.
+-- Part cùng khớp một từ khóa với Model cha thì gộp lại để tránh định vị trùng.
 function OT.ScanHit(inst) local okP, posOrBool = pcall(function() return inst:IsA("BasePart") end)
     if okP and posOrBool then local anc, guard, covered = inst.Parent, 0, false
         while anc and guard < 32 do guard = guard + 1
-            if anc == workspace then break end if OT.Candidate(anc) then
-                local okM, isM = pcall(function() return anc:IsA("Model") or anc:IsA("Folder") end) if okM and isM then covered = true break end end
+            if anc == workspace then break end
+            local okM, isM = pcall(function() return anc:IsA("Model") end)
+            if okM and isM and OT.Candidate(anc) and OT.SharedNameMatch(inst, anc) then covered = true break end
             anc = anc.Parent end
         if covered then OT._skipped = OT._skipped + 1
             return end
@@ -7424,16 +8057,50 @@ function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.
 --  • tạo định vị mới: rải ra makeBudget vật / khung hình
 --  • quét: chia lát scanBudget vật, tối đa scanSliceMs mỗi khung hình
 --  • nhãn: xoay vòng labelBudget vật mỗi labelEvery giây
+-- v5.2 PERF: chỉ quét khi ở tab Người Chơi, giữ highlight cũ khi ở tab khác
 function OT.Step(dt) local step = tonumber(dt) or 0.016
-    OT._acc = (OT._acc or 0) + step if OT._acc >= OT.labelEvery then
-        OT._acc = 0 pcall(OT.Tick)
-    end if OT.on then if OT._pending ~= nil and #OT._pending > 0 then pcall(OT.DrainPending) end
-        if not OT._passing then OT._scanAcc = (OT._scanAcc or 0) + step
-            if OT._scanAcc >= (OT.scanIdle or 2.0) then OT._scanAcc = 0
-                pcall(OT.ScanBegin) end end
-        if OT._passing then pcall(OT.ScanSlice) end   -- quét tiếp lát nữa
+    -- v5.2: kiểm tra có đang ở tab Người Chơi không
+    local shouldScan = true
+    if S.PagePerf and S.PagePerf.IsMainVisible() then
+        local pt = D and D.playerTab
+        if pt and not S.PagePerf.IsTabVisible(pt) then
+            shouldScan = false
+        end
+    elseif S.PagePerf and not S.PagePerf.IsMainVisible() then
+        -- menu đóng: vẫn cập nhật nhãn nhưng không quét mới để tiết kiệm
+        shouldScan = false
+    end
+    if shouldScan then
+        OT._acc = (OT._acc or 0) + step if OT._acc >= OT.labelEvery then
+            OT._acc = 0 pcall(OT.Tick)
+        end
+    else
+        -- khi không ở tab Người Chơi: chỉ cập nhật nhãn mỗi 0.8s thay vì 0.25s
+        OT._acc = (OT._acc or 0) + step if OT._acc >= (OT.labelEvery * 3) then
+            OT._acc = 0 pcall(OT.Tick)
+        end
+    end
+    if OT.on then
+        if shouldScan then
+            if OT._pending ~= nil and #OT._pending > 0 then pcall(OT.DrainPending) end
+            if not OT._passing then OT._scanAcc = (OT._scanAcc or 0) + step
+                if OT._scanAcc >= (OT.scanIdle or 2.0) then OT._scanAcc = 0
+                    pcall(OT.ScanBegin) end end
+            if OT._passing then pcall(OT.ScanSlice) end
+        else
+            -- không quét khi ở tab khác, nhưng vẫn drain pending chậm để không mất vật đã tìm
+            if OT._pending ~= nil and #OT._pending > 0 then
+                OT._scanAcc = (OT._scanAcc or 0) + step
+                if OT._scanAcc >= 1.0 then
+                    OT._scanAcc = 0
+                    pcall(OT.DrainPending, 2)
+                end
+            end
+        end
     end end
-
+function OT.OnPerfTick()
+    -- được gọi khi đổi tab, không cần làm gì thêm vì Step đã tự check
+end
 function OT.Bind() if OT._bound then return end
     OT._bound = true pcall(function()
         RunService:BindToRenderStep("BC_ObjTrack", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(OT.Step, dt)
@@ -7937,11 +8604,14 @@ local function ToggleMainFrame() main.Visible = not main.Visible
             D.openTween:Play() D.openTween.Completed:Connect(function() D.openTween = nil
                 pcall(BcFit)   -- đo lại để GUI đang nhúng vừa đúng ô tab
             end) end)
-    end end
+    end
+    pcall(function() if S.PagePerf and S.PagePerf.OnMainVisibilityChanged then S.PagePerf.OnMainVisibilityChanged() end end)
+end
 
 closeBtn.Activated:Connect(function() pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)
     main.Visible = false togBtn.Text = ""
     ReleaseHubFocus()   -- v4.5: đóng bằng ✕ cũng phải trả input cho game (trước đây chỉ có nút  làm)
+    pcall(function() if S.PagePerf and S.PagePerf.OnMainVisibilityChanged then S.PagePerf.OnMainVisibilityChanged() end end)
 end)
 
 dragLockBtn.Activated:Connect(function() S.dragMenu = not S.dragMenu
