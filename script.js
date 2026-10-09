@@ -623,7 +623,10 @@ function S.PagePerf.ShouldRunForSupportTab()
         end
     end)
     if not st then
-        local ok, t = pcall(function() return supportTab end)
+        -- FIX: trước đây đọc thẳng `supportTab`, nhưng biến local đó khai báo ở
+        -- dòng ~1209 (SAU closure này) nên Luau resolve nó thành global chưa gán
+        -- -> nhánh fallback luôn trả nil. Giờ đọc qua S.AnaUi.supportTab.
+        local ok, t = pcall(function() return S.AnaUi and S.AnaUi.supportTab end)
         if ok then st = t end
     end
     if not st then return false end
@@ -848,7 +851,13 @@ function S.CompatDrawing() local D = {}
 
 function S.EnsureCompat() if S.compatTried then return S.compatAdded end
     S.compatTried = true pcall(function()
-        S.SetGlobal("loadstring", function(src, nm) return load(tostring(src), nm or "compat") end) S.SetGlobal("getgenv", function() return _G end)
+        -- FIX: `load` KHÔNG tồn tại trong Luau của Roblox (chỉ có `loadstring`),
+        -- nên shim cũ sẽ ném "attempt to call a nil value (global 'load')" ngay lần
+        -- gọi đầu — tức đúng lúc executor thiếu loadstring. Không cài shim giả nữa;
+        -- ghi chú lại để người dùng biết vì sao tính năng chạy code không hoạt động.
+        S.compatUnavailable = S.compatUnavailable or {}
+        S.compatUnavailable[#S.compatUnavailable + 1] = "loadstring (chỉ executor mới có — hub không tự bù được)"
+        S.SetGlobal("getgenv", function() return _G end)
         S.SetGlobal("getrenv", function() return _G end) S.SetGlobal("identifyexecutor", function() return "taodepzai v5.0 NOIR-Compat", "4.7" end)
         S.SetGlobal("getexecutorname", function() return "taodepzai v5.0 NOIR-Compat" end) S.SetGlobal("getscript", function() return nil end) S.SetGlobal("getcallingscript", function() return nil end)
         S.SetGlobal("checkcaller", function() return false end) S.SetGlobal("isourclosure", function() return false end)
@@ -1208,6 +1217,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSe
 
 local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent
+S.AnaUi.supportTab = supportTab   -- FIX: để S.PagePerf.ShouldRunForSupportTab đọc được (xem dòng ~626)
 
 local posY = 8
 
@@ -7062,7 +7072,7 @@ S.Glow = { on = false, width = 18, bright = 3,
     thru = true,          -- 👁 xuyên tường (mặc định BẬT — đúng ý "ánh sáng không bị trói")
     light = true,         -- 💡 đèn thật toả sáng quanh người
     _hl = nil, _pl = nil, _char = nil, _bound = false, _acc = 0, palIdx = 1, }
-local GL = S.Glow local function glowRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+local GL = S.Glow   -- FIX: đã xoá local function glowRound (không nơi nào gọi)
 GL.palette = { { name = "Xanh băng", c = Color3.fromRGB(120, 220, 255) },
     { name = "Xanh lá",  c = Color3.fromRGB(80, 255, 140) }, { name = "Hồng",     c = Color3.fromRGB(255, 120, 210) },
     { name = "Vàng",     c = Color3.fromRGB(255, 220, 90) }, { name = "Đỏ",       c = Color3.fromRGB(255, 80, 80) },
@@ -8588,10 +8598,7 @@ _G.BananaCatHub_ObjTrack = S.ObjTrack   -- v5.1: cho script khác đọc trạng
 do
     local setTab = AddTab("Thiết Lập", "⚙️", 6)   -- v4.15: 5 -> 6 (👥 chen vào ô 4)
 
-    local sy = 8 local function rule(y)
-        New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, y),
-            Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", BackgroundTransparency = 1, TextColor3 = C.HAIRLINE, Font = Enum.Font.Gotham, TextSize = 8,
-            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6, }, setTab) end
+    local sy = 8   -- FIX: đã xoá local function rule (không nơi nào gọi)
     local function card(title, h) local f = New("Frame", {
             Size = UDim2.new(1, -16, 0, h), Position = UDim2.new(0, 8, 0, sy), BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.08,
             BorderSizePixel = 0, ZIndex = 6, }, setTab)
