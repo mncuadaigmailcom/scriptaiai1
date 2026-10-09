@@ -1,0 +1,13 @@
+{
+  "name": "luau-check",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static checker cho file Luau (Roblox Lua)",
+  "type": "module",
+  "bin": { "luau-check": "./luau-check.mjs" },
+  "scripts": {
+    "check": "node luau-check.mjs ../script.js ../AvatarOutfitViewer.luau",
+    "check:strict": "node luau-check.mjs --strict ../script.js ../AvatarOutfitViewer.luau"
+  },
+  "dependencies": { "luau-parser": "^1.0.3" }
+}
