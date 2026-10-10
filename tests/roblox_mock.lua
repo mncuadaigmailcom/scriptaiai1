@@ -877,6 +877,7 @@ function M.reset()
     M.workspace.Name = "Workspace"
     local cam = M.newInstance("Camera", M.workspace)
     cam.Name = "Camera"
+    cam.__props.CameraType = M.Enum.CameraType.Custom   -- mặc định của Roblox
     M.workspace.__props.CurrentCamera = cam
     M.workspace.__props.Gravity = 196.2
 
@@ -994,6 +995,7 @@ local function installGlobals()
     G.unpack = table.unpack
     G.math.clamp = G.math.clamp or function(x, a, b) return math.max(a, math.min(b, x)) end
     G.math.sign = G.math.sign or function(x) return x > 0 and 1 or (x < 0 and -1 or 0) end
+    G.math.atan2 = G.math.atan2 or function(y, x) return math.atan(y, x) end   -- Luau có math.atan2; Lua 5.3 dùng math.atan(y, x)
     G.table.find = G.table.find or function(t, v, init)
         for i = init or 1, #t do if t[i] == v then return i end end return nil
     end

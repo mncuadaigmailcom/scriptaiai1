@@ -863,7 +863,7 @@ test("Trả nhân vật gốc: huỷ rig, hiện lại thân thật, camera về
     contains(statusText(), "Đã trả lại nhân vật gốc")
     M.stepFrames(3)
     noErrors()
-    expect(PI().swap == nil, "còn trạng thái thay nhân vật")
+    expect(not _G.BananaCatHub_CharSwap.Status().active, "còn trạng thái thay nhân vật")
 end)
 
 test("chạy lại script khi đang thay nhân vật (cùng phiên, không reset): camera vẫn theo nhân vật thật", function()
@@ -879,6 +879,8 @@ test("chạy lại script khi đang thay nhân vật (cùng phiên, không reset
     M.stepFrames(2)
     noErrors()
     eq(M.workspace.CurrentCamera.CameraSubject, ownHum(), "chạy lại: camera không theo nhân vật thật")
+    eq(#puppets(), 0, "chạy lại script còn để lại rig cũ")
+    expect(allHidden(0), "chạy lại script vẫn ẩn thân thật")
 end)
 
 test("trả khi chưa thay: báo rõ, không lỗi", function()
@@ -949,7 +951,7 @@ test("dựng rig lỗi: báo rõ, không kẹt nhân vật (không ẩn thân, k
     contains(statusText(), "Rig type mismatch")
     expect(allHidden(0), "thân thật bị ẩn dù lỗi")
     eq(#puppets(), 0, "còn rig sau khi lỗi")
-    expect(PI().swap == nil, "ghi nhận đang thay dù lỗi")
+    expect(not _G.BananaCatHub_CharSwap.Status().active, "ghi nhận đang thay dù lỗi")
 end)
 
 test("không dựng được 3D: vẫn hiện hồ sơ + ảnh dự phòng, báo rõ", function()
@@ -1019,6 +1021,147 @@ test("nút Copy/Thay nhân vật/Trả trước khi tra cứu: báo 'hãy tra c�
     click(panel(), "Copy link hồ sơ")
     contains(statusText(), "tra cứu một người")
     noErrors()
+end)
+
+-- ===================== THAY NHÂN VẬT: MODULE ĐỘC LẬP =====================
+local function CS() return _G.BananaCatHub_CharSwap end
+local function realHrp() return ownChar():FindFirstChild("HumanoidRootPart") end
+
+test("độc lập: gọi trực tiếp CharSwap.Apply/Restore (không cần tra cứu, không cần giao diện)", function()
+    runScript()
+    expect(CS() ~= nil, "thiếu module CharSwap")
+    local ok, msg = CS().Apply(M.makeDesc(156, {}), "Solo")
+    expect(ok, "Apply lỗi: " .. tostring(msg))
+    eq(#puppets(), 1, "chưa có rig")
+    expect(allHidden(1), "thân thật chưa ẩn")
+    M.stepFrames(2)
+    noErrors()
+    local st = CS().Status()
+    expect(st.active and st.name == "Solo", "Status sai")
+    local okR = CS().Restore()
+    expect(okR, "Restore lỗi")
+    eq(#puppets(), 0, "rig chưa bị huỷ")
+    expect(allHidden(0), "thân thật chưa hiện lại")
+    expect(not CS().Status().active, "còn trạng thái sau Restore")
+end)
+
+test("độc lập: xoá giao diện tra cứu giữa chừng thì rig vẫn bám bạn và Trả vẫn chạy", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    _G.BananaCatHub_PlayerInfo = nil      -- giao diện biến mất
+    realHrp().CFrame = M.cframe(6, 3, 4)
+    M.stepFrames(2)
+    noErrors()
+    local rigRoot = puppets()[1]:FindFirstChild("HumanoidRootPart")
+    eq(rigRoot.CFrame.Position.X, 6, "rig không bám bạn khi giao diện mất")
+    eq(rigRoot.CFrame.Position.Z, 4, "rig không bám bạn khi giao diện mất (Z)")
+    expect(CS().Restore(), "không trả được nhân vật")
+    eq(#puppets(), 0, "rig chưa bị huỷ")
+    expect(allHidden(0), "thân thật chưa hiện lại")
+end)
+
+test("độc lập: bật/tắt Free-cam (tính năng khác) khi đang thay → rig không mất, không lỗi", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local F = _G.BananaCatHub_Free
+    expect(F ~= nil and F.Set ~= nil, "thiếu API Free-cam để kiểm tra")
+    F.Set(true)
+    M.stepFrames(2)
+    noErrors()
+    eq(#puppets(), 1, "Free-cam làm mất rig")
+    expect(CS().Status().active, "Free-cam làm tắt thay nhân vật")
+    F.Set(false)
+    M.stepFrames(2)
+    noErrors()
+    eq(#puppets(), 1, "tắt Free-cam làm mất rig")
+    expect(CS().Status().active, "tắt Free-cam làm tắt thay nhân vật")
+end)
+
+test("đua: hai yêu cầu thay chồng nhau khi đang dựng → yêu cầu cũ bị bỏ, chỉ còn 1 rig (của yêu cầu mới)", function()
+    runScript()
+    local P = M.services.Players
+    local origFn = P.CreateHumanoidModelFromDescription
+    local inner = false
+    P.CreateHumanoidModelFromDescription = function(self, d, rt)
+        if not inner then
+            inner = true
+            CS().Apply(M.makeDesc(2, {}), "Second")   -- yêu cầu mới chen vào lúc đang dựng
+        end
+        return origFn(self, d, rt)
+    end
+    local ok, msg = CS().Apply(M.makeDesc(1, {}), "First")
+    P.CreateHumanoidModelFromDescription = nil
+    noErrors()
+    expect(not ok, "yêu cầu cũ vẫn báo thành công")
+    expect(string.find(msg, "mới hơn", 1, true) ~= nil, "thông báo không nói rõ lý do: " .. tostring(msg))
+    eq(#puppets(), 1, "còn rig mồ côi (" .. #puppets() .. " rig)")
+    eq(CS().Status().name, "Second", "không giữ yêu cầu mới nhất")
+end)
+
+test("đua: nhân vật bị thay đổi lúc đang dựng rig → không gắn rig vào nhân vật cũ, báo rõ", function()
+    runScript()
+    local P = M.services.Players
+    local origFn = P.CreateHumanoidModelFromDescription
+    local once = false
+    P.CreateHumanoidModelFromDescription = function(self, d, rt)
+        if not once then once = true M.spawnCharacter() end   -- hồi sinh giữa chừng
+        return origFn(self, d, rt)
+    end
+    local ok, msg = CS().Apply(M.makeDesc(1, {}), "X")
+    P.CreateHumanoidModelFromDescription = nil
+    noErrors()
+    expect(not ok, "vẫn báo thành công dù nhân vật đã đổi")
+    expect(string.find(msg, "thay đổi", 1, true) ~= nil, "thông báo không rõ: " .. tostring(msg))
+    eq(#puppets(), 0, "rig còn sót lại")
+    expect(not CS().Status().active, "còn trạng thái thay")
+    expect(allHidden(0), "nhân vật mới bị ẩn thân")
+end)
+
+test("lỗi giữa chừng: thay thất bại sau khi đã thay thành công → trả thân thật, xoá rig và trạng thái cũ", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    expect(allHidden(1), "chuẩn bị test sai")
+    local ok = CS().Apply(nil, "Bad")
+    expect(not ok, "Apply(nil) lại báo thành công")
+    eq(#puppets(), 0, "rig cũ còn sau khi thay thất bại")
+    expect(allHidden(0), "thân thật vẫn bị ẩn sau khi thay thất bại")
+    expect(not CS().Status().active and CS().Status().name == nil, "trạng thái cũ còn sau khi thất bại")
+    noErrors()
+end)
+
+test("Destroy: trả thân thật, huỷ rig, ngắt kết nối respawn (không dựng lại sau này)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    CS().Destroy()
+    expect(CS().charConn == nil, "còn kết nối respawn sau Destroy (rò rỉ)")
+    eq(#puppets(), 0, "rig chưa bị huỷ")
+    expect(allHidden(0), "thân thật chưa hiện lại")
+    expect(not CS().Status().active and CS().Status().name == nil, "còn trạng thái")
+    M.spawnCharacter()          -- hồi sinh: không được tự thay lại
+    M.stepFrames(3)
+    noErrors()
+    eq(#puppets(), 0, "respawn vẫn dựng rig sau khi Destroy")
+end)
+
+test("tắt 'giữ sau respawn' (module): respawn xoá trạng thái, Trả báo không có gì để trả", function()
+    runScript()
+    CS().keepOnRespawn = false
+    CS().Apply(M.makeDesc(156, {}), "Y")
+    M.spawnCharacter()
+    M.stepFrames(3)
+    noErrors()
+    eq(#puppets(), 0, "respawn vẫn dựng lại rig")
+    expect(CS().Status().name == nil, "còn nhớ nhân vật đã thay")
+    local okR = CS().Restore()
+    expect(not okR, "Trả báo thành công dù không còn gì để trả")
 end)
 
 -- ===================== chạy =====================
