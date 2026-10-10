@@ -8700,6 +8700,8 @@ local function csBuild(desc, name, tag, myGen)
             pcall(function()
                 d.Anchored = true       -- NEO: không vật lý → không tự xoay/đổ/trôi
                 d.CanCollide = false    -- không va chạm với ai
+                d.CanTouch = false      -- không kích hoạt Touched
+                d.CanQuery = false      -- không bị raycast: camera/Humanoid/các tính năng quét không coi rig là vật cản
             end)
         end
     end

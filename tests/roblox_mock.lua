@@ -633,6 +633,16 @@ local function instanceIndex(self, k)
 end
 
 local function instanceNewIndex(self, k, v)
+    if M.auditOn and type(k) == "string" and string.sub(k, 1, 2) ~= "__" then
+        local cn = rawget(self, "__name") or self.ClassName
+        local p = self
+        local underChar = false
+        while p ~= nil do if p == M.localPlayer.__character then underChar = true break end p = rawget(p, "__parent") end
+        if underChar or self.ClassName == "Camera" then
+            M.auditLog = M.auditLog or {}
+            M.auditLog[#M.auditLog + 1] = tostring(self.ClassName) .. ":" .. tostring(cn) .. "." .. k
+        end
+    end
     if type(k) == "string" and string.sub(k, 1, 2) == "__" then rawset(self, k, v) return end
     if k == "Parent" then
         setParent(self, v)

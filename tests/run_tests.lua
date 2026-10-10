@@ -1164,6 +1164,54 @@ test("tắt 'giữ sau respawn' (module): respawn xoá trạng thái, Trả báo
     expect(not okR, "Trả báo thành công dù không còn gì để trả")
 end)
 
+test("rig không bị raycast/chạm: CanQuery = false, CanTouch = false (không làm camera/mặt đất lệch)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local n = 0
+    for _, p in ipairs(M.descendants(puppets()[1])) do
+        if p.ClassName == "Part" then
+            n = n + 1
+            eq(p.CanQuery, false, "phần " .. tostring(p.Name) .. " vẫn bị raycast")
+            eq(p.CanTouch, false, "phần " .. tostring(p.Name) .. " vẫn kích hoạt Touched")
+        end
+    end
+    expect(n >= 2, "rig thiếu phần")
+end)
+
+test("module chỉ ghi LocalTransparencyModifier lên thân thật (không đụng CFrame/vận tốc/Anchored/camera)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    -- Trình giả lập chuyển động của BẠN (không tính vào kiểm toán)
+    local function drive(i)
+        hrp.CFrame = M.cframe(i * 0.5, 3, 0)
+        hrp.AssemblyLinearVelocity = M.vec3(8, 0, 0)
+        ownHum().__state = (i % 10 == 0) and M.Enum.HumanoidStateType.Jumping or M.Enum.HumanoidStateType.Running
+    end
+    M.auditOn, M.auditLog = true, {}
+    click(panel(), "Thay nhân vật")
+    for i = 1, 30 do
+        M.auditOn = false
+        drive(i)
+        M.auditOn = true
+        M.stepFrames(1)
+    end
+    M.auditOn = false
+    noErrors()
+    local ltm = 0
+    for _, e in ipairs(M.auditLog) do
+        if string.find(e, "LocalTransparencyModifier", 1, true) then ltm = ltm + 1 end
+    end
+    expect(ltm > 0, "kiểm toán không ghi nhận LocalTransparencyModifier nào (test vô nghĩa)")
+    for _, e in ipairs(M.auditLog) do
+        expect(string.find(e, "LocalTransparencyModifier", 1, true) ~= nil, "module ghi lên nhân vật thật: " .. e)
+    end
+    M.auditLog = nil
+end)
+
 -- ===================== chạy =====================
 local failed, passed = {}, 0
 for _, t in ipairs(tests) do
