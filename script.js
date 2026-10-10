@@ -8849,12 +8849,14 @@ end end
             pcall(function() rig:Destroy() end)
             return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
         end
-        -- Rig chỉ là "vỏ" bám theo bạn: không va chạm, không để vật lý làm nó xoay/đổ.
-        local rigParts = {}
+        -- Rig chỉ là "vỏ" hiển thị: NEO toàn bộ phần để vật lý không thể làm nó xoay/đổ/trôi.
+        -- Animation (Motor6D) vẫn chạy trên phần đã neo; vị trí do PivotTo theo nhân vật thật quyết định.
         for _, d in ipairs(rig:GetDescendants()) do
             if d:IsA("BasePart") then
-                rigParts[#rigParts + 1] = d
-                pcall(function() d.CanCollide = false end)
+                pcall(function()
+                    d.CanCollide = false
+                    d.Anchored = true
+                end)
             end
         end
         pcall(function() rig.PrimaryPart = rigRoot end)
@@ -8882,8 +8884,7 @@ end end
             end
         end
         hideOwn(char)
-        local cam = workspace.CurrentCamera
-        if cam then pcall(function() cam.CameraSubject = rigHum end) end
+        -- Camera vẫn theo nhân vật thật (không đổi CameraSubject) để góc nhìn không bị dựng lại.
 
         local sw = { rig = rig, origLT = origLT, rec = rec, char = char }
         sw.step = function()
@@ -8891,14 +8892,6 @@ end end
             local r = c and c:FindFirstChild("HumanoidRootPart")
             if not r or rig.Parent == nil then return end
             rig:PivotTo(r.CFrame)
-            -- Đặt vận tốc theo nhân vật thật và triệt tiêu vận tốc góc: không cho rig tự xoay
-            local vel = r.AssemblyLinearVelocity
-            for _, p in ipairs(rigParts) do
-                pcall(function()
-                    p.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                    p.AssemblyLinearVelocity = vel
-                end)
-            end
             hideOwn(c)
             -- Đồng bộ trạng thái an toàn (đứng/chạy/nhảy/rơi) để animation khớp; KHÔNG đồng bộ
             -- Physics/Ragdoll/FallingDown... vì sẽ làm rig đổ và xoay.
@@ -8939,10 +8932,6 @@ end end
             pcall(function() part.LocalTransparencyModifier = lt end)
         end
         pcall(function() sw.rig:Destroy() end)
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local cam = workspace.CurrentCamera
-        if cam and hum then pcall(function() cam.CameraSubject = hum end) end
     end
 
     -- Trả lại nhân vật gốc của bạn

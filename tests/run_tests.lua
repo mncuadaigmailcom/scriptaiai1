@@ -21,7 +21,7 @@ end
 -- ===================== môi trường =====================
 local function clearBananaGlobals()
     for k in pairs(_G) do
-        if type(k) == "string" and string.sub(k, 1, 11) == "BananaCatHub" then _G[k] = nil end
+        if type(k) == "string" and string.sub(k, 1, 12) == "BananaCatHub" then _G[k] = nil end
     end
 end
 
@@ -465,14 +465,14 @@ test("rig dựng từ skin của người kia: đủ phụ kiện, cùng kiểu 
     expect(rig:FindFirstChild("HumanoidRootPart") ~= nil, "rig không có HumanoidRootPart")
 end)
 
-test("thân thật bị ẩn ở phía client; camera theo rig; nhân vật thật không bị khoá", function()
+test("thân thật bị ẩn ở phía client; camera VẪN theo nhân vật thật; nhân vật thật không bị khoá", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     noErrors()
     expect(allHidden(1), "thân thật chưa bị ẩn")
-    eq(M.workspace.CurrentCamera.CameraSubject, puppets()[1]:FindFirstChildOfClass("Humanoid"), "camera không theo rig")
+    eq(M.workspace.CurrentCamera.CameraSubject, ownHum(), "camera không theo nhân vật thật")
     eq(ownHum().WalkSpeed, 16, "nhân vật thật bị đổi tốc độ")
     expect(ownChar():FindFirstChild("HumanoidRootPart").Anchored == false, "nhân vật thật bị neo")
 end)
@@ -525,35 +525,40 @@ test("Trả nhân vật gốc: độ trong suốt cục bộ trả về giá tr�
     end
 end)
 
-test("rig không xoay: vận tốc góc được triệt tiêu mỗi khung hình", function()
+test("rig được NEO hoàn toàn và không va chạm: vật lý không làm rig xoay/đổ/trôi", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     local rig = puppets()[1]
-    for _, p in ipairs(M.descendants(rig)) do
-        if p.ClassName == "Part" then p.AssemblyAngularVelocity = M.vec3(0, 9, 0) end
-    end
-    M.stepFrames(3)
-    noErrors()
+    local n = 0
     for _, p in ipairs(M.descendants(rig)) do
         if p.ClassName == "Part" then
-            local w = p.AssemblyAngularVelocity
-            eq(w.X + w.Y + w.Z, 0, "phần " .. tostring(p.Name) .. " vẫn quay")
+            n = n + 1
+            eq(p.Anchored, true, "phần " .. tostring(p.Name) .. " chưa được neo")
+            eq(p.CanCollide, false, "phần " .. tostring(p.Name) .. " vẫn va chạm")
         end
     end
+    expect(n >= 2, "rig thiếu phần")
+    ownChar():FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity = M.vec3(0, 0, 12)
+    M.stepFrames(3)
+    noErrors()
+    eq(puppets()[1]:FindFirstChild("HumanoidRootPart").Anchored, true, "rig bị thả lỏng")
 end)
 
-test("vận tốc rig theo nhân vật thật (không tự trôi/rơi)", function()
+test("rig luôn đặt đúng vị trí nhân vật thật (không trôi khỏi bạn)", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
-    ownChar():FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity = M.vec3(0, 0, 12)
-    M.stepFrames(1)
-    noErrors()
-    local rigRoot = puppets()[1]:FindFirstChild("HumanoidRootPart")
-    eq(rigRoot.AssemblyLinearVelocity.Z, 12, "rig không cùng vận tốc với nhân vật thật")
+    for i = 1, 5 do
+        ownChar():FindFirstChild("HumanoidRootPart").CFrame = M.cframe(i * 3, 2, -i)
+        M.stepFrames(1)
+        noErrors()
+        local rigPos = puppets()[1].CFrame.Position
+        eq(rigPos.X, i * 3, "rig trôi khỏi bạn (X) ở khung " .. i)
+        eq(rigPos.Z, -i, "rig trôi khỏi bạn (Z) ở khung " .. i)
+    end
 end)
 
 test("rig: AutoRotate tắt, PrimaryPart là HumanoidRootPart", function()
@@ -771,6 +776,21 @@ test("Trả nhân vật gốc: huỷ rig, hiện lại thân thật, camera về
     expect(PI().swap == nil, "còn trạng thái thay nhân vật")
 end)
 
+test("chạy lại script khi đang thay nhân vật (cùng phiên, không reset): camera vẫn theo nhân vật thật", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    noErrors()
+    -- executor chạy lại script trong cùng phiên: không reset môi trường
+    local chunk = load(SCRIPT_SRC, "=script.js")
+    local ok, e = pcall(chunk)
+    expect(ok, "chạy lại script lỗi: " .. tostring(e))
+    M.stepFrames(2)
+    noErrors()
+    eq(M.workspace.CurrentCamera.CameraSubject, ownHum(), "chạy lại: camera không theo nhân vật thật")
+end)
+
 test("trả khi chưa thay: báo rõ, không lỗi", function()
     runScript()
     click(panel(), "Trả nhân vật gốc")
@@ -787,7 +807,7 @@ test("giữ sau respawn (mặc định BẬT): dựng lại rig trên nhân vậ
     M.advance(1)
     noErrors()
     eq(#puppets(), 1, "số rig sau respawn phải là 1")
-    eq(M.workspace.CurrentCamera.CameraSubject, puppets()[1]:FindFirstChildOfClass("Humanoid"), "camera không theo rig mới")
+    eq(M.workspace.CurrentCamera.CameraSubject, newChar:FindFirstChildOfClass("Humanoid"), "camera không theo nhân vật mới")
     expect(allHidden(1), "nhân vật mới chưa bị ẩn thân thật")
     eq(newChar:FindFirstChildOfClass("Humanoid").__serverOwned, true)
 end)

@@ -603,6 +603,8 @@ local function instanceIndex(self, k)
     if k == "Value" and self.ClassName == "StringValue" then return "" end
     if k == "Text" then return "" end
     if k == "RigType" and self.ClassName == "Humanoid" then return Enum.HumanoidRigType.R15 end
+    -- Roblox cho phép truy cập con theo tên: parent.ChildName
+    if type(k) == "string" then local child = findChild(self, k) if child then return child end end
     error(string.format("'%s' is not a valid member of %s '%s'", tostring(k), tostring(self.ClassName), tostring(rawget(self, "__name") or "")), 2)
 end
 
@@ -788,6 +790,8 @@ function M.spawnCharacter()
     head.Name = "Head"
     M.localPlayer.__character = char
     M.lastCharacter = char
+    -- Roblox tự đặt CameraSubject = Humanoid của nhân vật khi spawn
+    if M.workspace and M.workspace.CurrentCamera then M.workspace.CurrentCamera.__props.CameraSubject = hum end
     M.fireSignal(M.localPlayer.__ev.CharacterAdded or newSignal("CharacterAdded"), char)
     return char
 end
