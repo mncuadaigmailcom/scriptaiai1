@@ -6684,15 +6684,51 @@ do
     local function outfitParts(character)
         local out = {}
         for _, item in ipairs(character:GetChildren()) do
-            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory") then
+            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory") or item:IsA("BodyColors")
+                or item:IsA("CharacterMesh") then
                 out[#out + 1] = item
             end
         end
         return out
     end
+    -- Không thay MeshPart cơ thể (đụng Motor6D/rig và MeshId chỉ đọc).
+    -- Thay phần hình ảnh đọc/ghi được: mặt, màu da, texture, mesh đầu R6.
+    local function visualChildren(part)
+        local out = {}
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance")
+                or child:IsA("SpecialMesh") then out[#out + 1] = child end
+        end
+        return out
+    end
+    local function saveVisuals(character)
+        local result = {}
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                local entry = {color = part.Color, material = part.Material, children = {}}
+                for _, child in ipairs(visualChildren(part)) do
+                    local ok, clone = pcall(function() return child:Clone() end)
+                    if ok then entry.children[#entry.children + 1] = clone end
+                end
+                result[part.Name] = entry
+            end
+        end
+        return result
+    end
+    local function applyVisuals(character, visuals)
+        for name, entry in pairs(visuals) do
+            local part = character:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                part.Color = entry.color part.Material = entry.material
+                for _, child in ipairs(visualChildren(part)) do child:Destroy() end
+                for _, child in ipairs(entry.children) do child:Clone().Parent = part end
+            end
+        end
+    end
     local function copyOutfit(source, character, humanoid)
         local items = outfitParts(source)
-        if #items == 0 then return false, "Avatar nguồn không có quần áo/phụ kiện để sao chép" end
+        local visuals = saveVisuals(source)
+        if #items == 0 and next(visuals) == nil then return false, "Avatar nguồn không có ngoại hình để sao chép" end
         for _, item in ipairs(outfitParts(character)) do item:Destroy() end
         local count = 0
         for _, item in ipairs(items) do
@@ -6701,7 +6737,8 @@ do
             else clone.Parent = character end
             count += 1
         end
-        return true, tostring(count) .. " món"
+        applyVisuals(character, visuals)
+        return true, tostring(count) .. " món + mặt/màu da/texture"
     end
     local function say(text, good)
         status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
@@ -6779,7 +6816,7 @@ do
                 if okModel and source then source:Destroy() end return
             end
             if okModel and source and (not localSaved or localSaved.character ~= char) then
-                localSaved = {character = char, items = {}}
+                localSaved = {character = char, items = {}, visuals = saveVisuals(char)}
                 for _, item in ipairs(outfitParts(char)) do
                     local cloned, savedItem = pcall(function() return item:Clone() end)
                     if cloned then table.insert(localSaved.items, savedItem) end
@@ -6845,6 +6882,7 @@ do
                 if item:IsA("Accessory") then hum:AddAccessory(item:Clone())
                 else item:Clone().Parent = player.Character end
             end
+            if localSaved.visuals then applyVisuals(player.Character, localSaved.visuals) end
             localSaved = nil
             original, originalHum = nil, nil
             say("✅ Đã khôi phục quần áo/phụ kiện LOCAL.", true) return
