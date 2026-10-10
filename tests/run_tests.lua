@@ -1276,6 +1276,48 @@ test("bạn nhìn thẳng đứng (không có hướng ngang): không lỗi, rig
     expect(near(rig.CFrame.UpVector.Y, 1), "rig bị nghiêng khi bạn nhìn thẳng xuống")
 end)
 
+test("các phần của rig giữ đúng khoảng cách với HRP khi bạn di chuyển (đầu luôn ở trên thân, không bị kéo xuống đế)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay skin")
+    local rig = puppets()[1]
+    local head = rig:FindFirstChild("Head")
+    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
+    ownChar():FindFirstChild("HumanoidRootPart").CFrame = M.cframeAngles(10, 5, -3, 0, 1.2, 0)
+    M.stepFrames(2)
+    noErrors()
+    eq(rigRoot.CFrame.Position.X, 10, "HRP rig không theo X")
+    eq(head.CFrame.Position.X, 10, "đầu rig không theo X")
+    expect(near(head.CFrame.Position.Y - rigRoot.CFrame.Position.Y, 2), "đầu rig lệch khỏi HRP: " .. tostring(head.CFrame.Position.Y - rigRoot.CFrame.Position.Y))
+    expect(near(head.CFrame.Position.Y, 5 + 2), "đầu rig không ở đúng độ cao của bạn")
+end)
+
+test("bật thảm kính (tấm đế dưới chân) rồi thay skin: vẫn thấy skin trên thảm, không chỉ thấy tấm kính", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    local MV = _G.BananaCatHub_MV
+    local okC, errC = pcall(MV.SetCarpet, true)
+    expect(okC and errC ~= false, "không bật được thảm: " .. tostring(errC))
+    M.stepFrames(2)
+    click(panel(), "Thay skin")
+    M.stepFrames(3)
+    noErrors()
+    local rig = puppets()[1]
+    expect(rig ~= nil, "không có rig")
+    local visible = 0
+    for _, p in ipairs(M.descendants(rig)) do
+        if p.ClassName == "Part" and p.Transparency < 1 then visible = visible + 1 end
+    end
+    expect(visible >= 2, "rig không hiển thị (chỉ còn tấm kính)")
+    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
+    local cp = MV._carpet
+    expect(cp ~= nil and cp.Parent ~= nil, "thảm bị mất")
+    expect(cp.CFrame.Position.Y < rigRoot.CFrame.Position.Y, "thảm nằm trên HRP rig (rig bị chìm/khuất)")
+    eq(ownChar():FindFirstChild("HumanoidRootPart").LocalTransparencyModifier, 1, "thân thật không bị ẩn")
+end)
+
 -- ===================== chạy =====================
 local failed, passed = {}, 0
 for _, t in ipairs(tests) do

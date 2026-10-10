@@ -8650,6 +8650,14 @@ local function csUpright(yaw, r)
     return CFrame.lookAt(pos, pos + dir)
 end
 
+-- Đặt rig theo HRP của chính rig (không dựa vào pivot của model, vì pivot có thể lệch khỏi HRP):
+-- mỗi part giữ offset so với HRP lúc dựng; khung nào cũng đặt part = đích * offset.
+local function csPlace(rel, target)
+    for _, e in ipairs(rel) do
+        pcall(function() e.part.CFrame = target * e.off end)
+    end
+end
+
 -- Mỗi khung hình: đặt rig đúng chỗ nhân vật thật, ẩn thân thật, chọn animation theo trạng thái thật
 local function csStep(st)
     if CharSwap.state ~= st then return end
@@ -8657,7 +8665,7 @@ local function csStep(st)
     if c ~= st.char then return end                 -- nhân vật đã đổi: chờ CharacterAdded xử lý
     local r = c:FindFirstChild("HumanoidRootPart")
     if not r or st.rig.Parent == nil then return end
-    pcall(function() st.rig:PivotTo(csUpright(st.yaw, r)) end)
+    csPlace(st.rel, csUpright(st.yaw, r))
     csHideOwn(c, st.origLT)
     local vel = r.AssemblyLinearVelocity
     local flat = Vector3.new(vel.X, 0, vel.Z)
@@ -8724,9 +8732,18 @@ local function csBuild(desc, name, tag, myGen)
     if animator == nil then
         pcall(function() animator = Instance.new("Animator") animator.Parent = rigHum end)
     end
+    -- ghi offset của mọi part so với HRP của rig (trước khi di chuyển)
+    local rel = {}
+    local rootCF = rigRoot.CFrame
+    for _, d in ipairs(rig:GetDescendants()) do
+        if d:IsA("BasePart") then
+            local okO, off = pcall(function() return rootCF:Inverse() * d.CFrame end)
+            if okO then rel[#rel + 1] = { part = d, off = off } end
+        end
+    end
     rig.Parent = workspace
     local yaw = {}
-    pcall(function() rig:PivotTo(csUpright(yaw, root)) end)
+    csPlace(rel, csUpright(yaw, root))
 
     -- Bộ animation lấy từ Animate của chính nhân vật thật (mỗi thư mục chứa một Animation)
     local tracks = {}
@@ -8745,7 +8762,7 @@ local function csBuild(desc, name, tag, myGen)
         end
     end
 
-    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil, yaw = yaw }
+    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil, yaw = yaw, rel = rel }
     csHideOwn(char, st.origLT)
     CharSwap.state = st
     CharSwap.applied = { name = name, desc = desc, tag = tag }

@@ -495,6 +495,7 @@ METHODS.PivotTo = function(self, cf)
         end
     end
     self.__props.CFrame = cf
+    rawset(self, "__pivotSet", true)
 end
 METHODS.GetBoundingBox = function(self) return cframe(), vec3(4, 5, 4) end
 METHODS.Play = function(self) self.__playing = true end
@@ -545,6 +546,7 @@ local function buildRig(desc, rigType)
     root.Name = "HumanoidRootPart"
     local head = M.newInstance("Part", m)
     head.Name = "Head"
+    head.__props.CFrame = cframe(0, 2, 0)   -- đầu nằm cao hơn HRP (như rig thật), không trùng tâm
     for _, a in ipairs(desc.__accessories or {}) do
         local acc = M.newInstance("Accessory", m)
         acc.Name = "Acc" .. tostring(a.AssetId)
@@ -643,7 +645,14 @@ local function instanceIndex(self, k)
     if k == "Changed" then return rawget(self, "__ev").Changed end
     if DEFAULT_PROPS[k] ~= nil then return DEFAULT_PROPS[k] end
     if k == "Font" then return Enum.Font.SourceSans end
-    if k == "CFrame" then return cframe(0, 0, 0) end
+    if k == "CFrame" then
+        -- Roblox: CFrame của Model = pivot, bám theo PrimaryPart (HRP) khi có; Part thì là CFrame riêng
+        if self.ClassName == "Model" then
+            local hrpPart = findChild(self, "HumanoidRootPart")
+            if hrpPart and not rawget(self, "__pivotSet") then return hrpPart.CFrame end
+        end
+        return cframe(0, 0, 0)
+    end
     if k == "Size" then
         if self.ClassName == "Part" or self.ClassName == "BasePart" or self.ClassName == "MeshPart" then return vec3(2, 2, 1) end
         return udim2(0, 0, 0, 0)
