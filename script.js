@@ -6627,6 +6627,107 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
 
+-- Trang phục chỉ áp dụng lên Humanoid của LocalPlayer; không thay avatar tài khoản hoặc người khác.
+do
+    local PH = 206
+    local P = New("Frame", { Name = "HubOutfit_Panel",
+        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1)
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
+        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (chỉ mình bạn thấy)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local input = New("TextBox", { Size = UDim2.new(1, -108, 0, 27), Position = UDim2.new(0, 8, 0, 30),
+        Text = "", PlaceholderText = "Nhập username Roblox (kể cả người offline)...",
+        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, TextColor3 = C.WHITE,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10,
+        BorderSizePixel = 0, ZIndex = 8, }, P) Corner(input, UDim.new(0, 6))
+    local function button(text, x, y, w, color)
+        local b = New("TextButton", { Size = UDim2.new(0, w, 0, 27), Position = UDim2.new(0, x, 0, y),
+            Text = text, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8, }, P)
+        Corner(b, UDim.new(0, 6)) return b
+    end
+    local findBtn = button("🔍 Tìm", 0, 30, 88, C.ACCENT)
+    findBtn.Position = UDim2.new(1, -96, 0, 30)
+    local portrait = New("ImageLabel", { Size = UDim2.new(0, 92, 0, 92), Position = UDim2.new(0, 8, 0, 66),
+        BackgroundColor3 = C.SURFACE2, Image = "", BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(portrait, UDim.new(0, 8))
+    local info = New("TextLabel", { Size = UDim2.new(1, -116, 0, 48), Position = UDim2.new(0, 108, 0, 68),
+        Text = "Nhập username rồi bấm Tìm để xem avatar.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local applyBtn = button("👕 Mặc trang phục", 108, 120, 150, C.GREEN)
+    local restoreBtn = button("↩ Khôi phục", 266, 120, 120, C.GRAY)
+    local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 164),
+        Text = "Chỉ đổi nhân vật ở máy bạn; hồi sinh sẽ trở về trang phục gốc.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local selectedId, selectedName, original, originalHum = nil, nil, nil, nil
+    local generation = 0
+    local function say(text, good)
+        status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
+    end
+    local function find()
+        local name = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        generation += 1 local requestId = generation
+        selectedId, selectedName = nil, nil portrait.Image = ""
+        if not name or not name:match("^[%w_]+$") or #name > 20 then
+            info.Text = "Chưa chọn avatar" say("⚠️ Nhập username Roblox hợp lệ (không phải tên hiển thị).", false) return
+        end
+        info.Text = "Đang tìm " .. name .. "..." say("Đang tải avatar...", false)
+        task.spawn(function()
+            local ok, uid = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not ok or not uid then info.Text = "Không tìm thấy" say("⚠️ Không tìm được username; kiểm tra tên rồi thử lại.", false) return end
+            local okName, canonical = pcall(function() return Players:GetNameFromUserIdAsync(uid) end)
+            if requestId ~= generation or not P.Parent then return end
+            selectedId, selectedName = uid, (okName and canonical or name)
+            info.Text = "@" .. selectedName .. "\nUserId: " .. tostring(uid)
+            local okImage, image = pcall(function()
+                return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+            end)
+            if requestId ~= generation or not P.Parent then return end
+            if okImage then portrait.Image = image end
+            say(okImage and "✅ Đã tải avatar; bấm Mặc trang phục." or "⚠️ Có thể mặc, nhưng ảnh xem trước chưa tải được.", okImage)
+        end)
+    end
+    findBtn.Activated:Connect(find)
+    input.FocusLost:Connect(function(enter) if enter then find() end end)
+    applyBtn.Activated:Connect(function()
+        if not selectedId then say("⚠️ Tìm username trước khi mặc.", false) return end
+        local uid, name = selectedId, selectedName
+        generation += 1 local requestId = generation
+        say("Đang lấy trang phục của @" .. name .. "...", false)
+        task.spawn(function()
+            local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not ok or not desc then say("⚠️ Không tải được trang phục; thử lại sau.", false) return end
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then say("⚠️ Chưa có nhân vật; chờ hồi sinh rồi thử lại.", false) return end
+            if originalHum ~= hum then
+                local saved, current = pcall(function() return hum:GetAppliedDescription() end)
+                if not saved or not current then say("⚠️ Không lưu được trang phục gốc.", false) return end
+                original, originalHum = current, hum
+            end
+            local applied, err = pcall(function() hum:ApplyDescription(desc) end)
+            if applied then say("✅ Đã mặc đồ @" .. name .. " (chỉ bên bạn thấy).", true)
+            else say("⚠️ Áp trang phục thất bại: " .. tostring(err), false) end
+        end)
+    end)
+    restoreBtn.Activated:Connect(function()
+        generation += 1
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
+        local ok = pcall(function() hum:ApplyDescription(original) end)
+        if ok then original, originalHum = nil, nil say("✅ Đã khôi phục trang phục gốc.", true)
+        else say("⚠️ Không khôi phục được trang phục; thử lại.", false) end
+    end)
+end
+
 -- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 do local PH = 380
     local P = New("Frame", { Name = "HubLoc_Panel",
