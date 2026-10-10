@@ -8638,6 +8638,18 @@ local function csTeardown()
     pcall(function() st.rig:Destroy() end)
 end
 
+-- CFrame của rig: đứng THẲNG tại vị trí thân thật, chỉ xoay NGANG theo hướng bạn đang nhìn.
+-- Không lấy nghiêng/lăn/vận tốc góc của thân thật (tránh rig bị nghiêng, lăn hay xoay liên tục).
+-- Khi nhìn thẳng đứng (không có hướng ngang) thì giữ hướng ngang cũ.
+local function csUpright(yaw, r)
+    local pos = r.CFrame.Position
+    local look = r.CFrame.LookVector
+    local flat = Vector3.new(look.X, 0, look.Z)
+    if flat.Magnitude > 1e-3 then yaw.dir = flat.Unit end
+    local dir = yaw.dir or Vector3.new(0, 0, -1)
+    return CFrame.lookAt(pos, pos + dir)
+end
+
 -- Mỗi khung hình: đặt rig đúng chỗ nhân vật thật, ẩn thân thật, chọn animation theo trạng thái thật
 local function csStep(st)
     if CharSwap.state ~= st then return end
@@ -8645,7 +8657,7 @@ local function csStep(st)
     if c ~= st.char then return end                 -- nhân vật đã đổi: chờ CharacterAdded xử lý
     local r = c:FindFirstChild("HumanoidRootPart")
     if not r or st.rig.Parent == nil then return end
-    pcall(function() st.rig:PivotTo(r.CFrame) end)
+    pcall(function() st.rig:PivotTo(csUpright(st.yaw, r)) end)
     csHideOwn(c, st.origLT)
     local vel = r.AssemblyLinearVelocity
     local flat = Vector3.new(vel.X, 0, vel.Z)
@@ -8707,12 +8719,14 @@ local function csBuild(desc, name, tag, myGen)
     end
     pcall(function() rig.PrimaryPart = rigRoot end)
     pcall(function() rigHum.AutoRotate = false end)
+    pcall(function() rigHum.PlatformStand = true end)    -- rig không chạy bộ điều khiển đứng/xoay của Humanoid (chỉ animation)
     local animator = rigHum:FindFirstChildOfClass("Animator")
     if animator == nil then
         pcall(function() animator = Instance.new("Animator") animator.Parent = rigHum end)
     end
     rig.Parent = workspace
-    pcall(function() rig:PivotTo(root.CFrame) end)
+    local yaw = {}
+    pcall(function() rig:PivotTo(csUpright(yaw, root)) end)
 
     -- Bộ animation lấy từ Animate của chính nhân vật thật (mỗi thư mục chứa một Animation)
     local tracks = {}
@@ -8731,7 +8745,7 @@ local function csBuild(desc, name, tag, myGen)
         end
     end
 
-    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil }
+    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil, yaw = yaw }
     csHideOwn(char, st.origLT)
     CharSwap.state = st
     CharSwap.applied = { name = name, desc = desc, tag = tag }

@@ -187,11 +187,39 @@ local function udim(s, o) return { Scale = s or 0, Offset = o or 0, __kind = "UD
 local function udim2(xs, xo, ys, yo)
     return setmetatable({ X = udim(xs, xo), Y = udim(ys, yo), __kind = "UDim2" }, UDim2_mt)
 end
-local function cframe(x, y, z)
+-- CFrame có ma trận xoay thật (hàng-chính, 9 số): Right/Up/Look lấy từ ma trận, để test thấy được xoay
+local IDENT_M = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }
+local function mkcf(pos, m)
+    m = m or IDENT_M
+    return setmetatable({
+        Position = pos, __m = m, __kind = "CFrame",
+        RightVector = vec3(m[1], m[4], m[7]), UpVector = vec3(m[2], m[5], m[8]),
+        LookVector = vec3(-m[3], -m[6], -m[9]),
+    }, CFrame_mt)
+end
+local function matmul(a, b)
+    local r = {}
+    for i = 0, 2 do
+        for j = 0, 2 do
+            r[i * 3 + j + 1] = a[i * 3 + 1] * b[j + 1] + a[i * 3 + 2] * b[3 + j + 1] + a[i * 3 + 3] * b[6 + j + 1]
+        end
+    end
+    return r
+end
+local function matvec(a, v)
+    return vec3(a[1] * v.X + a[2] * v.Y + a[3] * v.Z, a[4] * v.X + a[5] * v.Y + a[6] * v.Z, a[7] * v.X + a[8] * v.Y + a[9] * v.Z)
+end
+local function rotX(a) local c, s = math.cos(a), math.sin(a) return { 1, 0, 0, 0, c, -s, 0, s, c } end
+local function rotY(a) local c, s = math.cos(a), math.sin(a) return { c, 0, s, 0, 1, 0, -s, 0, c } end
+local function rotZ(a) local c, s = math.cos(a), math.sin(a) return { c, -s, 0, s, c, 0, 0, 0, 1 } end
+local function anglesM(rx, ry, rz) return matmul(matmul(rotX(rx or 0), rotY(ry or 0)), rotZ(rz or 0)) end
+local function cframe(x, y, z, ...)
     local pos = type(x) == "table" and x or vec3(x, y, z)
-    return setmetatable({ Position = pos, LookVector = vec3(0, 0, -1), RightVector = vec3(1, 0, 0), UpVector = vec3(0, 1, 0), __kind = "CFrame" }, CFrame_mt)
+    if select("#", ...) == 9 then return mkcf(pos, { ... }) end
+    return mkcf(pos, nil)
 end
 M.vec3, M.cframe = vec3, cframe
+M.cframeAngles = function(x, y, z, rx, ry, rz) return mkcf(vec3(x, y, z), anglesM(rx, ry, rz)) end  -- CFrame.new(x,y,z) * CFrame.Angles(rx,ry,rz)
 
 Vec3_mt = { __kind = "Vector3" }
 Vec3_mt.__index = function(self, k)
@@ -233,13 +261,23 @@ CFrame_mt.__index = function(self, k)
     if k == "Y" then return self.Position.Y end
     if k == "Z" then return self.Position.Z end
     if k == "Lerp" then return function(a, b) return cframe(a.Position + (b.Position - a.Position) * 0.5) end end
-    if k == "Inverse" then return function(a) return a end end
+    if k == "Inverse" then
+        return function(a)
+            local m = a.__m
+            local t = { m[1], m[4], m[7], m[2], m[5], m[8], m[3], m[6], m[9] }
+            local p = matvec(t, a.Position)
+            return mkcf(vec3(-p.X, -p.Y, -p.Z), t)
+        end
+    end
     if k == "ToWorldSpace" or k == "PointToWorldSpace" then return function(a, b) return b end end
     error("CFrame has no member '" .. tostring(k) .. "'", 2)
 end
 CFrame_mt.__mul = function(a, b)
-    if type(b) == "table" and b.__kind == "Vector3" then return a.Position + b end
-    return cframe(a.Position + (b.Position or vec3()))
+    if type(b) == "table" and b.__kind == "Vector3" then return a.Position + matvec(a.__m, b) end
+    if type(b) == "table" and b.__kind == "CFrame" then
+        return mkcf(a.Position + matvec(a.__m, b.Position), matmul(a.__m, b.__m))
+    end
+    error("CFrame * " .. tostring(type(b)) .. " không hỗ trợ trong mock", 2)
 end
 CFrame_mt.__tostring = function(a) return "CFrame(" .. tostring(a.Position) .. ")" end
 
@@ -255,10 +293,15 @@ local function makeValueClasses()
     V.UDim2 = { new = udim2, fromOffset = function(x, y) return udim2(0, x, 0, y) end, fromScale = function(x, y) return udim2(x, 0, y, 0) end }
     V.UDim = { new = function(s, o) return setmetatable(udim(s, o), { __index = function(_, k) error("UDim has no member " .. k) end }) end }
     V.CFrame = {
-        new = function(x, y, z, ...) return cframe(x, y, z) end,
-        Angles = function() return cframe() end,
-        lookAt = function(p) return cframe(p) end,
-        fromEulerAnglesXYZ = function() return cframe() end,
+        new = function(x, y, z, ...) return cframe(x, y, z, ...) end,
+        Angles = function(rx, ry, rz) return mkcf(vec3(), anglesM(rx, ry, rz)) end,
+        lookAt = function(from, to, up)
+            local back = (from - to).Unit
+            local right = (up or vec3(0, 1, 0)):Cross(back).Unit
+            local upv = back:Cross(right)
+            return mkcf(from, { right.X, upv.X, back.X, right.Y, upv.Y, back.Y, right.Z, upv.Z, back.Z })
+        end,
+        fromEulerAnglesXYZ = function(rx, ry, rz) return mkcf(vec3(), anglesM(rx, ry, rz)) end,
     }
     V.TweenInfo = { new = function(t, style, dir, rep, rev, delay) return { Time = t or 1, EasingStyle = style, EasingDirection = dir, __kind = "TweenInfo" } end }
     V.ColorSequence = { new = function(a, b) return { __kind = "ColorSequence", a = a, b = b } end }
@@ -441,16 +484,14 @@ METHODS.LoadAnimation = function(self, anim)
     rawset(self, "__tracks", list)
     return t
 end
--- Roblox: PivotTo dời CẢ model (mọi BasePart con) theo cùng độ lệch vị trí (mô phỏng: chỉ tịnh tiến)
+-- Roblox: PivotTo đặt CẢ model (mọi BasePart con) theo CFrame mới, giữ quan hệ tương đối (có xoay)
 METHODS.PivotTo = function(self, cf)
-    local old = rawget(self, "__props") and self.__props.CFrame
-    local op = (old and old.Position) or vec3(0, 0, 0)
-    local np = cf.Position
-    local dx, dy, dz = np.X - op.X, np.Y - op.Y, np.Z - op.Z
+    local old = (rawget(self, "__props") and self.__props.CFrame) or cframe(0, 0, 0)
+    local oldInv = old.Inverse
+    local rel_base = oldInv(old)
     for _, d in ipairs(M.descendants(self)) do
         if d.ClassName == "Part" then
-            local p = d.CFrame.Position
-            d.CFrame = cframe(p.X + dx, p.Y + dy, p.Z + dz)
+            d.CFrame = cf * (rel_base * d.CFrame)     -- giữ nguyên quan hệ giữa các part, xoay cùng model
         end
     end
     self.__props.CFrame = cf

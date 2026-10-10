@@ -1212,6 +1212,70 @@ test("module chỉ ghi LocalTransparencyModifier lên thân thật (không đụ
     M.auditLog = nil
 end)
 
+local function near(a, b) return math.abs(a - b) < 1e-6 end
+
+test("rig luôn đứng thẳng: thân thật nghiêng/lăn thì rig KHÔNG nghiêng theo, chỉ xoay ngang theo hướng bạn nhìn", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rig = puppets()[1]
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframeAngles(4, 3, 2, 0.6, 0.9, 0.5)
+    M.stepFrames(2)
+    noErrors()
+    local rcf = rig.CFrame
+    expect(near(rcf.UpVector.Y, 1), "rig bị nghiêng (UpVector.Y = " .. tostring(rcf.UpVector.Y) .. ")")
+    expect(near(rcf.Position.X, 4) and near(rcf.Position.Y, 3) and near(rcf.Position.Z, 2), "rig không đặt đúng vị trí thân thật")
+    local hl = hrp.CFrame.LookVector
+    local flat = M.vec3(hl.X, 0, hl.Z).Unit
+    expect(near(rcf.LookVector.X, flat.X) and near(rcf.LookVector.Z, flat.Z),
+        "rig không hướng theo hướng nhìn ngang của bạn")
+end)
+
+test("bạn đứng yên qua nhiều khung: rig không tự xoay (hướng và vị trí giữ nguyên)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rig = puppets()[1]
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 0.7, 0)
+    M.stepFrames(1)
+    local look0, pos0 = rig.CFrame.LookVector, rig.CFrame.Position
+    for _ = 1, 30 do M.stepFrames(1) end
+    noErrors()
+    expect(near(rig.CFrame.LookVector.X, look0.X) and near(rig.CFrame.LookVector.Z, look0.Z), "rig tự xoay khi bạn đứng yên")
+    expect(near(rig.CFrame.Position.X, pos0.X) and near(rig.CFrame.Position.Z, pos0.Z), "rig tự trôi khi bạn đứng yên")
+end)
+
+test("rig Humanoid bật PlatformStand: không chạy bộ điều khiển đứng/xoay của Humanoid", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rigHum = puppets()[1]:FindFirstChildOfClass("Humanoid")
+    eq(rigHum.PlatformStand, true, "rig Humanoid chưa bật PlatformStand")
+    noErrors()
+end)
+
+test("bạn nhìn thẳng đứng (không có hướng ngang): không lỗi, rig giữ hướng ngang cũ", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rig = puppets()[1]
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 0.7, 0)
+    M.stepFrames(1)
+    local keep = rig.CFrame.LookVector
+    hrp.CFrame = M.cframeAngles(4, 3, 2, -math.pi / 2, 0, 0)   -- nhìn thẳng xuống
+    M.stepFrames(3)
+    noErrors()
+    expect(near(rig.CFrame.LookVector.X, keep.X) and near(rig.CFrame.LookVector.Z, keep.Z), "rig đổi hướng khi bạn nhìn thẳng xuống")
+    expect(near(rig.CFrame.UpVector.Y, 1), "rig bị nghiêng khi bạn nhìn thẳng xuống")
+end)
+
 -- ===================== chạy =====================
 local failed, passed = {}, 0
 for _, t in ipairs(tests) do
