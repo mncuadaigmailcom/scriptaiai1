@@ -11,6 +11,9 @@ M.warned = {}        -- warn()
 M.created = {}       -- mọi Instance đã tạo
 M.clipboard = nil    -- setclipboard
 M.applyCalls = {}    -- { humanoid = , desc = } mỗi lần ApplyDescription
+M.rigCalls = {}     -- { desc =, rigType = } mỗi lần CreateHumanoidModelFrom*
+M.stateChanges = {}  -- { humanoid =, state = } mỗi lần ChangeState
+M.products = {}     -- assetId -> { Name =, Creator = { Name = } } (GetProductInfo giả)
 M.httpLog = {}       -- { method =, url =, body = }
 M.renderSteps = {}   -- BindToRenderStep
 M.users = {}         -- lower(name) -> userId (dữ liệu giả)
@@ -314,13 +317,16 @@ local DEFAULT_PROPS = {
     FieldOfView = 70, CameraType = nil, Gravity = 196.2, PlaceId = 111, JobId = "job-current",
     Name = nil, ClassName = nil, Parent = nil, Archivable = true,
     Locked = false, SelectionBehavior = nil,
+    LocalTransparencyModifier = 0,
 }
 
 local BASE_CLASS = {
     Humanoid = "Instance", BasePart = "Instance", Part = "BasePart", MeshPart = "BasePart", Model = "Instance",
     Frame = "GuiObject", TextLabel = "GuiObject", TextButton = "GuiObject", TextBox = "GuiObject", ImageLabel = "GuiObject",
     ImageButton = "GuiObject", ScrollingFrame = "GuiObject", GuiObject = "Instance", ScreenGui = "LayerCollector",
-    LayerCollector = "Instance", UIStroke = "Instance",
+    LayerCollector = "Instance", UIStroke = "Instance", ViewportFrame = "GuiObject",
+    WorldModel = "Instance", Camera = "Instance", Accessory = "Instance", LocalScript = "Instance",
+    Animator = "Instance", HumanoidDescription = "Instance",
 }
 
 local function isA(obj, cls)
@@ -412,6 +418,10 @@ METHODS.Clone = function(self)
     local c = M.newInstance(self.ClassName)
     for k, v in pairs(self.__props) do c.__props[k] = v end
     c.Name = self.Name
+    if self.__accessories then
+        c.__accessories = {}
+        for i, a in ipairs(self.__accessories) do c.__accessories[i] = a end
+    end
     return c
 end
 METHODS.GetAttribute = function(self, k) return self.__attrs[k] end
@@ -427,9 +437,16 @@ METHODS.Pause = function(self) self.__playing = false end
 METHODS.Cancel = function(self) self.__playing = false end
 METHODS.Kick = function(self, msg) self.__kicked = msg end
 METHODS.ApplyDescription = function(self, desc)
+    -- Roblox: Humanoid do SERVER tạo (nhân vật của người chơi) không cho client gọi ApplyDescription
+    if self.__serverOwned then error("Humanoid::ApplyDescription() can only be called by the backend server", 0) end
     if M.failures.apply then error(M.failures.apply, 0) end
     self.__appliedDesc = desc
     M.applyCalls[#M.applyCalls + 1] = { humanoid = self, desc = desc }
+end
+METHODS.GetState = function(self) return self.__state or M.Enum.HumanoidStateType.Running end
+METHODS.ChangeState = function(self, st)
+    self.__state = st
+    M.stateChanges[#M.stateChanges + 1] = { humanoid = self, state = st }
 end
 METHODS.GetAppliedDescription = function(self)
     if M.failures.getApplied then error("GetAppliedDescription failed", 0) end
@@ -438,7 +455,52 @@ end
 METHODS.TakeDamage = function(self, n) self.Health = self.Health - n end
 METHODS.MoveTo = function(self, p) self.__moveTo = p end
 METHODS.Raycast = function(self) return nil end
-METHODS.GetAccessories = function(self) return self.__accessories or {} end
+METHODS.GetAccessories = function(self)
+    local out = {}
+    for i, a in ipairs(self.__accessories or {}) do out[i] = a end
+    return out
+end
+METHODS.SetAccessories = function(self, list, includeRigid)
+    if M.failures.setAccessories then error(M.failures.setAccessories, 0) end
+    local out = {}
+    for i, a in ipairs(list or {}) do out[i] = a end
+    self.__accessories = out
+end
+-- Players:CreateHumanoidModelFromDescription / FromUserId: Model do CLIENT tạo (Humanoid không server-owned)
+local function buildRig(desc, rigType)
+    if M.failures.rig then error(M.failures.rig, 0) end
+    if type(desc) ~= "table" or not rawget(desc, "__class") then error("invalid HumanoidDescription", 0) end
+    M.rigCalls[#M.rigCalls + 1] = { desc = desc, rigType = rigType }
+    local m = M.newInstance("Model")
+    m.Name = "Rig"
+    m.__props.RigType = rigType
+    local hum = M.newInstance("Humanoid", m)
+    hum.Name = "Humanoid"
+    local root = M.newInstance("Part", m)
+    root.Name = "HumanoidRootPart"
+    local head = M.newInstance("Part", m)
+    head.Name = "Head"
+    for _, a in ipairs(desc.__accessories or {}) do
+        local acc = M.newInstance("Accessory", m)
+        acc.Name = "Acc" .. tostring(a.AssetId)
+        acc.__props.AssetId = a.AssetId
+        local handle = M.newInstance("Part", acc)
+        handle.Name = "Handle"
+    end
+    return m
+end
+METHODS.CreateHumanoidModelFromDescription = function(self, desc, rigType) return buildRig(desc, rigType) end
+METHODS.CreateHumanoidModelFromUserId = function(self, id)
+    local d = M.descs[id]
+    if not d then error("HumanoidDescription not found for userId " .. tostring(id), 0) end
+    return buildRig(d, M.Enum.HumanoidRigType.R15)
+end
+METHODS.GetProductInfo = function(self, id)
+    if M.failures.product then error("GetProductInfo failed", 0) end
+    local p = M.products[id]
+    if not p then error("Product not found: " .. tostring(id), 0) end
+    return p
+end
 METHODS.GetPlayers = function(self) return M.getPlayers() end
 METHODS.GetPlayerByUserId = function(self, id) return M.getPlayerByUserId(id) end
 METHODS.GetUserIdFromNameAsync = function(self, name)
@@ -540,6 +602,7 @@ local function instanceIndex(self, k)
     if k == "Value" and self.ClassName == "BoolValue" then return false end
     if k == "Value" and self.ClassName == "StringValue" then return "" end
     if k == "Text" then return "" end
+    if k == "RigType" and self.ClassName == "Humanoid" then return Enum.HumanoidRigType.R15 end
     error(string.format("'%s' is not a valid member of %s '%s'", tostring(k), tostring(self.ClassName), tostring(rawget(self, "__name") or "")), 2)
 end
 
@@ -716,6 +779,9 @@ function M.spawnCharacter()
     char.Name = "Tester"
     local hum = M.newInstance("Humanoid", char)
     hum.Name = "Humanoid"
+    hum.__serverOwned = true   -- nhân vật của người chơi do SERVER tạo
+    local anim = M.newInstance("LocalScript", char)
+    anim.Name = "Animate"
     local root = M.newInstance("Part", char)
     root.Name = "HumanoidRootPart"
     local head = M.newInstance("Part", char)
@@ -731,6 +797,7 @@ function M.reset()
     M.errors, M.printed, M.warned, M.created = {}, {}, {}, {}
     M.clipboard = nil
     M.applyCalls, M.httpLog, M.renderSteps = {}, {}, {}
+    M.rigCalls, M.products, M.stateChanges = {}, {}, {}
     M.users, M.profiles, M.presence, M.accessories = {}, {}, {}, {}
     M.failures, M.httpRoutes = {}, {}
     M.descs = {}
@@ -757,6 +824,7 @@ function M.reset()
     M.services.Lighting = newService("Lighting")
     M.services.Workspace = newService("Workspace")
     M.services.StarterGui = newService("StarterGui")
+    M.services.MarketplaceService = newService("MarketplaceService")
 
     M.localPlayer = M.newInstance("Player")
     M.localPlayer.Name = "Tester"
@@ -786,6 +854,11 @@ function M.reset()
     M.spawnCharacter()
     M.clipboard = nil
     M.spawnNoCharacterFlag = false
+end
+
+-- Phụ kiện theo đúng dạng HumanoidDescription:GetAccessories(): { AssetId, AccessoryType, IsLayered, Order, Puffiness }
+function M.acc(assetId, typeName, layered)
+    return { AssetId = assetId, AccessoryType = M.Enum.AccessoryType[typeName], IsLayered = layered == true, Order = 1, Puffiness = 1 }
 end
 
 function M.makeDesc(userId, accessories)
