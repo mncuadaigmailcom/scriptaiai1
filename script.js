@@ -8789,12 +8789,6 @@ end end
 
     -- ===== LOGIC SKIN / NHÂN VẬT =====
 
-    -- Các trạng thái Humanoid được đồng bộ sang rig (an toàn cho animation, không làm rig đổ)
-    local SYNC_STATES = {}
-    for _, n in ipairs({ "Running", "RunningNoPhysics", "Jumping", "Freefall", "Landed", "Climbing", "Swimming" }) do
-        SYNC_STATES[Enum.HumanoidStateType[n]] = true
-    end
-
     -- Đặc tả skin sau khi bỏ các phụ kiện bạn đã tắt (không sửa rec.desc gốc)
     function PI.FilteredDesc(rec)
         if type(rec) ~= "table" or rec.desc == nil then return nil, "chưa có dữ liệu skin" end
@@ -8830,9 +8824,10 @@ end end
     -- Thay nhân vật của bạn bằng nhân vật (rig) dựng theo skin của người kia. Chỉ bạn thấy.
     --  • Nhân vật THẬT của bạn vẫn là thứ điều khiển: di chuyển, nhảy, va chạm đều không đổi.
     --    Thân thật chỉ bị ẩn phía client (LocalTransparencyModifier = 1, áp lại mỗi khung hình).
-    --  • Rig KHÔNG bị neo. Mỗi khung hình rig được đặt đúng CFrame VÀ vận tốc của nhân vật thật:
-    --      bạn đứng yên → rig đứng yên; bạn chạy/nhảy → rig chạy/nhảy theo, animation Roblox khớp.
-    --  • Rig không va chạm (CanCollide = false) nên không đẩy hay chặn ai.
+    --  • Rig được NEO hoàn toàn và không va chạm: không có vật lý nào làm nó xoay, đổ hay trôi.
+    --    Mỗi khung hình rig được đặt đúng vị trí + hướng của nhân vật thật (PivotTo).
+    --  • Animation do script điều khiển theo trạng thái thật của bạn (idle / walk / jump / fall),
+    --    bộ animation lấy từ Animate của chính nhân vật bạn. Đứng yên → idle; di chuyển → walk.
     -- Trả về (ok, thông báo)
     function PI.Swap(rec)
         if type(rec) ~= "table" or rec.desc == nil then return false, "chưa có dữ liệu skin — hãy tra cứu người chơi trước" end
@@ -8852,28 +8847,39 @@ end end
             pcall(function() rig:Destroy() end)
             return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
         end
-        local rigParts = {}
         for _, d in ipairs(rig:GetDescendants()) do
             if d:IsA("BasePart") then
-                rigParts[#rigParts + 1] = d
                 pcall(function()
-                    d.Anchored = false      -- KHÔNG neo: để Animate thấy rig đang chạy/nhảy
+                    d.Anchored = true       -- NEO: không vật lý → không tự xoay/đổ/trôi
                     d.CanCollide = false    -- không va chạm với ai
                 end)
             end
         end
         pcall(function() rig.PrimaryPart = rigRoot end)
-        pcall(function() rigHum.AutoRotate = false end)   -- hướng quay do nhân vật thật quyết định
-        pcall(function()
-            if rigHum:FindFirstChildOfClass("Animator") == nil then Instance.new("Animator").Parent = rigHum end
-        end)
-        -- Sao chép Animate của nhân vật thật để rig có hoạt động đi/đứng/nhảy như nhân vật gốc
-        local animSrc = char:FindFirstChild("Animate")
-        if animSrc and animSrc:IsA("LocalScript") then
-            pcall(function() local c = animSrc:Clone() c.Parent = rig end)
+        pcall(function() rigHum.AutoRotate = false end)
+        local animator = rigHum:FindFirstChildOfClass("Animator")
+        if animator == nil then
+            pcall(function() animator = Instance.new("Animator") animator.Parent = rigHum end)
         end
         rig.Parent = workspace
         pcall(function() rig:PivotTo(root.CFrame) end)
+
+        -- Nạp animation idle/walk/jump/fall từ Animate của nhân vật thật (mỗi thư mục chứa một Animation)
+        local tracks = {}
+        local animSrc = char:FindFirstChild("Animate")
+        if animator and animSrc then
+            for _, name in ipairs({ "idle", "walk", "jump", "fall" }) do
+                local folder = animSrc:FindFirstChild(name)
+                local animObj = folder and folder:FindFirstChildOfClass("Animation")
+                if animObj then
+                    local okL, track = pcall(function() return animator:LoadAnimation(animObj) end)
+                    if okL and track then
+                        if name == "idle" or name == "walk" then pcall(function() track.Looped = true end) end
+                        tracks[name] = track
+                    end
+                end
+            end
+        end
 
         -- Ẩn thân thật (chỉ phía client). Roblox tự đặt lại LocalTransparencyModifier của nhân vật
         -- mỗi khung hình (bộ điều khiển độ trong suốt của camera), nên việc ẩn được áp lại MỖI khung.
@@ -8888,29 +8894,36 @@ end end
         end
         hideOwn(char)
 
-        local sw = { rig = rig, rigParts = rigParts, origLT = origLT, rec = rec, char = char }
+        local sw = { rig = rig, origLT = origLT, rec = rec, char = char, tracks = tracks, animName = nil, cur = nil }
+        -- Đổi animation (chỉ khi cần) và chỉnh tốc độ walk theo tốc độ chạy thật
+        local function setAnim(name, speed)
+            if sw.animName ~= name then
+                if sw.cur then pcall(function() sw.cur:Stop(0.15) end) end
+                sw.cur = tracks[name]
+                sw.animName = name
+                if sw.cur then pcall(function() sw.cur:Play(0.15) end) end
+            end
+            if name == "walk" and sw.cur then
+                pcall(function() sw.cur:AdjustSpeed(math.clamp(speed / 14.5, 0.1, 3)) end)
+            end
+        end
         sw.step = function()
             local c = player.Character
             local r = c and c:FindFirstChild("HumanoidRootPart")
             if not r or rig.Parent == nil then return end
-            -- Đặt rig đúng vị trí, hướng và VẬN TỐC của bạn (đứng yên thì vận tốc = 0 → rig đứng yên)
             pcall(function() rig:PivotTo(r.CFrame) end)
-            local vel = r.AssemblyLinearVelocity
-            for _, p in ipairs(sw.rigParts) do
-                pcall(function()
-                    p.AssemblyLinearVelocity = vel
-                    p.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                end)
-            end
             hideOwn(c)
-            -- Đồng bộ trạng thái an toàn (đứng/chạy/nhảy/rơi) để animation khớp; KHÔNG đồng bộ
-            -- Physics/Ragdoll/FallingDown... vì sẽ làm rig đổ và xoay.
+            local vel = r.AssemblyLinearVelocity
+            local flat = Vector3.new(vel.X, 0, vel.Z)
             local h = c:FindFirstChildOfClass("Humanoid")
             local okS, st = pcall(function() return h and h:GetState() end)
-            if okS and st ~= nil and st ~= sw.lastState and SYNC_STATES[st] then
-                sw.lastState = st
-                pcall(function() rigHum:ChangeState(st) end)
-            end
+            local S = Enum.HumanoidStateType
+            local name
+            if okS and st == S.Jumping then name = "jump"
+            elseif okS and st == S.Freefall then name = "fall"
+            elseif flat.Magnitude > 0.5 then name = "walk"
+            else name = "idle" end
+            setAnim(name, flat.Magnitude)
         end
         PI.swap = sw
         PI.applied = rec

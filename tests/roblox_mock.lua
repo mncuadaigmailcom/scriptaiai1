@@ -430,6 +430,17 @@ METHODS.CaptureFocus = function(self) self.__focused = true end
 METHODS.ReleaseFocus = function(self, submit) self.__focused = false end
 METHODS.GetMouse = function(self) return M.newInstance("Mouse") end
 METHODS.GetPivot = function(self) return cframe() end
+-- Animator:LoadAnimation → track giả lập (ghi lại để test kiểm tra đang phát animation nào)
+METHODS.LoadAnimation = function(self, anim)
+    local t = { __anim = anim, playing = false, speed = 1, Looped = false, __name = anim and anim.Name }
+    t.Play = function(tr) tr.playing = true end
+    t.Stop = function(tr) tr.playing = false end
+    t.AdjustSpeed = function(tr, sp) tr.speed = sp end
+    local list = rawget(self, "__tracks") or {}
+    list[#list + 1] = t
+    rawset(self, "__tracks", list)
+    return t
+end
 -- Roblox: PivotTo dời CẢ model (mọi BasePart con) theo cùng độ lệch vị trí (mô phỏng: chỉ tịnh tiến)
 METHODS.PivotTo = function(self, cf)
     local old = rawget(self, "__props") and self.__props.CFrame
@@ -797,6 +808,14 @@ function M.spawnCharacter()
     hum.__serverOwned = true   -- nhân vật của người chơi do SERVER tạo
     local anim = M.newInstance("LocalScript", char)
     anim.Name = "Animate"
+    -- Animate mặc định của Roblox: mỗi thư mục (idle/walk/jump/fall) chứa một Animation
+    for _, folder in ipairs({ "idle", "walk", "jump", "fall" }) do
+        local f = M.newInstance("Folder", anim)
+        f.Name = folder
+        local a = M.newInstance("Animation", f)
+        a.Name = string.upper(string.sub(folder, 1, 1)) .. string.sub(folder, 2) .. "Anim"
+        a.AnimationId = "rbxassetid://" .. folder .. "-id"
+    end
     local root = M.newInstance("Part", char)
     root.Name = "HumanoidRootPart"
     local head = M.newInstance("Part", char)

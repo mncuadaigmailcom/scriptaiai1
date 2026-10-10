@@ -477,20 +477,46 @@ test("thân thật bị ẩn ở phía client; camera VẪN theo nhân vật th�
     expect(ownChar():FindFirstChild("HumanoidRootPart").Anchored == false, "nhân vật thật bị neo")
 end)
 
-test("trạng thái nhân vật thật (nhảy/rơi) được đồng bộ sang rig để animation khớp", function()
+local function animatorOf(rig)
+    local hum = rig:FindFirstChildOfClass("Humanoid")
+    return hum and hum:FindFirstChildOfClass("Animator")
+end
+local function playingAnims(rig)
+    local out = {}
+    for _, t in ipairs(animatorOf(rig).__tracks or {}) do if t.playing then out[#out + 1] = t.__name end end
+    return out
+end
+local function has(list, name)
+    for _, v in ipairs(list) do if v == name then return true end end
+    return false
+end
+
+test("nhảy/rơi/đứng: rig phát animation jump/fall/idle theo trạng thái thật của bạn", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     M.stepFrames(1)
+    local rig = puppets()[1]
     ownHum().__state = M.Enum.HumanoidStateType.Jumping
     M.stepFrames(1)
     noErrors()
-    local rigHum = puppets()[1]:FindFirstChildOfClass("Humanoid")
-    eq(rigHum.__state, M.Enum.HumanoidStateType.Jumping, "rig không nhảy theo nhân vật thật")
+    local p = playingAnims(rig)
+    expect(has(p, "JumpAnim"), "không phát animation nhảy: " .. table.concat(p, ","))
+    expect(not has(p, "WalkAnim") and not has(p, "IdleAnim"), "còn animation cũ khi nhảy")
+    ownHum().__state = M.Enum.HumanoidStateType.Freefall
+    M.stepFrames(1)
+    expect(has(playingAnims(rig), "FallAnim"), "không phát animation rơi")
+    ownHum().__state = M.Enum.HumanoidStateType.Running
+    M.stepFrames(1)
+    noErrors()
+    p = playingAnims(rig)
+    expect(has(p, "IdleAnim") and not has(p, "FallAnim"), "đứng yên không về idle: " .. table.concat(p, ","))
+    -- Trạng thái Dead không được đồng bộ (rig vẫn đứng idle, không lỗi)
     ownHum().__state = M.Enum.HumanoidStateType.Dead
     M.stepFrames(1)
-    eq(rigHum.__state, M.Enum.HumanoidStateType.Jumping, "trạng thái Dead không được đồng bộ (rig vẫn sống)")
+    noErrors()
+    eq(rig:FindFirstChildOfClass("Humanoid").__state ~= M.Enum.HumanoidStateType.Dead, true, "rig bị đưa vào Dead")
 end)
 
 test("thân thật vẫn ẩn sau khi Roblox đặt lại độ trong suốt (triệu chứng: nhân vật không bị ẩn)", function()
@@ -525,7 +551,7 @@ test("Trả nhân vật gốc: độ trong suốt cục bộ trả về giá tr�
     end
 end)
 
-test("rig KHÔNG bị neo, không va chạm; vận tốc của rig = vận tốc nhân vật thật (để Animate chạy đúng)", function()
+test("rig được NEO hoàn toàn và không va chạm: không có vật lý làm rig xoay/đổ/trôi", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
@@ -535,19 +561,15 @@ test("rig KHÔNG bị neo, không va chạm; vận tốc của rig = vận tốc
     for _, p in ipairs(M.descendants(rig)) do
         if p.ClassName == "Part" then
             n = n + 1
-            expect(p.Anchored ~= true, "phần " .. tostring(p.Name) .. " bị neo (rig sẽ không chạy animation)")
+            eq(p.Anchored, true, "phần " .. tostring(p.Name) .. " chưa được neo")
             eq(p.CanCollide, false, "phần " .. tostring(p.Name) .. " vẫn va chạm")
         end
     end
     expect(n >= 2, "rig thiếu phần")
     ownChar():FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity = M.vec3(0, 0, 12)
-    M.stepFrames(1)
+    M.stepFrames(3)
     noErrors()
-    for _, p in ipairs(M.descendants(rig)) do
-        if p.ClassName == "Part" then
-            eq(p.AssemblyLinearVelocity.Z, 12, "phần " .. tostring(p.Name) .. " không có vận tốc của bạn")
-        end
-    end
+    eq(rig:FindFirstChild("HumanoidRootPart").Anchored, true, "rig bị thả lỏng")
 end)
 
 test("bạn ĐỨNG YÊN thì rig đứng yên (vận tốc 0, vị trí không đổi qua nhiều khung)", function()
@@ -570,44 +592,46 @@ test("bạn ĐỨNG YÊN thì rig đứng yên (vận tốc 0, vị trí không 
     eq(rigRoot.AssemblyLinearVelocity.Z, 0, "rig có vận tốc khi bạn đứng yên (Z)")
 end)
 
-test("bạn DI CHUYỂN thì rig di chuyển theo (vị trí + vận tốc khớp bạn); dừng lại thì rig dừng", function()
+test("bạn DI CHUYỂN thì rig di chuyển theo và chạy animation walk; dừng lại thì rig dừng và về idle", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    local rig = puppets()[1]
+    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframe(0, 3, 0)
     hrp.AssemblyLinearVelocity = M.vec3(16, 0, 0)     -- đang chạy sang X
+    ownHum().__state = M.Enum.HumanoidStateType.Running
     M.stepFrames(1)
     noErrors()
-    local rigRoot = puppets()[1]:FindFirstChild("HumanoidRootPart")
     eq(rigRoot.CFrame.Position.X, 0, "rig chưa đặt đúng vị trí bạn")
-    eq(rigRoot.AssemblyLinearVelocity.X, 16, "rig không có vận tốc chạy của bạn")
+    expect(has(playingAnims(rig), "WalkAnim"), "không phát animation đi/chạy")
+    local walk
+    for _, t in ipairs(animatorOf(rig).__tracks) do if t.__name == "WalkAnim" then walk = t end end
+    expect(walk.speed > 1, "tốc độ animation không theo tốc độ chạy (speed=" .. tostring(walk.speed) .. ")")
     hrp.CFrame = M.cframe(8, 3, 0)
-    hrp.AssemblyLinearVelocity = M.vec3(16, 0, 0)
     M.stepFrames(1)
     eq(rigRoot.CFrame.Position.X, 8, "rig không theo bạn khi chạy")
     -- Bạn dừng lại
     hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)
     M.stepFrames(3)
     noErrors()
-    eq(rigRoot.AssemblyLinearVelocity.X, 0, "rig vẫn trượt khi bạn đã dừng")
     eq(rigRoot.CFrame.Position.X, 8, "rig vẫn đi khi bạn đã dừng")
+    expect(has(playingAnims(rig), "IdleAnim") and not has(playingAnims(rig), "WalkAnim"), "dừng lại nhưng không về idle")
 end)
 
-test("bạn NHẢY thì rig nhảy theo (vận tốc Y và trạng thái Jumping khớp bạn)", function()
+test("bạn NHẢY thì rig nhảy theo (vị trí độ cao khớp bạn)", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
-    hrp.AssemblyLinearVelocity = M.vec3(0, 50, 0)
+    hrp.CFrame = M.cframe(0, 10, 0)
     ownHum().__state = M.Enum.HumanoidStateType.Jumping
     M.stepFrames(1)
     noErrors()
-    local rig = puppets()[1]
-    eq(rig:FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity.Y, 50, "rig không có vận tốc nhảy")
-    eq(rig:FindFirstChildOfClass("Humanoid").__state, M.Enum.HumanoidStateType.Jumping, "rig không ở trạng thái nhảy")
+    eq(puppets()[1]:FindFirstChild("HumanoidRootPart").CFrame.Position.Y, 10, "rig không nhảy theo độ cao của bạn")
 end)
 
 test("rig luôn đặt đúng vị trí nhân vật thật (không trôi khỏi bạn)", function()
@@ -672,15 +696,17 @@ test("rig bám theo nhân vật thật khi nhân vật di chuyển", function()
     eq(puppets()[1].CFrame.Position.Z, 7, "rig không theo khi di chuyển tiếp")
 end)
 
-test("Animate của nhân vật được sao chép sang rig (có hoạt động đi/đứng)", function()
+test("rig không sao chép Animate (tránh hai bộ điều khiển animation); bộ animation lấy từ Animate của bạn", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
     click(panel(), "Thay nhân vật")
     local rig = puppets()[1]
-    expect(rig:FindFirstChild("Animate") ~= nil, "thiếu Animate trên rig")
-    expect(rig:FindFirstChildOfClass("Humanoid"):FindFirstChildOfClass("Animator") ~= nil, "thiếu Animator dưới Humanoid của rig")
-    noErrors()
+    expect(rig:FindFirstChild("Animate") == nil, "rig còn Animate sao chép (xung đột animation)")
+    local names = {}
+    for _, t in ipairs(animatorOf(rig).__tracks or {}) do names[#names + 1] = t.__name end
+    table.sort(names)
+    eq(table.concat(names, ","), "FallAnim,IdleAnim,JumpAnim,WalkAnim", "bộ animation nạp không đủ")
 end)
 
 test("tắt phụ kiện: rig, 3D và dòng tóm tắt đều cập nhật", function()
