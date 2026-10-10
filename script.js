@@ -6723,11 +6723,14 @@ do
             end
             selectedId, selectedName = uid, typed
             info.Text = "@" .. typed .. "\nUserId: " .. tostring(uid)
-            local okImage, image = pcall(function()
-                return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+            -- Ảnh xem trước tải riêng: Roblox có thể chờ thumbnail rất lâu.
+            task.spawn(function()
+                local okImage, image = pcall(function()
+                    return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+                end)
+                if okImage and requestId == generation and P.Parent then portrait.Image = image end
             end)
-            if requestId ~= generation or not P.Parent then return end
-            if okImage then portrait.Image = image end
+            say("Đã tìm thấy @" .. typed .. "; đang tải trang phục...", false)
             local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
             if requestId ~= generation or not P.Parent then return end
             if not ok or not desc then say("⚠️ Không lấy được trang phục Roblox: " .. tostring(desc), false) return end
@@ -6736,7 +6739,12 @@ do
             if not hum then say("⚠️ Chưa có nhân vật; chờ hồi sinh rồi thử lại.", false) return end
             if originalHum ~= hum then
                 local saved, current = pcall(function() return hum:GetAppliedDescription() end)
-                if not saved or not current then say("⚠️ Không lưu được trang phục gốc.", false) return end
+                if not saved or not current then
+                    -- Một số game tạo Humanoid không có AppliedDescription hợp lệ.
+                    saved, current = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+                end
+                if requestId ~= generation or not P.Parent then return end
+                if not saved or not current then say("⚠️ Không lấy được trang phục gốc: " .. tostring(current), false) return end
                 original, originalHum = current, hum
             end
             -- Reset buộc Roblox dựng lại phụ kiện/quần áo; ApplyDescription thông thường
@@ -6747,7 +6755,7 @@ do
             end
             if requestId ~= generation or not P.Parent then return end
             if player.Character ~= char then say("⚠️ Nhân vật đã hồi sinh khi tải đồ; bấm Mặc lại.", false)
-            elseif applied then say("✅ Đã áp đồ @" .. typed .. " ở máy bạn. Nếu không thấy thay đổi, game có thể tự ghi đè ngoại hình.", true)
+            elseif applied then say("✅ Đã gọi ApplyDescription cho @" .. typed .. ". Nếu ngoại hình không đổi, game có thể chặn hoặc ghi đè thay đổi cục bộ.", true)
             else say("⚠️ Không áp được trang phục: " .. tostring(err), false) end
         end)
     end)
