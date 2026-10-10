@@ -6720,8 +6720,10 @@ do
             local part = character:FindFirstChild(name)
             if part and part:IsA("BasePart") then
                 part.Color = entry.color part.Material = entry.material
-                for _, child in ipairs(visualChildren(part)) do child:Destroy() end
-                for _, child in ipairs(entry.children) do child:Clone().Parent = part end
+                if #entry.children > 0 then
+                    for _, child in ipairs(visualChildren(part)) do child:Destroy() end
+                    for _, child in ipairs(entry.children) do child:Clone().Parent = part end
+                end
             end
         end
     end
@@ -6754,19 +6756,38 @@ do
         local items = outfitParts(source)
         local visuals = saveVisuals(source)
         if #items == 0 and next(visuals) == nil then return false, "Avatar nguồn không có ngoại hình để sao chép" end
-        for _, item in ipairs(outfitParts(character)) do item:Destroy() end
-        local count, hats, failed = 0, 0, 0
+        local oldHats, oldClothes = {}, {}
+        for _, item in ipairs(outfitParts(character)) do
+            if item:IsA("Accessory") then oldHats[#oldHats + 1] = item
+            else oldClothes[#oldClothes + 1] = item end
+        end
+        local count, hats, failed, expectedHats = 0, 0, 0, 0
+        local newClothes = {}
         for _, item in ipairs(items) do
             local cloned, clone = pcall(function() return item:Clone() end)
-            if cloned and clone then
-                if clone:IsA("Accessory") then
-                    if attachAccessory(character, humanoid, clone) then hats += 1
-                    else failed += 1; clone:Destroy() end
-                else clone.Parent = character count += 1 end
+            if item:IsA("Accessory") then
+                expectedHats += 1
+                if cloned and clone and attachAccessory(character, humanoid, clone) then hats += 1
+                else failed += 1; if clone then clone:Destroy() end end
+            elseif cloned and clone then newClothes[#newClothes + 1] = clone
             else failed += 1 end
         end
+        -- ĐỪNG xoá tóc/mũ do ApplyDescription tạo ra nếu avatar mẫu rỗng
+        -- hoặc không gắn được phụ kiện mới. Chỉ thay sau khi gắn ít nhất một món.
+        if hats > 0 then for _, item in ipairs(oldHats) do item:Destroy() end end
+        if #newClothes > 0 then
+            local replaced = {}
+            for _, item in ipairs(newClothes) do replaced[item.ClassName] = true end
+            for _, item in ipairs(oldClothes) do
+                if replaced[item.ClassName] then item:Destroy() end
+            end
+            for _, item in ipairs(newClothes) do item.Parent = character count += 1 end
+        end
         applyVisuals(character, visuals)
-        return true, string.format("%d quần áo/body · %d tóc/mũ/phụ kiện gắn được · %d lỗi; đầu động R15 phụ thuộc ApplyDescription", count, hats, failed)
+        local note = expectedHats == 0 and "avatar mẫu không trả về tóc/mũ" or
+            (hats == 0 and "không gắn được tóc/mũ; đã giữ phụ kiện ApplyDescription" or "")
+        return true, string.format("%d quần áo/body · %d/%d tóc/mũ gắn được · %d lỗi%s", count, hats, expectedHats, failed,
+            note ~= "" and (" · " .. note) or "")
     end
     local function say(text, good)
         status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
