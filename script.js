@@ -6634,7 +6634,18 @@ do
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
+    -- Canvas sẵn ngay khi tạo panel, kể cả khi phần UI khác lỗi khi khởi tạo.
+    D.playerTab.CanvasSize = UDim2.new(0, 0, 0, D.playerY + 16)
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1)
+    local shortcut = New("TextButton", {
+        Name = "OutfitShortcut", Size = UDim2.new(0, 94, 0, 18), Position = UDim2.new(1, -102, 0, 7),
+        Text = "👕 TRANG PHỤC", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
+    }, D.playerTab)
+    Corner(shortcut, UDim.new(0, 5))
+    shortcut.Activated:Connect(function()
+        D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
+    end)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
         Text = "👕 TRANG PHỤC NGƯỜI CHƠI (chỉ mình bạn thấy)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
