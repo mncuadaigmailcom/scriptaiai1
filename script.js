@@ -6725,20 +6725,48 @@ do
             end
         end
     end
+    local function attachAccessory(character, humanoid, accessory)
+        local handle = accessory:FindFirstChild("Handle")
+        if not handle or not handle:IsA("BasePart") then return false end
+        local ok = pcall(function() humanoid:AddAccessory(accessory) end)
+        if ok and handle:FindFirstChild("AccessoryWeld") then return true end
+        -- Một số character game tùy biến không tạo AccessoryWeld ở client.
+        -- Ghép attachment cùng tên vào BasePart của nhân vật, không thay rig.
+        local src = handle:FindFirstChildWhichIsA("Attachment")
+        if not src then return false end
+        for _, target in ipairs(character:GetDescendants()) do
+            if target:IsA("Attachment") and target.Name == src.Name
+                and target.Parent:IsA("BasePart") and not target:IsDescendantOf(accessory) then
+                accessory.Parent = character
+                handle.Anchored = false handle.CanCollide = false handle.Massless = true
+                handle.CFrame = target.WorldCFrame * src.CFrame:Inverse()
+                local weld = Instance.new("Weld")
+                weld.Name = "AccessoryWeld"
+                weld.Part0 = target.Parent weld.Part1 = handle
+                weld.C0 = target.CFrame weld.C1 = src.CFrame
+                weld.Parent = handle
+                return true
+            end
+        end
+        return false
+    end
     local function copyOutfit(source, character, humanoid)
         local items = outfitParts(source)
         local visuals = saveVisuals(source)
         if #items == 0 and next(visuals) == nil then return false, "Avatar nguồn không có ngoại hình để sao chép" end
         for _, item in ipairs(outfitParts(character)) do item:Destroy() end
-        local count = 0
+        local count, hats, failed = 0, 0, 0
         for _, item in ipairs(items) do
-            local clone = item:Clone()
-            if clone:IsA("Accessory") then humanoid:AddAccessory(clone)
-            else clone.Parent = character end
-            count += 1
+            local cloned, clone = pcall(function() return item:Clone() end)
+            if cloned and clone then
+                if clone:IsA("Accessory") then
+                    if attachAccessory(character, humanoid, clone) then hats += 1
+                    else failed += 1; clone:Destroy() end
+                else clone.Parent = character count += 1 end
+            else failed += 1 end
         end
         applyVisuals(character, visuals)
-        return true, tostring(count) .. " món + mặt/màu da/texture"
+        return true, string.format("%d quần áo/body · %d tóc/mũ/phụ kiện gắn được · %d lỗi; đầu động R15 phụ thuộc ApplyDescription", count, hats, failed)
     end
     local function say(text, good)
         status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
@@ -6812,6 +6840,9 @@ do
             local okModel, source = pcall(function()
                 return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
             end)
+            if not okModel or not source then
+                okModel, source = pcall(function() return Players:CreateHumanoidModelFromUserId(uid) end)
+            end
             if requestId ~= generation or player.Character ~= char then
                 if okModel and source then source:Destroy() end return
             end
@@ -6879,7 +6910,7 @@ do
             end
             for _, item in ipairs(outfitParts(player.Character)) do item:Destroy() end
             for _, item in ipairs(localSaved.items) do
-                if item:IsA("Accessory") then hum:AddAccessory(item:Clone())
+                if item:IsA("Accessory") then attachAccessory(player.Character, hum, item:Clone())
                 else item:Clone().Parent = player.Character end
             end
             if localSaved.visuals then applyVisuals(player.Character, localSaved.visuals) end
