@@ -6696,15 +6696,30 @@ do
     end
     findBtn.Activated:Connect(find)
     input.FocusLost:Connect(function(enter) if enter then find() end end)
+    -- Enter hoặc bấm Mặc trực tiếp đều tra username mới; không dùng lựa chọn đã cũ.
     applyBtn.Activated:Connect(function()
-        if not selectedId then say("⚠️ Tìm username trước khi mặc.", false) return end
-        local uid, name = selectedId, selectedName
+        local typed = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if not typed or not typed:match("^[%w_]+$") or #typed > 20 then
+            say("⚠️ Nhập username Roblox hợp lệ, không phải Display Name.", false) return
+        end
         generation += 1 local requestId = generation
-        say("Đang lấy trang phục của @" .. name .. "...", false)
+        say("Đang tìm @" .. typed .. " và tải trang phục...", false)
         task.spawn(function()
+            local okId, uid = pcall(function() return Players:GetUserIdFromNameAsync(typed) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not okId or not uid then
+                say("⚠️ Không tìm thấy username @" .. typed .. ". Hãy dùng tên tài khoản, không phải tên hiển thị.", false) return
+            end
+            selectedId, selectedName = uid, typed
+            info.Text = "@" .. typed .. "\nUserId: " .. tostring(uid)
+            local okImage, image = pcall(function()
+                return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+            end)
+            if requestId ~= generation or not P.Parent then return end
+            if okImage then portrait.Image = image end
             local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
             if requestId ~= generation or not P.Parent then return end
-            if not ok or not desc then say("⚠️ Không tải được trang phục; thử lại sau.", false) return end
+            if not ok or not desc then say("⚠️ Không lấy được trang phục Roblox: " .. tostring(desc), false) return end
             local char = player.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if not hum then say("⚠️ Chưa có nhân vật; chờ hồi sinh rồi thử lại.", false) return end
@@ -6713,16 +6728,24 @@ do
                 if not saved or not current then say("⚠️ Không lưu được trang phục gốc.", false) return end
                 original, originalHum = current, hum
             end
-            local applied, err = pcall(function() hum:ApplyDescription(desc) end)
-            if applied then say("✅ Đã mặc đồ @" .. name .. " (chỉ bên bạn thấy).", true)
-            else say("⚠️ Áp trang phục thất bại: " .. tostring(err), false) end
+            -- Reset buộc Roblox dựng lại phụ kiện/quần áo; ApplyDescription thông thường
+            -- có thể bỏ qua phần đã được game tự chỉnh trực tiếp trên character.
+            local applied, err = pcall(function() hum:ApplyDescriptionReset(desc) end)
+            if not applied then
+                applied, err = pcall(function() hum:ApplyDescription(desc) end)
+            end
+            if requestId ~= generation or not P.Parent then return end
+            if player.Character ~= char then say("⚠️ Nhân vật đã hồi sinh khi tải đồ; bấm Mặc lại.", false)
+            elseif applied then say("✅ Đã áp đồ @" .. typed .. " ở máy bạn. Nếu không thấy thay đổi, game có thể tự ghi đè ngoại hình.", true)
+            else say("⚠️ Không áp được trang phục: " .. tostring(err), false) end
         end)
     end)
     restoreBtn.Activated:Connect(function()
         generation += 1
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
-        local ok = pcall(function() hum:ApplyDescription(original) end)
+        local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
+        if not ok then ok = pcall(function() hum:ApplyDescription(original) end) end
         if ok then original, originalHum = nil, nil say("✅ Đã khôi phục trang phục gốc.", true)
         else say("⚠️ Không khôi phục được trang phục; thử lại.", false) end
     end)
