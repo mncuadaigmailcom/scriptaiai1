@@ -8585,7 +8585,7 @@ end end
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
 
 -- ============================================================================
--- 🧍 THAY NHÂN VẬT — MODULE ĐỘC LẬP
+-- 🧍 THAY SKIN — MODULE ĐỘC LẬP
 --   • Không đọc/ghi trạng thái của tính năng nào khác (Fly, Free-cam, Spectate, NoClip, Tắt hết...)
 --     và không dùng giao diện hub. Chỉ dùng Players, RunService, Enum, player.
 --   • Đầu vào: desc (HumanoidDescription đã lọc phụ kiện) + tên hiển thị. Đầu ra: Apply / Restore / Status.
@@ -8692,7 +8692,7 @@ local function csBuild(desc, name, tag, myGen)
     local rig, rerr = csMakeRig(desc, hum.RigType)     -- có thể CHỜ ở đây: các yêu cầu khác có thể chen vào
     if myGen ~= CharSwap.gen then                       -- đã có yêu cầu mới hơn: bỏ rig này
         if rig then pcall(function() rig:Destroy() end) end
-        return false, "đã có yêu cầu thay nhân vật mới hơn — bỏ qua yêu cầu này"
+        return false, "đã có yêu cầu thay skin mới hơn — bỏ qua yêu cầu này"
     end
     if player.Character ~= char then                    -- nhân vật đã đổi trong lúc dựng
         if rig then pcall(function() rig:Destroy() end) end
@@ -8754,7 +8754,7 @@ local function csBuild(desc, name, tag, myGen)
     end)
     if not okBind then return false, "không bám được nhân vật (BindToRenderStep lỗi)" end
     csStep(st)
-    return true, "✅ Đã thay nhân vật của bạn bằng của " .. tostring(name) .. " (chỉ bạn thấy)"
+    return true, "✅ Đã thay skin của bạn bằng của " .. tostring(name) .. " (chỉ bạn thấy)"
 end
 
 -- Kết nối riêng: nhân vật mới (respawn) → gỡ rig cũ, và nếu đang bật "giữ sau respawn" thì dựng lại
@@ -8789,7 +8789,7 @@ function CharSwap.Apply(desc, name, tag)
     local myGen = CharSwap.gen
     csTeardown()
     local okRun, ok, msg = pcall(csBuild, desc, name, tag, myGen)
-    if not okRun then ok, msg = false, "lỗi khi thay nhân vật: " .. tostring(ok) end
+    if not okRun then ok, msg = false, "lỗi khi thay skin: " .. tostring(ok) end
     if not ok and myGen == CharSwap.gen then
         csTeardown()
         CharSwap.applied = nil
@@ -8801,7 +8801,7 @@ end
 -- Trả nhân vật gốc: gỡ rig, hiện lại thân thật, huỷ yêu cầu đang chờ
 function CharSwap.Restore()
     if CharSwap.state == nil and CharSwap.applied == nil then
-        return false, "chưa thay nhân vật nào — không có gì để trả"
+        return false, "chưa thay skin nào — không có gì để trả"
     end
     CharSwap.gen = CharSwap.gen + 1
     csTeardown()
@@ -8831,9 +8831,9 @@ end
 return CharSwap
 end)()
 
--- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & THAY NHÂN VẬT (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện, thay nhân vật (kể cả người KHÔNG trong server / offline) ----------
+-- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & THAY SKIN (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện, thay skin (kể cả người KHÔNG trong server / offline) ----------
 -- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
--- Thay nhân vật CHỈ ở phía client của bạn: dựng một rig do client tạo (CreateHumanoidModelFromDescription) rồi bám theo nhân vật thật.
+-- Thay skin CHỈ ở phía client của bạn: dựng một rig do client tạo (CreateHumanoidModelFromDescription) rồi bám theo nhân vật thật.
 -- Lý do: Humanoid của nhân vật người chơi do SERVER tạo nên ApplyDescription trực tiếp báo lỗi "can only be called by the backend server".
 ;(function()
     local PI = {}
@@ -8842,7 +8842,7 @@ end)()
     PI.productCache = {}  -- assetId -> { name, creator } | false
     PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
     PI.SPIN_BIND = "BC_PlayerViewSpin"
-    -- Chạy lại script: gỡ bind của phần xem 3D (thay nhân vật do module CharSwap tự dọn)
+    -- Chạy lại script: gỡ bind của phần xem 3D (thay skin do module CharSwap tự dọn)
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
     _G.BananaCatHub_PlayerInfo = PI
     local MarketplaceService = game:GetService("MarketplaceService")
@@ -9022,7 +9022,7 @@ end)()
             thumb = thumb,
         }
         rec.accessories = rec.acc and #rec.acc or nil
-        rec.keep = {}         -- [idx] = false nếu bạn đã bỏ món đó khi thay nhân vật (nil = giữ)
+        rec.keep = {}         -- [idx] = false nếu bạn đã bỏ món đó khi thay skin (nil = giữ)
         return rec, nil
     end
 
@@ -9082,7 +9082,7 @@ end)()
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🔎 TRA CỨU · XEM 3D · THAY NHÂN VẬT (kể cả người offline)", BackgroundTransparency = 1,
+        Text = "🔎 TRA CỨU · XEM 3D · THAY SKIN (kể cả người offline)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 
     local function pAct(txt, x, y, w, color, parent)
@@ -9302,7 +9302,7 @@ end)()
         end)
     end
 
-    -- Bật/tắt một món: dựng lại 3D; nếu đang thay nhân vật bằng người này thì thay lại ngay
+    -- Bật/tắt một món: dựng lại 3D; nếu đang thay skin bằng người này thì thay lại ngay
     function PI.SetKeep(rec, idx, keep)
         rec.keep[idx] = keep and true or false
         local a = rec.acc and rec.acc[idx]
@@ -9373,7 +9373,7 @@ end)()
         end)
     end
 
-    local applyBtn = pAct("🧍 Thay nhân vật", 8, 344, 150, C.PURPLE)
+    local applyBtn = pAct("🧍 Thay skin", 8, 344, 150, C.PURPLE)
     local restoreBtn = pAct("↩ Trả nhân vật gốc", 162, 344, 118, C.BLUE)
     local keepBtn = pAct("", 284, 344, 176, C.GREEN)
     local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 372, 160, C.GRAY)
@@ -9409,7 +9409,7 @@ end)()
         ReleaseHubFocus()
         local rec = requireLast() if not rec then return end
         if rec.desc == nil then setStatus("⚠️ Người này không có dữ liệu skin công khai", C.YELLOW) return end
-        setStatus("⏳ Đang thay nhân vật bằng của " .. rec.name .. "...", C.YELLOW)
+        setStatus("⏳ Đang thay skin bằng của " .. rec.name .. "...", C.YELLOW)
         task.spawn(function()
             local ok, msg = PI.SwapSafe(rec)
             setStatus(msg, ok and C.GREEN or C.RED)

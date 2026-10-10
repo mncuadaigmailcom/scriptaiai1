@@ -290,7 +290,7 @@ test("presence lỗi → vẫn hiện hồ sơ, trạng thái 'không rõ'", fun
     contains(rowText(panel(), "Trạng thái:"), "không rõ")
 end)
 
-test("GetHumanoidDescription lỗi → không có skin, nút thay nhân vật báo rõ, không dựng rig", function()
+test("GetHumanoidDescription lỗi → không có skin, nút thay skin báo rõ, không dựng rig", function()
     runScript()
     registerUser(156, "Builderman")
     M.failures.desc = true
@@ -298,7 +298,7 @@ test("GetHumanoidDescription lỗi → không có skin, nút thay nhân vật b�
     noErrors()
     contains(rowText(panel(), "Phụ kiện skin:"), "không lấy được")
     contains(statusText(), "không có skin công khai")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     contains(statusText(), "không có dữ liệu skin")
     eq(#M.rigCalls, 0, "không được dựng khi không có skin")
@@ -386,7 +386,7 @@ test("không có setclipboard: vẫn chạy, hiện link để copy tay", functi
     contains(statusText(), "https://www.roblox.com/users/156/profile")
 end)
 
--- ===================== TEST: thay nhân vật (dựng rig phía client) =====================
+-- ===================== TEST: thay skin (dựng rig phía client) =====================
 local function puppets()
     local out = {}
     for _, inst in ipairs(M.created) do
@@ -439,14 +439,14 @@ test("lỗi gốc được tái hiện: ApplyDescription trực tiếp lên nhâ
     contains(tostring(err), "backend server", "thông báo lỗi không khớp Roblox")
 end)
 
-test("thay nhân vật KHÔNG gọi ApplyDescription trên nhân vật server; báo thành công", function()
+test("thay skin KHÔNG gọi ApplyDescription trên nhân vật server; báo thành công", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     eq(#M.applyCalls, 0, "không được gọi ApplyDescription lên nhân vật server")
-    contains(statusText(), "Đã thay nhân vật của bạn bằng của Builderman")
+    contains(statusText(), "Đã thay skin của bạn bằng của Builderman")
     eq(#puppets(), 1, "phải có đúng 1 rig")
 end)
 
@@ -454,7 +454,7 @@ test("rig dựng từ skin của người kia: đủ phụ kiện, cùng kiểu 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     local rig = puppets()[1]
     expect(rig ~= nil, "không có rig")
@@ -469,7 +469,7 @@ test("thân thật bị ẩn ở phía client; camera VẪN theo nhân vật th�
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     expect(allHidden(1), "thân thật chưa bị ẩn")
     eq(M.workspace.CurrentCamera.CameraSubject, ownHum(), "camera không theo nhân vật thật")
@@ -495,7 +495,7 @@ test("nhảy/rơi/đứng: rig phát animation jump/fall/idle theo trạng thái
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     M.stepFrames(1)
     local rig = puppets()[1]
     ownHum().__state = M.Enum.HumanoidStateType.Jumping
@@ -523,7 +523,7 @@ test("thân thật vẫn ẩn sau khi Roblox đặt lại độ trong suốt (tr
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     -- Mô phỏng bộ điều khiển camera đặt lại LocalTransparencyModifier = 0 cho mọi phần thân
     for _, p in ipairs(ownParts()) do p.LocalTransparencyModifier = 0 end
     expect(not allHidden(1), "chuẩn bị test sai")
@@ -543,7 +543,7 @@ test("Trả nhân vật gốc: độ trong suốt cục bộ trả về giá tr�
     searchFor("Builderman")
     local before = {}
     for _, p in ipairs(ownParts()) do before[p] = p.LocalTransparencyModifier end
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     click(panel(), "Trả nhân vật gốc")
     noErrors()
     for _, p in ipairs(ownParts()) do
@@ -555,7 +555,7 @@ test("rig được NEO hoàn toàn và không va chạm: không có vật lý l�
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     local n = 0
     for _, p in ipairs(M.descendants(rig)) do
@@ -576,7 +576,7 @@ test("bạn ĐỨNG YÊN thì rig đứng yên (vận tốc 0, vị trí không 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframe(5, 3, 5)
     hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)
@@ -596,7 +596,7 @@ test("bạn DI CHUYỂN thì rig di chuyển theo và chạy animation walk; d�
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     local rig = puppets()[1]
     local rigRoot = rig:FindFirstChild("HumanoidRootPart")
@@ -625,7 +625,7 @@ test("bạn NHẢY thì rig nhảy theo (vị trí độ cao khớp bạn)", fun
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframe(0, 10, 0)
     ownHum().__state = M.Enum.HumanoidStateType.Jumping
@@ -638,7 +638,7 @@ test("rig luôn đặt đúng vị trí nhân vật thật (không trôi khỏi 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     for i = 1, 5 do
         ownChar():FindFirstChild("HumanoidRootPart").CFrame = M.cframe(i * 3, 2, -i)
         M.stepFrames(1)
@@ -653,7 +653,7 @@ test("rig: AutoRotate tắt, PrimaryPart là HumanoidRootPart", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     eq(rig:FindFirstChildOfClass("Humanoid").AutoRotate, false, "AutoRotate vẫn bật")
     eq(rig.PrimaryPart, rig:FindFirstChild("HumanoidRootPart"), "PrimaryPart không phải HRP")
@@ -664,7 +664,7 @@ test("không đồng bộ trạng thái vật lý (Physics/Ragdoll/FallingDown) 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rigHum = puppets()[1]:FindFirstChildOfClass("Humanoid")
     local S = M.Enum.HumanoidStateType
     for _, st in ipairs({ S.Physics, S.Ragdoll, S.FallingDown, S.PlatformStanding, S.Dead }) do
@@ -684,7 +684,7 @@ test("rig bám theo nhân vật thật khi nhân vật di chuyển", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     ownChar():FindFirstChild("HumanoidRootPart").CFrame = M.cframe(10, 5, 0)
     M.stepFrames(1)
     noErrors()
@@ -700,7 +700,7 @@ test("rig không sao chép Animate (tránh hai bộ điều khiển animation); 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     expect(rig:FindFirstChild("Animate") == nil, "rig còn Animate sao chép (xung đột animation)")
     local names = {}
@@ -713,7 +713,7 @@ test("tắt phụ kiện: rig, 3D và dòng tóm tắt đều cập nhật", fun
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local btns = accButtons(panel())
     eq(#btns, 3, "mỗi món phải có đúng 1 nút giữ/bỏ")
     M.fire(btns[1], "Activated")
@@ -753,7 +753,7 @@ test("nút Tắt hết / Bật hết", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     click(panel(), "Tắt hết")
     noErrors()
     eq(accCount(puppets()[1]), 0, "tắt hết nhưng rig vẫn còn phụ kiện")
@@ -854,7 +854,7 @@ test("Trả nhân vật gốc: huỷ rig, hiện lại thân thật, camera về
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     click(panel(), "Trả nhân vật gốc")
     noErrors()
     eq(#puppets(), 0, "rig chưa bị huỷ")
@@ -863,14 +863,14 @@ test("Trả nhân vật gốc: huỷ rig, hiện lại thân thật, camera về
     contains(statusText(), "Đã trả lại nhân vật gốc")
     M.stepFrames(3)
     noErrors()
-    expect(not _G.BananaCatHub_CharSwap.Status().active, "còn trạng thái thay nhân vật")
+    expect(not _G.BananaCatHub_CharSwap.Status().active, "còn trạng thái thay skin")
 end)
 
-test("chạy lại script khi đang thay nhân vật (cùng phiên, không reset): camera vẫn theo nhân vật thật", function()
+test("chạy lại script khi đang thay skin (cùng phiên, không reset): camera vẫn theo nhân vật thật", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     -- executor chạy lại script trong cùng phiên: không reset môi trường
     local chunk = load(SCRIPT_SRC, "=script.js")
@@ -887,14 +887,14 @@ test("trả khi chưa thay: báo rõ, không lỗi", function()
     runScript()
     click(panel(), "Trả nhân vật gốc")
     noErrors()
-    contains(statusText(), "chưa thay nhân vật")
+    contains(statusText(), "chưa thay skin")
 end)
 
 test("giữ sau respawn (mặc định BẬT): dựng lại rig trên nhân vật mới, không để rig cũ", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local newChar = M.spawnCharacter()
     M.advance(1)
     noErrors()
@@ -908,7 +908,7 @@ test("tắt 'giữ sau respawn' thì respawn không thay nữa", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     click(panel(), "Giữ sau respawn")
     contains(findBtn(panel(), "Giữ sau respawn").Text, "TẮT")
     M.spawnCharacter()
@@ -921,7 +921,7 @@ test("đã trả nhân vật gốc thì respawn không thay lại", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     click(panel(), "Trả nhân vật gốc")
     M.spawnCharacter()
     M.advance(1)
@@ -934,7 +934,7 @@ test("không có nhân vật: báo lỗi rõ ràng, không dựng rig", function
     registerUser(156, "Builderman")
     searchFor("Builderman")
     M.localPlayer.__character = nil
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     contains(statusText(), "chưa có nhân vật")
     eq(#puppets(), 0, "vẫn dựng rig khi không có nhân vật")
@@ -945,7 +945,7 @@ test("dựng rig lỗi: báo rõ, không kẹt nhân vật (không ẩn thân, k
     registerUser(156, "Builderman")
     searchFor("Builderman")
     M.failures.rig = "Rig type mismatch"
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     contains(statusText(), "không dựng được nhân vật")
     contains(statusText(), "Rig type mismatch")
@@ -983,7 +983,7 @@ test("người không có skin công khai: không thay được, báo rõ", func
     searchFor("Builderman")
     noErrors()
     contains(rowText(panel(), "Phụ kiện skin:"), "không lấy được")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     contains(statusText(), "không có dữ liệu skin")
     eq(#M.rigCalls, 0, "dựng rig dù không có skin")
@@ -995,35 +995,35 @@ test("người offline/không trong server: vẫn thay được nhân vật", fu
     searchFor("Ghost")
     noErrors()
     eq(rowText(panel(), "Phụ kiện skin:"), "Phụ kiện skin: 1 món · đang giữ 1")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     eq(#M.applyCalls, 0)
     eq(accCount(puppets()[1]), 1, "rig của người offline thiếu phụ kiện")
 end)
 
-test("thay nhân vật lần 2 (người khác): rig cũ bị huỷ, không còn 2 rig", function()
+test("thay skin lần 2 (người khác): rig cũ bị huỷ, không còn 2 rig", function()
     runScript()
     registerUser(156, "Builderman")
     registerUser(999, "Other")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     searchFor("Other")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     noErrors()
     eq(#puppets(), 1, "còn rig cũ")
     expect(allHidden(1), "thân thật không còn bị ẩn")
 end)
 
-test("nút Copy/Thay nhân vật/Trả trước khi tra cứu: báo 'hãy tra cứu trước'", function()
+test("nút Copy/Thay skin/Trả trước khi tra cứu: báo 'hãy tra cứu trước'", function()
     runScript()
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     contains(statusText(), "tra cứu một người")
     click(panel(), "Copy link hồ sơ")
     contains(statusText(), "tra cứu một người")
     noErrors()
 end)
 
--- ===================== THAY NHÂN VẬT: MODULE ĐỘC LẬP =====================
+-- ===================== THAY SKIN: MODULE ĐỘC LẬP =====================
 local function CS() return _G.BananaCatHub_CharSwap end
 local function realHrp() return ownChar():FindFirstChild("HumanoidRootPart") end
 
@@ -1049,7 +1049,7 @@ test("độc lập: xoá giao diện tra cứu giữa chừng thì rig vẫn bá
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     _G.BananaCatHub_PlayerInfo = nil      -- giao diện biến mất
     realHrp().CFrame = M.cframe(6, 3, 4)
     M.stepFrames(2)
@@ -1066,19 +1066,19 @@ test("độc lập: bật/tắt Free-cam (tính năng khác) khi đang thay → 
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local F = _G.BananaCatHub_Free
     expect(F ~= nil and F.Set ~= nil, "thiếu API Free-cam để kiểm tra")
     F.Set(true)
     M.stepFrames(2)
     noErrors()
     eq(#puppets(), 1, "Free-cam làm mất rig")
-    expect(CS().Status().active, "Free-cam làm tắt thay nhân vật")
+    expect(CS().Status().active, "Free-cam làm tắt thay skin")
     F.Set(false)
     M.stepFrames(2)
     noErrors()
     eq(#puppets(), 1, "tắt Free-cam làm mất rig")
-    expect(CS().Status().active, "tắt Free-cam làm tắt thay nhân vật")
+    expect(CS().Status().active, "tắt Free-cam làm tắt thay skin")
 end)
 
 test("đua: hai yêu cầu thay chồng nhau khi đang dựng → yêu cầu cũ bị bỏ, chỉ còn 1 rig (của yêu cầu mới)", function()
@@ -1125,7 +1125,7 @@ test("lỗi giữa chừng: thay thất bại sau khi đã thay thành công →
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     expect(allHidden(1), "chuẩn bị test sai")
     local ok = CS().Apply(nil, "Bad")
     expect(not ok, "Apply(nil) lại báo thành công")
@@ -1139,7 +1139,7 @@ test("Destroy: trả thân thật, huỷ rig, ngắt kết nối respawn (không
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     CS().Destroy()
     expect(CS().charConn == nil, "còn kết nối respawn sau Destroy (rò rỉ)")
     eq(#puppets(), 0, "rig chưa bị huỷ")
@@ -1168,7 +1168,7 @@ test("rig không bị raycast/chạm: CanQuery = false, CanTouch = false (không
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local n = 0
     for _, p in ipairs(M.descendants(puppets()[1])) do
         if p.ClassName == "Part" then
@@ -1192,7 +1192,7 @@ test("module chỉ ghi LocalTransparencyModifier lên thân thật (không đụ
         ownHum().__state = (i % 10 == 0) and M.Enum.HumanoidStateType.Jumping or M.Enum.HumanoidStateType.Running
     end
     M.auditOn, M.auditLog = true, {}
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     for i = 1, 30 do
         M.auditOn = false
         drive(i)
@@ -1218,7 +1218,7 @@ test("rig luôn đứng thẳng: thân thật nghiêng/lăn thì rig KHÔNG nghi
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframeAngles(4, 3, 2, 0.6, 0.9, 0.5)
@@ -1237,7 +1237,7 @@ test("bạn đứng yên qua nhiều khung: rig không tự xoay (hướng và v
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 0.7, 0)
@@ -1253,7 +1253,7 @@ test("rig Humanoid bật PlatformStand: không chạy bộ điều khiển đứ
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rigHum = puppets()[1]:FindFirstChildOfClass("Humanoid")
     eq(rigHum.PlatformStand, true, "rig Humanoid chưa bật PlatformStand")
     noErrors()
@@ -1263,7 +1263,7 @@ test("bạn nhìn thẳng đứng (không có hướng ngang): không lỗi, rig
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
-    click(panel(), "Thay nhân vật")
+    click(panel(), "Thay skin")
     local rig = puppets()[1]
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 0.7, 0)
