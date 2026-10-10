@@ -1,7 +1,8 @@
-# Cài tính năng trang phục Roblox
+# Trang phục Roblox
 
-`script.js` là Luau **LocalScript** tạo giao diện tab 👥. Nếu muốn thay đổi trang phục đáng tin cậy trong **game do bạn quản lý**, đặt nội dung `OutfitServer.server.lua` vào **ServerScriptService** dưới dạng Script (không phải LocalScript), rồi chạy `script.js` trên client như trước. Server tự tạo `ReplicatedStorage.BC_OutfitRequest`.
+`script.js` là Luau client, trong tab 👥 có hai nút khác nhau:
 
-Trong tab 👥, nhập **username Roblox** (không phải display name), nhấn **👕 Mặc trang phục**. Có thể dùng tài khoản không ở server hoặc offline. **↩ Khôi phục** trả về mô tả đã lưu cho nhân vật hiện tại. Hồi sinh tạo nhân vật mới và không tự mặc lại.
+- **👕 Mặc LOCAL**: tìm username Roblox (kể cả tài khoản offline), lấy HumanoidDescription, thử `ApplyDescriptionReset`/`ApplyDescription`, rồi tạo mẫu avatar cục bộ bằng `Players:CreateHumanoidModelFromDescription` và sao chép Shirt/Pants/ShirtGraphic/Accessory vào nhân vật của bạn. **↩ Khôi phục LOCAL** khôi phục mô tả và quần áo/phụ kiện đã lưu của nhân vật hiện tại. Thay đổi client thường chỉ bạn thấy; game có thể ghi đè và API có thể không được hỗ trợ trên một số môi trường. Phụ kiện tùy chỉnh/morph khác của game có thể không được tái tạo chính xác. Hồi sinh sẽ trở lại nhân vật game.
+- **🌐 Mặc SERVER**: chỉ dùng trong game **bạn sở hữu**. Đặt nội dung `OutfitServer.server.lua` vào `ServerScriptService` dưới dạng Script. Server tạo `ReplicatedStorage.BC_OutfitRequest`, xác thực UserId, chỉ sửa nhân vật người gửi và lưu mô tả để **↩ Khôi phục SERVER**. **Mọi người đều thấy** thay đổi này.
 
-**Giới hạn quan trọng:** ServerScript áp trang phục trên server, vì vậy **mọi người đều thấy**, không đáp ứng yêu cầu “chỉ mình tôi thấy”. Không thể cài ServerScript vào game của người khác chỉ bằng executor/LocalScript. Nếu không có server companion, client thử `ApplyDescription` cục bộ; game có thể ghi đè hoặc ngăn thay đổi, nên không thể hứa hoạt động ở mọi game. Không có cách server-authoritative vừa đổi chính nhân vật của bạn vừa bảo đảm không ai khác nhìn thấy nó; để chỉ mình thấy cần một nhân vật giả/preview riêng phía client, không phải thay avatar thật trên server.
+Dùng **username** tài khoản, không phải display name. Không thể cài Script phía server của game người khác bằng executor. Chế độ local không bảo đảm đổi được ở mọi game; mode server không đáp ứng yêu cầu “chỉ mình thấy”.

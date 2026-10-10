@@ -6629,7 +6629,7 @@ do
 
 -- Trang phục chỉ áp dụng lên Humanoid của LocalPlayer; không thay avatar tài khoản hoặc người khác.
 do
-    local PH = 206
+    local PH = 236
     local P = New("Frame", { Name = "HubOutfit_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
@@ -6647,7 +6647,7 @@ do
         D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
     end)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
-        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (local / server nếu đã cài)", BackgroundTransparency = 1,
+        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (chọn chế độ)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local input = New("TextBox", { Size = UDim2.new(1, -108, 0, 27), Position = UDim2.new(0, 8, 0, 30),
@@ -6670,14 +6670,39 @@ do
         Text = "Nhập username rồi bấm Tìm để xem avatar.", TextWrapped = true,
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-    local applyBtn = button("👕 Mặc trang phục", 108, 120, 150, C.GREEN)
-    local restoreBtn = button("↩ Khôi phục", 266, 120, 120, C.GRAY)
-    local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 164),
-        Text = "Local: chỉ máy bạn (không đảm bảo). Cài OutfitServer: mọi người đều thấy.", TextWrapped = true,
+    local applyBtn = button("👕 Mặc LOCAL", 108, 120, 125, C.GREEN)
+    local serverBtn = button("🌐 Mặc SERVER", 240, 120, 146, C.BLUE)
+    local restoreBtn = button("↩ Khôi phục LOCAL", 108, 151, 158, C.GRAY)
+    local serverRestoreBtn = button("↩ Khôi phục SERVER", 272, 151, 114, C.GRAY)
+    local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 187),
+        Text = "LOCAL: chỉ máy bạn (game có thể ghi đè). SERVER: mọi người đều thấy, cần cài OutfitServer.", TextWrapped = true,
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local selectedId, selectedName, original, originalHum = nil, nil, nil, nil
     local generation = 0
+    local localSaved = nil -- clones quần áo/phụ kiện trước khi sửa cục bộ
+    local function outfitParts(character)
+        local out = {}
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory") then
+                out[#out + 1] = item
+            end
+        end
+        return out
+    end
+    local function copyOutfit(source, character, humanoid)
+        local items = outfitParts(source)
+        if #items == 0 then return false, "Avatar nguồn không có quần áo/phụ kiện để sao chép" end
+        for _, item in ipairs(outfitParts(character)) do item:Destroy() end
+        local count = 0
+        for _, item in ipairs(items) do
+            local clone = item:Clone()
+            if clone:IsA("Accessory") then humanoid:AddAccessory(clone)
+            else clone.Parent = character end
+            count += 1
+        end
+        return true, tostring(count) .. " món"
+    end
     local function say(text, good)
         status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
     end
@@ -6730,16 +6755,7 @@ do
                 end)
                 if okImage and requestId == generation and P.Parent then portrait.Image = image end
             end)
-            local serverRemote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
-            if serverRemote and serverRemote:IsA("RemoteFunction") then
-                say("Đang yêu cầu server áp trang phục cho @" .. typed .. "...", false)
-                local sent, success, message = pcall(function() return serverRemote:InvokeServer("apply", uid) end)
-                if requestId ~= generation or not P.Parent then return end
-                if not sent then say("⚠️ Server không phản hồi: " .. tostring(success), false)
-                else say((success and "✅ " or "⚠️ ") .. tostring(message), success) end
-                return
-            end
-            say("Đang dùng chế độ local (không có OutfitServer); đang tải trang phục...", false)
+            say("Đang tải trang phục để thay LOCAL...", false)
             local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
             if requestId ~= generation or not P.Parent then return end
             if not ok or not desc then say("⚠️ Không lấy được trang phục Roblox: " .. tostring(desc), false) return end
@@ -6756,29 +6772,83 @@ do
                 if not saved or not current then say("⚠️ Không lấy được trang phục gốc: " .. tostring(current), false) return end
                 original, originalHum = current, hum
             end
+            local okModel, source = pcall(function()
+                return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
+            end)
+            if requestId ~= generation or player.Character ~= char then
+                if okModel and source then source:Destroy() end return
+            end
+            if okModel and source and (not localSaved or localSaved.character ~= char) then
+                localSaved = {character = char, items = {}}
+                for _, item in ipairs(outfitParts(char)) do
+                    local cloned, savedItem = pcall(function() return item:Clone() end)
+                    if cloned then table.insert(localSaved.items, savedItem) end
+                end
+            end
             -- Reset buộc Roblox dựng lại phụ kiện/quần áo; ApplyDescription thông thường
             -- có thể bỏ qua phần đã được game tự chỉnh trực tiếp trên character.
             local applied, err = pcall(function() hum:ApplyDescriptionReset(desc) end)
             if not applied then
                 applied, err = pcall(function() hum:ApplyDescription(desc) end)
             end
+            local copied, detail = false, nil
+            if okModel and source and player.Character == char and requestId == generation then
+                local ran, success, reason = pcall(copyOutfit, source, char, hum)
+                copied, detail = ran and success, ran and reason or success
+                source:Destroy()
+            end
             if requestId ~= generation or not P.Parent then return end
             if player.Character ~= char then say("⚠️ Nhân vật đã hồi sinh khi tải đồ; bấm Mặc lại.", false)
-            elseif applied then say("✅ Đã gọi ApplyDescription cho @" .. typed .. ". Nếu ngoại hình không đổi, game có thể chặn hoặc ghi đè thay đổi cục bộ.", true)
-            else say("⚠️ Không áp được trang phục: " .. tostring(err), false) end
+            elseif copied then say("✅ Đã thay đồ LOCAL @" .. typed .. " (" .. detail .. "). Game có thể ghi đè.", true)
+            elseif applied then say("✅ Đã gọi ApplyDescription cục bộ; không sao chép được phụ kiện: " .. tostring(detail or source), true)
+            else say("⚠️ Không áp được: " .. tostring(err) .. " / " .. tostring(detail or source), false) end
         end)
     end)
+    local function serverAction(action)
+        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
+        if not remote or not remote:IsA("RemoteFunction") then
+            say("⚠️ Chưa cài OutfitServer.server.lua vào ServerScriptService của game bạn.", false) return
+        end
+        local name = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if action == "apply" and (not name or not name:match("^[%w_]+$") or #name > 20) then
+            say("⚠️ Nhập username Roblox hợp lệ.", false) return
+        end
+        generation += 1 local token = generation
+        say("Đang gửi yêu cầu SERVER...", false)
+        task.spawn(function()
+            local uid = nil
+            if action == "apply" then
+                local found, result = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
+                if token ~= generation then return end
+                if not found then say("⚠️ Không tìm thấy username: " .. tostring(result), false) return end
+                uid = result
+            end
+            local sent, success, message = pcall(function() return remote:InvokeServer(action, uid) end)
+            if token == generation and P.Parent then
+                say((sent and success and "✅ " or "⚠️ ") .. tostring(sent and message or success), sent and success)
+            end
+        end)
+    end
+    serverBtn.Activated:Connect(function() serverAction("apply") end)
+    serverRestoreBtn.Activated:Connect(function() serverAction("restore") end)
     restoreBtn.Activated:Connect(function()
         generation += 1
-        local serverRemote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
-        if serverRemote and serverRemote:IsA("RemoteFunction") then
-            task.spawn(function()
-                local sent, success, message = pcall(function() return serverRemote:InvokeServer("restore") end)
-                if P.Parent then say((sent and success and "✅ " or "⚠️ ") .. tostring(sent and message or success), sent and success) end
-            end)
-            return
-        end
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if not hum then say("⚠️ Nhân vật chưa sẵn sàng.", false) return end
+        if localSaved and localSaved.character == player.Character then
+            if original and hum == originalHum then
+                local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
+                if not ok then pcall(function() hum:ApplyDescription(original) end) end
+            end
+            for _, item in ipairs(outfitParts(player.Character)) do item:Destroy() end
+            for _, item in ipairs(localSaved.items) do
+                if item:IsA("Accessory") then hum:AddAccessory(item:Clone())
+                else item:Clone().Parent = player.Character end
+            end
+            localSaved = nil
+            original, originalHum = nil, nil
+            say("✅ Đã khôi phục quần áo/phụ kiện LOCAL.", true) return
+        end
         if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
         local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
         if not ok then ok = pcall(function() hum:ApplyDescription(original) end) end
