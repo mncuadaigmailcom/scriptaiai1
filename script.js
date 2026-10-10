@@ -6650,14 +6650,14 @@ do
         TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 12), Position = UDim2.new(0, 8, 0, 19),
-        Text = "Nhập username chính xác hoặc UserId — không cần người đó ở cùng server hay đang online.",
+        Text = "Username/UserId có thể tra khi offline; Display Name chỉ dùng khi họ đang trong server.",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
 
     local nameBox = New("TextBox", { Name = "AvatarLookupName",
         Size = UDim2.new(1, -112, 0, 23), Position = UDim2.new(0, 8, 0, 34),
-        Text = "", PlaceholderText = "Username (không phải Display Name) hoặc UserId",
+        Text = "", PlaceholderText = "Username, UserId hoặc Display Name trong server",
         ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08,
         TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium,
         TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 8,
@@ -6696,7 +6696,7 @@ do
 
     local infoLabel = New("TextLabel", { Name = "AvatarLookupInfo",
         Size = UDim2.new(1, -168, 0, 146), Position = UDim2.new(0, 160, 0, 63),
-        Text = "Nhập username hoặc UserId rồi bấm Tra cứu.\n\nKết quả gồm username, UserId, thông tin trang phục và phụ kiện; có thể xem avatar 3D.",
+        Text = "Nhập username/UserId để tra cả người offline; Display Name chỉ tìm được người đang trong server.\n\nKết quả gồm username, UserId và thông tin trang phục/phụ kiện.",
         BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
         TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
@@ -6726,7 +6726,7 @@ do
 
     local statusLabel = New("TextLabel", { Name = "AvatarLookupStatus",
         Size = UDim2.new(1, -16, 0, 13), Position = UDim2.new(0, 8, 0, 240),
-        Text = "Tra cứu theo hồ sơ/avatar công khai của Roblox.", BackgroundTransparency = 1,
+        Text = "Có thể tra bằng username/UserId kể cả khi offline; API Roblox đôi lúc cần thử lại.", BackgroundTransparency = 1,
         TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 8,
     }, P)
@@ -6746,31 +6746,74 @@ do
         pcall(function() if obj then obj:Destroy() end end)
     end
 
+    local function findServerPlayer(query)
+        local queryLower = tostring(query or ""):lower()
+        local numericId = tonumber(query)
+        local okPlayers, currentPlayers = pcall(function() return Players:GetPlayers() end)
+        if not okPlayers or type(currentPlayers) ~= "table" then return nil, nil end
+        for _, candidate in ipairs(currentPlayers) do
+            if (numericId and tonumber(candidate.UserId) == numericId) or tostring(candidate.Name):lower() == queryLower then
+                return candidate, nil
+            end
+        end
+        local displayMatch = nil
+        for _, candidate in ipairs(currentPlayers) do
+            if tostring(candidate.DisplayName):lower() == queryLower then
+                if displayMatch and displayMatch ~= candidate then
+                    return nil, "Display Name trùng nhiều người trong server; hãy nhập username hoặc UserId."
+                end
+                displayMatch = candidate
+            end
+        end
+        return displayMatch, nil
+    end
+
     function AL.ResolveUser(query)
         query = trimText(query)
-        if query == "" then return nil, nil, nil, false, "Hãy nhập username hoặc UserId." end
+        if query == "" then return nil, nil, nil, false, "Hãy nhập username, UserId hoặc Display Name của người đang trong server." end
+        local targetPlayer, playerError = findServerPlayer(query)
+        if playerError then return nil, nil, nil, false, playerError end
         local numericId = tonumber(query)
         local userId, username
-        if numericId then
+        if targetPlayer then
+            userId = tonumber(targetPlayer.UserId)
+            username = tostring(targetPlayer.Name)
+        elseif numericId then
             if numericId < 1 or numericId % 1 ~= 0 then
                 return nil, nil, nil, false, "UserId phải là số nguyên dương."
             end
             userId = numericId
             username = query
-            local okName, resolvedName = pcall(function()
-                return Players:GetNameFromUserIdAsync(userId)
-            end)
-            if okName and type(resolvedName) == "string" and resolvedName ~= "" then
-                username = resolvedName
+            for attempt = 1, 3 do
+                local okName, resolvedName = pcall(function()
+                    return Players:GetNameFromUserIdAsync(userId)
+                end)
+                if okName and type(resolvedName) == "string" and resolvedName ~= "" then
+                    username = resolvedName
+                    break
+                end
+                if attempt < 3 then task.wait(0.5) end
             end
         else
-            local okId, resolvedId = pcall(function()
-                return Players:GetUserIdFromNameAsync(query)
-            end)
-            if not okId or tonumber(resolvedId) == nil then
-                return nil, nil, nil, false, "Không tìm thấy username. Hãy nhập đúng username, không phải Display Name."
+            local lastResolveError = "Không rõ lỗi Roblox API."
+            for attempt = 1, 3 do
+                local okId, resolvedId = pcall(function()
+                    return Players:GetUserIdFromNameAsync(query)
+                end)
+                if okId and tonumber(resolvedId) then
+                    userId = tonumber(resolvedId)
+                    break
+                end
+                lastResolveError = tostring(resolvedId or lastResolveError)
+                if attempt < 3 then task.wait(1) end
             end
-            userId = tonumber(resolvedId)
+            if not userId then
+                local lowerError = tostring(lastResolveError):lower()
+                if lowerError:find("unknown user", 1, true) or lowerError:find("not found", 1, true) then
+                    return nil, nil, nil, false, "Không tìm thấy username. Hãy nhập đúng username (không phải Display Name) hoặc UserId."
+                end
+                return nil, nil, nil, false, "Roblox không tra được username sau 3 lần thử: " .. tostring(lastResolveError)
+            end
             username = query
             local okName, resolvedName = pcall(function()
                 return Players:GetNameFromUserIdAsync(userId)
@@ -6780,7 +6823,9 @@ do
             end
         end
 
-        local displayName, verified = username, false
+        if not targetPlayer then targetPlayer = findServerPlayer(tostring(userId)) end
+        local displayName = targetPlayer and tostring(targetPlayer.DisplayName) or username
+        local verified = false
         pcall(function()
             local users = Players:GetUserInfosByUserIdsAsync({ userId })
             local userInfo = type(users) == "table" and users[1] or nil
@@ -6790,19 +6835,31 @@ do
                 verified = userInfo.HasVerifiedBadge == true
             end
         end)
-        return userId, username, displayName, verified, nil
+        return userId, username, displayName, verified, nil, targetPlayer
     end
 
-    function AL.GetDescription(userId)
-        local lastError = "API avatar không khả dụng trong môi trường này."
-        for _, methodName in ipairs({ "GetHumanoidDescriptionFromUserIdAsync", "GetHumanoidDescriptionFromUserId" }) do
-            local ok, description = pcall(function()
-                return Players[methodName](Players, userId)
+    function AL.GetDescription(userId, onlineTarget)
+        if onlineTarget then
+            local okLive, liveDescription = pcall(function()
+                local character = onlineTarget.Character
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if not humanoid then return nil end
+                return humanoid:GetAppliedDescription()
             end)
-            if ok and description then return description end
-            lastError = tostring(description or lastError)
+            if okLive and liveDescription then return liveDescription end
         end
-        return nil, lastError
+        local lastError = "API avatar không khả dụng trong môi trường này."
+        for attempt = 1, 3 do
+            for _, methodName in ipairs({ "GetHumanoidDescriptionFromUserIdAsync", "GetHumanoidDescriptionFromUserId" }) do
+                local ok, description = pcall(function()
+                    return Players[methodName](Players, userId)
+                end)
+                if ok and description then return description end
+                lastError = tostring(description or lastError)
+            end
+            if attempt < 3 then task.wait(1) end
+        end
+        return nil, "Roblox không tải được avatar sau 3 lần thử: " .. tostring(lastError)
     end
 
     function AL.BuildSkinData(description)
@@ -7008,9 +7065,9 @@ do
         setStatus("Đang tra cứu hồ sơ/avatar Roblox...", C.YELLOW)
         task.spawn(function()
             local okLookup, record = pcall(function()
-                local userId, username, displayName, verified, resolveError = AL.ResolveUser(query)
+                local userId, username, displayName, verified, resolveError, onlineTarget = AL.ResolveUser(query)
                 if not userId then error(resolveError or "Không tìm thấy người dùng.", 0) end
-                local description, descriptionError = AL.GetDescription(userId)
+                local description, descriptionError = AL.GetDescription(userId, onlineTarget)
                 if not description then error("Không lấy được avatar: " .. tostring(descriptionError), 0) end
                 return { userId = userId, username = username, displayName = displayName,
                     verified = verified, description = description,
