@@ -525,7 +525,7 @@ test("Trả nhân vật gốc: độ trong suốt cục bộ trả về giá tr�
     end
 end)
 
-test("rig được NEO hoàn toàn và không va chạm: vật lý không làm rig xoay/đổ/trôi", function()
+test("rig KHÔNG bị neo, không va chạm; vận tốc của rig = vận tốc nhân vật thật (để Animate chạy đúng)", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
@@ -535,15 +535,79 @@ test("rig được NEO hoàn toàn và không va chạm: vật lý không làm r
     for _, p in ipairs(M.descendants(rig)) do
         if p.ClassName == "Part" then
             n = n + 1
-            eq(p.Anchored, true, "phần " .. tostring(p.Name) .. " chưa được neo")
+            expect(p.Anchored ~= true, "phần " .. tostring(p.Name) .. " bị neo (rig sẽ không chạy animation)")
             eq(p.CanCollide, false, "phần " .. tostring(p.Name) .. " vẫn va chạm")
         end
     end
     expect(n >= 2, "rig thiếu phần")
     ownChar():FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity = M.vec3(0, 0, 12)
+    M.stepFrames(1)
+    noErrors()
+    for _, p in ipairs(M.descendants(rig)) do
+        if p.ClassName == "Part" then
+            eq(p.AssemblyLinearVelocity.Z, 12, "phần " .. tostring(p.Name) .. " không có vận tốc của bạn")
+        end
+    end
+end)
+
+test("bạn ĐỨNG YÊN thì rig đứng yên (vận tốc 0, vị trí không đổi qua nhiều khung)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframe(5, 3, 5)
+    hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)
+    M.stepFrames(1)
+    local rig = puppets()[1]
+    local startPos = rig:FindFirstChild("HumanoidRootPart").CFrame.Position
+    M.stepFrames(10)
+    noErrors()
+    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
+    eq(rigRoot.CFrame.Position.X, startPos.X, "rig trôi khi bạn đứng yên (X)")
+    eq(rigRoot.CFrame.Position.Z, startPos.Z, "rig trôi khi bạn đứng yên (Z)")
+    eq(rigRoot.AssemblyLinearVelocity.X, 0, "rig có vận tốc khi bạn đứng yên")
+    eq(rigRoot.AssemblyLinearVelocity.Z, 0, "rig có vận tốc khi bạn đứng yên (Z)")
+end)
+
+test("bạn DI CHUYỂN thì rig di chuyển theo (vị trí + vận tốc khớp bạn); dừng lại thì rig dừng", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframe(0, 3, 0)
+    hrp.AssemblyLinearVelocity = M.vec3(16, 0, 0)     -- đang chạy sang X
+    M.stepFrames(1)
+    noErrors()
+    local rigRoot = puppets()[1]:FindFirstChild("HumanoidRootPart")
+    eq(rigRoot.CFrame.Position.X, 0, "rig chưa đặt đúng vị trí bạn")
+    eq(rigRoot.AssemblyLinearVelocity.X, 16, "rig không có vận tốc chạy của bạn")
+    hrp.CFrame = M.cframe(8, 3, 0)
+    hrp.AssemblyLinearVelocity = M.vec3(16, 0, 0)
+    M.stepFrames(1)
+    eq(rigRoot.CFrame.Position.X, 8, "rig không theo bạn khi chạy")
+    -- Bạn dừng lại
+    hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)
     M.stepFrames(3)
     noErrors()
-    eq(puppets()[1]:FindFirstChild("HumanoidRootPart").Anchored, true, "rig bị thả lỏng")
+    eq(rigRoot.AssemblyLinearVelocity.X, 0, "rig vẫn trượt khi bạn đã dừng")
+    eq(rigRoot.CFrame.Position.X, 8, "rig vẫn đi khi bạn đã dừng")
+end)
+
+test("bạn NHẢY thì rig nhảy theo (vận tốc Y và trạng thái Jumping khớp bạn)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.AssemblyLinearVelocity = M.vec3(0, 50, 0)
+    ownHum().__state = M.Enum.HumanoidStateType.Jumping
+    M.stepFrames(1)
+    noErrors()
+    local rig = puppets()[1]
+    eq(rig:FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity.Y, 50, "rig không có vận tốc nhảy")
+    eq(rig:FindFirstChildOfClass("Humanoid").__state, M.Enum.HumanoidStateType.Jumping, "rig không ở trạng thái nhảy")
 end)
 
 test("rig luôn đặt đúng vị trí nhân vật thật (không trôi khỏi bạn)", function()

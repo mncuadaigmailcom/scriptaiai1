@@ -8827,9 +8827,12 @@ end end
         return nil, lastErr
     end
 
-    -- Thay nhân vật của bạn bằng nhân vật (rig) dựng theo skin của người kia.
-    -- Nhân vật thật vẫn chạy bình thường (di chuyển, nhảy, va chạm); rig chỉ bám theo HumanoidRootPart của bạn
-    -- và được ẩn phần thân thật ở phía client (LocalTransparencyModifier) — chỉ bạn thấy thay đổi.
+    -- Thay nhân vật của bạn bằng nhân vật (rig) dựng theo skin của người kia. Chỉ bạn thấy.
+    --  • Nhân vật THẬT của bạn vẫn là thứ điều khiển: di chuyển, nhảy, va chạm đều không đổi.
+    --    Thân thật chỉ bị ẩn phía client (LocalTransparencyModifier = 1, áp lại mỗi khung hình).
+    --  • Rig KHÔNG bị neo. Mỗi khung hình rig được đặt đúng CFrame VÀ vận tốc của nhân vật thật:
+    --      bạn đứng yên → rig đứng yên; bạn chạy/nhảy → rig chạy/nhảy theo, animation Roblox khớp.
+    --  • Rig không va chạm (CanCollide = false) nên không đẩy hay chặn ai.
     -- Trả về (ok, thông báo)
     function PI.Swap(rec)
         if type(rec) ~= "table" or rec.desc == nil then return false, "chưa có dữ liệu skin — hãy tra cứu người chơi trước" end
@@ -8849,13 +8852,13 @@ end end
             pcall(function() rig:Destroy() end)
             return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
         end
-        -- Rig chỉ là "vỏ" hiển thị: NEO toàn bộ phần để vật lý không thể làm nó xoay/đổ/trôi.
-        -- Animation (Motor6D) vẫn chạy trên phần đã neo; vị trí do PivotTo theo nhân vật thật quyết định.
+        local rigParts = {}
         for _, d in ipairs(rig:GetDescendants()) do
             if d:IsA("BasePart") then
+                rigParts[#rigParts + 1] = d
                 pcall(function()
-                    d.CanCollide = false
-                    d.Anchored = true
+                    d.Anchored = false      -- KHÔNG neo: để Animate thấy rig đang chạy/nhảy
+                    d.CanCollide = false    -- không va chạm với ai
                 end)
             end
         end
@@ -8884,14 +8887,21 @@ end end
             end
         end
         hideOwn(char)
-        -- Camera vẫn theo nhân vật thật (không đổi CameraSubject) để góc nhìn không bị dựng lại.
 
-        local sw = { rig = rig, origLT = origLT, rec = rec, char = char }
+        local sw = { rig = rig, rigParts = rigParts, origLT = origLT, rec = rec, char = char }
         sw.step = function()
             local c = player.Character
             local r = c and c:FindFirstChild("HumanoidRootPart")
             if not r or rig.Parent == nil then return end
-            rig:PivotTo(r.CFrame)
+            -- Đặt rig đúng vị trí, hướng và VẬN TỐC của bạn (đứng yên thì vận tốc = 0 → rig đứng yên)
+            pcall(function() rig:PivotTo(r.CFrame) end)
+            local vel = r.AssemblyLinearVelocity
+            for _, p in ipairs(sw.rigParts) do
+                pcall(function()
+                    p.AssemblyLinearVelocity = vel
+                    p.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                end)
+            end
             hideOwn(c)
             -- Đồng bộ trạng thái an toàn (đứng/chạy/nhảy/rơi) để animation khớp; KHÔNG đồng bộ
             -- Physics/Ragdoll/FallingDown... vì sẽ làm rig đổ và xoay.

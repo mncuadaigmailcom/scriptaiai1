@@ -430,7 +430,20 @@ METHODS.CaptureFocus = function(self) self.__focused = true end
 METHODS.ReleaseFocus = function(self, submit) self.__focused = false end
 METHODS.GetMouse = function(self) return M.newInstance("Mouse") end
 METHODS.GetPivot = function(self) return cframe() end
-METHODS.PivotTo = function(self, cf) self.__props.CFrame = cf end
+-- Roblox: PivotTo dời CẢ model (mọi BasePart con) theo cùng độ lệch vị trí (mô phỏng: chỉ tịnh tiến)
+METHODS.PivotTo = function(self, cf)
+    local old = rawget(self, "__props") and self.__props.CFrame
+    local op = (old and old.Position) or vec3(0, 0, 0)
+    local np = cf.Position
+    local dx, dy, dz = np.X - op.X, np.Y - op.Y, np.Z - op.Z
+    for _, d in ipairs(M.descendants(self)) do
+        if d.ClassName == "Part" then
+            local p = d.CFrame.Position
+            d.CFrame = cframe(p.X + dx, p.Y + dy, p.Z + dz)
+        end
+    end
+    self.__props.CFrame = cf
+end
 METHODS.GetBoundingBox = function(self) return cframe(), vec3(4, 5, 4) end
 METHODS.Play = function(self) self.__playing = true end
 METHODS.Pause = function(self) self.__playing = false end
