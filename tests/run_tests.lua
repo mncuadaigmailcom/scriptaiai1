@@ -493,6 +493,100 @@ test("trạng thái nhân vật thật (nhảy/rơi) được đồng bộ sang 
     eq(rigHum.__state, M.Enum.HumanoidStateType.Jumping, "trạng thái Dead không được đồng bộ (rig vẫn sống)")
 end)
 
+test("thân thật vẫn ẩn sau khi Roblox đặt lại độ trong suốt (triệu chứng: nhân vật không bị ẩn)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    -- Mô phỏng bộ điều khiển camera đặt lại LocalTransparencyModifier = 0 cho mọi phần thân
+    for _, p in ipairs(ownParts()) do p.LocalTransparencyModifier = 0 end
+    expect(not allHidden(1), "chuẩn bị test sai")
+    M.stepFrames(1)
+    noErrors()
+    expect(allHidden(1), "thân thật hiện lại sau khi bị đặt lại")
+    -- Nhân vật mới có thêm phần (ví dụ phụ kiện) cũng phải bị ẩn
+    local extra = M.newInstance("Part", ownChar())
+    extra.Name = "NewAccessoryHandle"
+    M.stepFrames(1)
+    eq(extra.LocalTransparencyModifier, 1, "phần thân mới không bị ẩn")
+end)
+
+test("Trả nhân vật gốc: độ trong suốt cục bộ trả về giá trị ban đầu", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    local before = {}
+    for _, p in ipairs(ownParts()) do before[p] = p.LocalTransparencyModifier end
+    click(panel(), "Thay nhân vật")
+    click(panel(), "Trả nhân vật gốc")
+    noErrors()
+    for _, p in ipairs(ownParts()) do
+        eq(p.LocalTransparencyModifier, before[p], "không trả đúng độ trong suốt cho " .. tostring(p.Name))
+    end
+end)
+
+test("rig không xoay: vận tốc góc được triệt tiêu mỗi khung hình", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rig = puppets()[1]
+    for _, p in ipairs(M.descendants(rig)) do
+        if p.ClassName == "Part" then p.AssemblyAngularVelocity = M.vec3(0, 9, 0) end
+    end
+    M.stepFrames(3)
+    noErrors()
+    for _, p in ipairs(M.descendants(rig)) do
+        if p.ClassName == "Part" then
+            local w = p.AssemblyAngularVelocity
+            eq(w.X + w.Y + w.Z, 0, "phần " .. tostring(p.Name) .. " vẫn quay")
+        end
+    end
+end)
+
+test("vận tốc rig theo nhân vật thật (không tự trôi/rơi)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    ownChar():FindFirstChild("HumanoidRootPart").AssemblyLinearVelocity = M.vec3(0, 0, 12)
+    M.stepFrames(1)
+    noErrors()
+    local rigRoot = puppets()[1]:FindFirstChild("HumanoidRootPart")
+    eq(rigRoot.AssemblyLinearVelocity.Z, 12, "rig không cùng vận tốc với nhân vật thật")
+end)
+
+test("rig: AutoRotate tắt, PrimaryPart là HumanoidRootPart", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rig = puppets()[1]
+    eq(rig:FindFirstChildOfClass("Humanoid").AutoRotate, false, "AutoRotate vẫn bật")
+    eq(rig.PrimaryPart, rig:FindFirstChild("HumanoidRootPart"), "PrimaryPart không phải HRP")
+    noErrors()
+end)
+
+test("không đồng bộ trạng thái vật lý (Physics/Ragdoll/FallingDown) sang rig: tránh làm rig đổ/xoay", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay nhân vật")
+    local rigHum = puppets()[1]:FindFirstChildOfClass("Humanoid")
+    local S = M.Enum.HumanoidStateType
+    for _, st in ipairs({ S.Physics, S.Ragdoll, S.FallingDown, S.PlatformStanding, S.Dead }) do
+        local before = #M.stateChanges
+        ownHum().__state = st
+        M.stepFrames(1)
+        noErrors()
+        eq(#M.stateChanges, before, "đã đồng bộ trạng thái " .. tostring(st.Name) .. " sang rig")
+        expect(rigHum.__state ~= st, "rig bị đưa vào " .. tostring(st.Name))
+    end
+    ownHum().__state = S.Running
+    M.stepFrames(1)
+    noErrors()
+end)
+
 test("rig bám theo nhân vật thật khi nhân vật di chuyển", function()
     runScript()
     registerUser(156, "Builderman")
@@ -628,21 +722,26 @@ test("cuộn chuột để zoom (khi con trỏ ở trong khung 3D); nút ➕ ➖
     noErrors()
 end)
 
-test("nút ⟲/⟳ xoay camera; tự xoay bật thì quay theo thời gian, tắt thì đứng yên", function()
+test("nút ⟲/⟳ xoay camera; tự xoay mặc định TẮT, bật thì quay, tắt lại thì đứng yên", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
+    eq(PI().view.auto, false, "tự xoay phải mặc định TẮT")
     local y0 = PI().view.yaw
+    M.stepFrames(5, 0.1)
+    eq(PI().view.yaw, y0, "tự xoay đang tắt mà vẫn quay")
     click(panel(), "Trái")
     expect(PI().view.yaw ~= y0, "nút Trái không xoay")
+    click(panel(), "Tự xoay")
+    eq(PI().view.auto, true, "không bật được tự xoay")
+    local y1 = PI().view.yaw
     M.stepFrames(10, 0.1)
     noErrors()
-    local y1 = PI().view.yaw
-    expect(y1 ~= y0 + 0.5, "tự xoay không chạy")
+    expect(PI().view.yaw ~= y1, "tự xoay đã bật mà không chạy")
     click(panel(), "Tự xoay")
-    eq(PI().view.auto, false, "không tắt được tự xoay")
+    local y2 = PI().view.yaw
     M.stepFrames(5, 0.1)
-    eq(PI().view.yaw, y1, "đã tắt tự xoay mà vẫn quay")
+    eq(PI().view.yaw, y2, "đã tắt tự xoay mà vẫn quay")
     noErrors()
 end)
 

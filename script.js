@@ -8597,7 +8597,7 @@ end end
     PI.keepOnRespawn = true
     PI.productCache = {}  -- assetId -> { name, creator } | false
     PI.notify = function() end   -- gán sau khi dựng giao diện
-    PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = true, drag = false, hover = false }
+    PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
     PI.RUN_BIND = "BC_PuppetFollow"
     PI.SPIN_BIND = "BC_PlayerViewSpin"
     -- Chạy lại script: gỡ trạng thái lần trước (trả nhân vật, huỷ bind) để không để lại rig/ẩn nhân vật
@@ -8789,6 +8789,12 @@ end end
 
     -- ===== LOGIC SKIN / NHÂN VẬT =====
 
+    -- Các trạng thái Humanoid được đồng bộ sang rig (an toàn cho animation, không làm rig đổ)
+    local SYNC_STATES = {}
+    for _, n in ipairs({ "Running", "RunningNoPhysics", "Jumping", "Freefall", "Landed", "Climbing", "Swimming" }) do
+        SYNC_STATES[Enum.HumanoidStateType[n]] = true
+    end
+
     -- Đặc tả skin sau khi bỏ các phụ kiện bạn đã tắt (không sửa rec.desc gốc)
     function PI.FilteredDesc(rec)
         if type(rec) ~= "table" or rec.desc == nil then return nil, "chưa có dữ liệu skin" end
@@ -8843,9 +8849,16 @@ end end
             pcall(function() rig:Destroy() end)
             return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
         end
+        -- Rig chỉ là "vỏ" bám theo bạn: không va chạm, không để vật lý làm nó xoay/đổ.
+        local rigParts = {}
         for _, d in ipairs(rig:GetDescendants()) do
-            if d:IsA("BasePart") then d.CanCollide = false end   -- rig không va chạm với map/người khác
+            if d:IsA("BasePart") then
+                rigParts[#rigParts + 1] = d
+                pcall(function() d.CanCollide = false end)
+            end
         end
+        pcall(function() rig.PrimaryPart = rigRoot end)
+        pcall(function() rigHum.AutoRotate = false end)   -- hướng quay do nhân vật thật quyết định
         pcall(function()
             if rigHum:FindFirstChildOfClass("Animator") == nil then Instance.new("Animator").Parent = rigHum end
         end)
@@ -8857,27 +8870,41 @@ end end
         rig.Parent = workspace
         pcall(function() rig:PivotTo(root.CFrame) end)
 
-        local hidden = {}
-        for _, d in ipairs(char:GetDescendants()) do
-            if d:IsA("BasePart") then
-                hidden[#hidden + 1] = { part = d, lt = d.LocalTransparencyModifier }
-                d.LocalTransparencyModifier = 1
+        -- Ẩn thân thật (chỉ phía client). Roblox tự đặt lại LocalTransparencyModifier của nhân vật
+        -- mỗi khung hình (bộ điều khiển độ trong suốt của camera), nên việc ẩn được áp lại MỖI khung.
+        local origLT = {}   -- [BasePart] = giá trị gốc, để trả lại khi Trả nhân vật
+        local function hideOwn(c)
+            for _, d in ipairs(c:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    if origLT[d] == nil then origLT[d] = d.LocalTransparencyModifier end
+                    pcall(function() d.LocalTransparencyModifier = 1 end)
+                end
             end
         end
+        hideOwn(char)
         local cam = workspace.CurrentCamera
         if cam then pcall(function() cam.CameraSubject = rigHum end) end
 
-        local sw = { rig = rig, hidden = hidden, rec = rec, char = char }
+        local sw = { rig = rig, origLT = origLT, rec = rec, char = char }
         sw.step = function()
             local c = player.Character
             local r = c and c:FindFirstChild("HumanoidRootPart")
             if not r or rig.Parent == nil then return end
             rig:PivotTo(r.CFrame)
-            pcall(function() rigRoot.AssemblyLinearVelocity = r.AssemblyLinearVelocity end)
-            -- Đồng bộ trạng thái (đứng/chạy/nhảy/rơi) để animation của rig khớp nhân vật thật
+            -- Đặt vận tốc theo nhân vật thật và triệt tiêu vận tốc góc: không cho rig tự xoay
+            local vel = r.AssemblyLinearVelocity
+            for _, p in ipairs(rigParts) do
+                pcall(function()
+                    p.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    p.AssemblyLinearVelocity = vel
+                end)
+            end
+            hideOwn(c)
+            -- Đồng bộ trạng thái an toàn (đứng/chạy/nhảy/rơi) để animation khớp; KHÔNG đồng bộ
+            -- Physics/Ragdoll/FallingDown... vì sẽ làm rig đổ và xoay.
             local h = c:FindFirstChildOfClass("Humanoid")
             local okS, st = pcall(function() return h and h:GetState() end)
-            if okS and st ~= nil and st ~= sw.lastState and st ~= Enum.HumanoidStateType.Dead then
+            if okS and st ~= nil and st ~= sw.lastState and SYNC_STATES[st] then
                 sw.lastState = st
                 pcall(function() rigHum:ChangeState(st) end)
             end
@@ -8908,8 +8935,8 @@ end end
         PI.swap = nil
         pcall(function() RunService:UnbindFromRenderStep(PI.RUN_BIND) end)
         if sw == nil then return end
-        for _, h in ipairs(sw.hidden) do
-            pcall(function() h.part.LocalTransparencyModifier = h.lt end)
+        for part, lt in pairs(sw.origLT) do
+            pcall(function() part.LocalTransparencyModifier = lt end)
         end
         pcall(function() sw.rig:Destroy() end)
         local char = player.Character
