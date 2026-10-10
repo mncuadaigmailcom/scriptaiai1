@@ -6647,7 +6647,7 @@ do
         D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
     end)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
-        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (chỉ mình bạn thấy)", BackgroundTransparency = 1,
+        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (local / server nếu đã cài)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local input = New("TextBox", { Size = UDim2.new(1, -108, 0, 27), Position = UDim2.new(0, 8, 0, 30),
@@ -6673,7 +6673,7 @@ do
     local applyBtn = button("👕 Mặc trang phục", 108, 120, 150, C.GREEN)
     local restoreBtn = button("↩ Khôi phục", 266, 120, 120, C.GRAY)
     local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 164),
-        Text = "Chỉ đổi nhân vật ở máy bạn; hồi sinh sẽ trở về trang phục gốc.", TextWrapped = true,
+        Text = "Local: chỉ máy bạn (không đảm bảo). Cài OutfitServer: mọi người đều thấy.", TextWrapped = true,
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local selectedId, selectedName, original, originalHum = nil, nil, nil, nil
@@ -6730,7 +6730,16 @@ do
                 end)
                 if okImage and requestId == generation and P.Parent then portrait.Image = image end
             end)
-            say("Đã tìm thấy @" .. typed .. "; đang tải trang phục...", false)
+            local serverRemote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
+            if serverRemote and serverRemote:IsA("RemoteFunction") then
+                say("Đang yêu cầu server áp trang phục cho @" .. typed .. "...", false)
+                local sent, success, message = pcall(function() return serverRemote:InvokeServer("apply", uid) end)
+                if requestId ~= generation or not P.Parent then return end
+                if not sent then say("⚠️ Server không phản hồi: " .. tostring(success), false)
+                else say((success and "✅ " or "⚠️ ") .. tostring(message), success) end
+                return
+            end
+            say("Đang dùng chế độ local (không có OutfitServer); đang tải trang phục...", false)
             local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
             if requestId ~= generation or not P.Parent then return end
             if not ok or not desc then say("⚠️ Không lấy được trang phục Roblox: " .. tostring(desc), false) return end
@@ -6761,6 +6770,14 @@ do
     end)
     restoreBtn.Activated:Connect(function()
         generation += 1
+        local serverRemote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
+        if serverRemote and serverRemote:IsA("RemoteFunction") then
+            task.spawn(function()
+                local sent, success, message = pcall(function() return serverRemote:InvokeServer("restore") end)
+                if P.Parent then say((sent and success and "✅ " or "⚠️ ") .. tostring(sent and message or success), sent and success) end
+            end)
+            return
+        end
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
         local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
