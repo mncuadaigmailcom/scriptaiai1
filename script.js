@@ -6037,11 +6037,91 @@ do
     end))
     Perf.SyncPanel()
 end
+-- Tìm place/server của tài khoản Roblox bằng API TeleportService (theo quyền riêng tư).
+do
+    local P = New("Frame", { Name = "HubPlayerServer_Panel", Size = UDim2.new(1, 0, 0, 132),
+        LayoutOrder = -100, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12,
+        BorderSizePixel = 0, ZIndex = 6, }, D.hubList)
+    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1)
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 17), Position = UDim2.new(0, 8, 0, 7),
+        Text = "🔎 TÌM SERVER NGƯỜI CHƠI", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local nameBox = New("TextBox", { Size = UDim2.new(1, -118, 0, 26), Position = UDim2.new(0, 8, 0, 30),
+        Text = "", PlaceholderText = "Username Roblox (không phải Display Name)", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY,
+        Font = Enum.Font.GothamMedium, TextSize = 10, BorderSizePixel = 0, ZIndex = 8, }, P)
+    Corner(nameBox, UDim.new(0, 6))
+    local findBtn = New("TextButton", { Size = UDim2.new(0, 96, 0, 26), Position = UDim2.new(1, -104, 0, 30),
+        Text = "🔎 Tìm", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT),
+        Font = Enum.Font.GothamBold, TextSize = 10, BorderSizePixel = 0, ZIndex = 8, }, P)
+    Corner(findBtn, UDim.new(0, 6))
+    local result = New("TextLabel", { Size = UDim2.new(1, -16, 0, 65), Position = UDim2.new(0, 8, 0, 62),
+        Text = "Nhập username để xem game và mã server nếu Roblox cho phép.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
+    local request = 0
+    local function lookup()
+        local username = tostring(nameBox.Text or ""):match("^%s*(.-)%s*$")
+        request += 1 local token = request
+        if not username or not username:match("^[%w_]+$") or #username > 20 then
+            result.Text = "⚠️ Nhập username Roblox hợp lệ, không phải tên hiển thị." return
+        end
+        result.Text = "Đang tìm @" .. username .. "..."
+        task.spawn(function()
+            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_PlayerServerLookup")
+            if remote and remote:IsA("RemoteFunction") then
+                local sent, success, name, placeId, jobId, same = pcall(function()
+                    return remote:InvokeServer(username)
+                end)
+                if token ~= request or not P.Parent then return end
+                if not sent then result.Text = "⚠️ Server không phản hồi: " .. tostring(success)
+                elseif not success then result.Text = "⚠️ " .. tostring(name)
+                else
+                    result.Text = "@" .. username .. " · Game/place: " .. tostring(name) .. " (" .. tostring(placeId) .. ")\n"
+                        .. "Server JobId: " .. (jobId ~= "" and tostring(jobId) or "không được cung cấp")
+                        .. (same and " · cùng server" or "")
+                end
+                return
+            end
+            local found, userId = pcall(function() return Players:GetUserIdFromNameAsync(username) end)
+            if token ~= request or not P.Parent then return end
+            if not found or type(userId) ~= "number" then
+                result.Text = "⚠️ Không tìm thấy username @" .. username .. "." return
+            end
+            result.Text = "Đang hỏi Roblox về game/server của @" .. username .. "..."
+            local ok, currentInstance, message, placeId, jobId = pcall(function()
+                return TeleportService:GetPlayerPlaceInstanceAsync(userId)
+            end)
+            if token ~= request or not P.Parent then return end
+            if not ok then
+                result.Text = "@" .. username .. " · Roblox không cho tra cứu hoặc API không hỗ trợ: " .. tostring(currentInstance)
+                return
+            end
+            if type(placeId) ~= "number" or placeId <= 0 then
+                result.Text = "@" .. username .. " · Không có server công khai để hiển thị (offline hoặc bị giới hạn riêng tư). "
+                    .. tostring(message or "") return
+            end
+            local placeName = "Place " .. tostring(placeId)
+            local okInfo, info = pcall(function()
+                return game:GetService("MarketplaceService"):GetProductInfo(placeId, Enum.InfoType.Asset)
+            end)
+            if token ~= request or not P.Parent then return end
+            if okInfo and type(info) == "table" and type(info.Name) == "string" then placeName = info.Name end
+            local server = type(jobId) == "string" and jobId ~= "" and jobId or "không được cung cấp"
+            result.Text = "@" .. username .. " · Game/place: " .. placeName .. " (" .. tostring(placeId) .. ")\n"
+                .. "Server JobId: " .. server .. (currentInstance and " · cùng server" or "")
+        end)
+    end
+    findBtn.Activated:Connect(lookup)
+    nameBox.FocusLost:Connect(function(enter) if enter then lookup() end end)
+end
+
 S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển",
     HubFly_Panel = "Di chuyển", HubSpeed_Panel = "Di chuyển",
     HubHighJump_Panel = "Di chuyển", HubMove_Panel = "Di chuyển",
     HubSafe_Panel = "Di chuyển", HubGlow_Panel = "Tiện ích",
-    HubFree_Panel = "Tiện ích", HubAntiBan_Panel = "Server", }
+    HubFree_Panel = "Tiện ích", HubAntiBan_Panel = "Server", HubPlayerServer_Panel = "Server", }
 function S.SyncHubPanels() local list = D.hubList
     if not list or not list.Parent then return end local cat = S.hubCat or "Tất cả"
     for _, c in ipairs(list:GetChildren()) do local want = S.HubPanelCat[c.Name]
