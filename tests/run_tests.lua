@@ -1214,7 +1214,7 @@ end)
 
 local function near(a, b) return math.abs(a - b) < 1e-6 end
 
-test("rig luôn đứng thẳng: thân thật nghiêng/lăn thì rig KHÔNG nghiêng theo, chỉ xoay ngang theo hướng bạn nhìn", function()
+test("rig luôn đứng thẳng: thân thật nghiêng/lăn thì rig KHÔNG nghiêng theo, chỉ xoay ngang theo hướng di chuyển", function()
     runScript()
     registerUser(156, "Builderman")
     searchFor("Builderman")
@@ -1222,15 +1222,15 @@ test("rig luôn đứng thẳng: thân thật nghiêng/lăn thì rig KHÔNG nghi
     local rig = puppets()[1]
     local hrp = ownChar():FindFirstChild("HumanoidRootPart")
     hrp.CFrame = M.cframeAngles(4, 3, 2, 0.6, 0.9, 0.5)
+    hrp.AssemblyLinearVelocity = M.vec3(3, 0, -4)     -- đang di chuyển về hướng (3, 0, -4)
     M.stepFrames(2)
     noErrors()
     local rcf = rig.CFrame
     expect(near(rcf.UpVector.Y, 1), "rig bị nghiêng (UpVector.Y = " .. tostring(rcf.UpVector.Y) .. ")")
     expect(near(rcf.Position.X, 4) and near(rcf.Position.Y, 3) and near(rcf.Position.Z, 2), "rig không đặt đúng vị trí thân thật")
-    local hl = hrp.CFrame.LookVector
-    local flat = M.vec3(hl.X, 0, hl.Z).Unit
+    local flat = M.vec3(3, 0, -4).Unit
     expect(near(rcf.LookVector.X, flat.X) and near(rcf.LookVector.Z, flat.Z),
-        "rig không hướng theo hướng nhìn ngang của bạn")
+        "rig không quay theo hướng di chuyển")
 end)
 
 test("bạn đứng yên qua nhiều khung: rig không tự xoay (hướng và vị trí giữ nguyên)", function()
@@ -1316,6 +1316,44 @@ test("bật thảm kính (tấm đế dưới chân) rồi thay skin: vẫn th�
     expect(cp ~= nil and cp.Parent ~= nil, "thảm bị mất")
     expect(cp.CFrame.Position.Y < rigRoot.CFrame.Position.Y, "thảm nằm trên HRP rig (rig bị chìm/khuất)")
     eq(ownChar():FindFirstChild("HumanoidRootPart").LocalTransparencyModifier, 1, "thân thật không bị ẩn")
+end)
+
+test("bạn đứng yên mà thân thật xoay tại chỗ: rig KHÔNG tự xoay theo (triệu chứng xoay vòng)", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay skin")
+    local rig = puppets()[1]
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 0.2, 0)
+    M.stepFrames(1)
+    local look0 = rig.CFrame.LookVector
+    for i = 1, 40 do
+        hrp.CFrame = M.cframeAngles(4, 3, 2, 0, i * 0.3, 0)   -- thân thật xoay liên tục tại chỗ
+        hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)
+        M.stepFrames(1)
+    end
+    noErrors()
+    expect(near(rig.CFrame.LookVector.X, look0.X) and near(rig.CFrame.LookVector.Z, look0.Z),
+        "rig xoay theo thân thật khi bạn đứng yên")
+    expect(near(rig.CFrame.UpVector.Y, 1), "rig bị nghiêng")
+end)
+
+test("bạn di chuyển: rig quay theo hướng di chuyển và giữ hướng đó khi dừng", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay skin")
+    local rig = puppets()[1]
+    local hrp = ownChar():FindFirstChild("HumanoidRootPart")
+    hrp.AssemblyLinearVelocity = M.vec3(10, 0, 0)     -- chạy sang +X
+    M.stepFrames(2)
+    expect(near(rig.CFrame.LookVector.X, 1) and near(rig.CFrame.LookVector.Z, 0), "rig không quay theo hướng chạy")
+    hrp.AssemblyLinearVelocity = M.vec3(0, 0, 0)      -- dừng lại
+    hrp.CFrame = M.cframeAngles(4, 3, 2, 0, 2.0, 0)   -- thân thật xoay khi dừng
+    M.stepFrames(3)
+    noErrors()
+    expect(near(rig.CFrame.LookVector.X, 1) and near(rig.CFrame.LookVector.Z, 0), "rig xoay lại khi dừng")
 end)
 
 -- ===================== chạy =====================

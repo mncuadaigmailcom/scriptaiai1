@@ -8638,14 +8638,21 @@ local function csTeardown()
     pcall(function() st.rig:Destroy() end)
 end
 
--- CFrame của rig: đứng THẲNG tại vị trí thân thật, chỉ xoay NGANG theo hướng bạn đang nhìn.
--- Không lấy nghiêng/lăn/vận tốc góc của thân thật (tránh rig bị nghiêng, lăn hay xoay liên tục).
--- Khi nhìn thẳng đứng (không có hướng ngang) thì giữ hướng ngang cũ.
+-- CFrame của rig: đứng THẲNG tại vị trí thân thật, chỉ xoay NGANG.
+-- Hướng xoay lấy theo HƯỚNG DI CHUYỂN (vận tốc ngang), KHÔNG theo hướng nhìn/xoay của thân thật:
+-- bạn đứng yên mà thân thật xoay tại chỗ thì rig giữ nguyên hướng (không tự xoay vòng).
+-- Không lấy nghiêng/lăn/vận tốc góc của thân thật.
 local function csUpright(yaw, r)
     local pos = r.CFrame.Position
-    local look = r.CFrame.LookVector
-    local flat = Vector3.new(look.X, 0, look.Z)
-    if flat.Magnitude > 1e-3 then yaw.dir = flat.Unit end
+    local vel = r.AssemblyLinearVelocity
+    local vflat = Vector3.new(vel.X, 0, vel.Z)
+    if vflat.Magnitude > 0.5 then
+        yaw.dir = vflat.Unit
+    elseif yaw.dir == nil then                      -- lần đầu: hướng nhìn ngang hiện tại
+        local look = r.CFrame.LookVector
+        local flat = Vector3.new(look.X, 0, look.Z)
+        if flat.Magnitude > 1e-3 then yaw.dir = flat.Unit end
+    end
     local dir = yaw.dir or Vector3.new(0, 0, -1)
     return CFrame.lookAt(pos, pos + dir)
 end
