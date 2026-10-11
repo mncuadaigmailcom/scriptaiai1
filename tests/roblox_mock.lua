@@ -765,22 +765,32 @@ function task.cancel(co)
 end
 
 -- Chạy các task đang chờ tới thời điểm clock + dt (thời gian ảo)
+M.timers = {}   -- { at =, fn = } việc chạy theo thời gian mô phỏng (không phải coroutine)
+-- Chạy các việc theo đúng thứ tự thời gian (coroutine đang ngủ + timer), tới mốc target
 function M.advance(dt)
     local target = M.clockT + (tonumber(dt) or 0)
     while true do
-        local best, bi = nil, nil
-        for i, s in ipairs(M.sleepers) do
-            if s.at <= target and (best == nil or s.at < best.at) then best, bi = s, i end
+        local best, bi, isTimer = nil, nil, false
+        for i, s2 in ipairs(M.sleepers) do
+            if s2.at <= target and (best == nil or s2.at < best.at) then best, bi, isTimer = s2, i, false end
+        end
+        for i, t in ipairs(M.timers) do
+            if t.at <= target and (best == nil or t.at < best.at) then best, bi, isTimer = t, i, true end
         end
         if not best then break end
-        table.remove(M.sleepers, bi)
-        M.clockT = math.max(M.clockT, best.at)
-        if best.args then resume(best.co, table.unpack(best.args, 1, best.args.n)) else resume(best.co) end
+        if isTimer then
+            table.remove(M.timers, bi)
+            M.clockT = math.max(M.clockT, best.at)
+            best.fn()
+        else
+            table.remove(M.sleepers, bi)
+            M.clockT = math.max(M.clockT, best.at)
+            if best.args then resume(best.co, table.unpack(best.args, 1, best.args.n)) else resume(best.co) end
+        end
     end
     M.clockT = target
 end
 
--- Gọi mọi render step đang bind (mô phỏng vài khung hình)
 function M.stepFrames(n, dt)
     for _ = 1, (n or 1) do
         for name, fn in pairs(M.renderSteps) do
@@ -858,7 +868,20 @@ function M.addPlayer(name, userId)
 end
 
 -- Tạo nhân vật mới cho LocalPlayer (mô phỏng respawn) và bắn CharacterAdded
-function M.spawnCharacter()
+-- Script Animate mặc định của Roblox: mỗi thư mục (idle/walk/jump/fall) chứa một Animation
+local function makeAnimate(char)
+    local anim = M.newInstance("LocalScript", char)
+    anim.Name = "Animate"
+    for _, folder in ipairs({ "idle", "walk", "jump", "fall" }) do
+        local f = M.newInstance("Folder", anim)
+        f.Name = folder
+        local a = M.newInstance("Animation", f)
+        a.Name = string.upper(string.sub(folder, 1, 1)) .. string.sub(folder, 2) .. "Anim"
+        a.AnimationId = "rbxassetid://" .. folder .. "-id"
+    end
+end
+-- opts.animateDelay = s: script Animate chỉ xuất hiện sau s giây (Roblox thường thêm Animate trễ khi respawn)
+function M.spawnCharacter(opts)
     local old = M.localPlayer.__character
     if old then destroy(old) end
     local char = M.newInstance("Model")
@@ -866,15 +889,10 @@ function M.spawnCharacter()
     local hum = M.newInstance("Humanoid", char)
     hum.Name = "Humanoid"
     hum.__serverOwned = true   -- nhân vật của người chơi do SERVER tạo
-    local anim = M.newInstance("LocalScript", char)
-    anim.Name = "Animate"
-    -- Animate mặc định của Roblox: mỗi thư mục (idle/walk/jump/fall) chứa một Animation
-    for _, folder in ipairs({ "idle", "walk", "jump", "fall" }) do
-        local f = M.newInstance("Folder", anim)
-        f.Name = folder
-        local a = M.newInstance("Animation", f)
-        a.Name = string.upper(string.sub(folder, 1, 1)) .. string.sub(folder, 2) .. "Anim"
-        a.AnimationId = "rbxassetid://" .. folder .. "-id"
+    if opts and opts.animateDelay then
+        table.insert(M.timers, { at = M.clockT + opts.animateDelay, fn = function() makeAnimate(char) end })
+    else
+        makeAnimate(char)
     end
     local root = M.newInstance("Part", char)
     root.Name = "HumanoidRootPart"

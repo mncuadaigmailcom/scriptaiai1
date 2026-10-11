@@ -8703,6 +8703,14 @@ local function csBuild(desc, name, tag, myGen)
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not hum or not root then return false, "chưa có nhân vật (Humanoid/HumanoidRootPart) để thay" end
     if desc == nil then return false, "chưa có dữ liệu skin" end
+    -- Script Animate của nhân vật có thể đến SAU khi nhân vật được tạo (nhất là khi respawn).
+    -- Không có Animate thì rig đứng im → đợi tối đa 5 giây (chỉ khi đang ở trong coroutine).
+    if coroutine.isyieldable() then
+        for _ = 1, 50 do
+            if char:FindFirstChild("Animate") or CharSwap.gen ~= myGen or player.Character ~= char then break end
+            task.wait(0.1)
+        end
+    end
 
     local rig, rerr = csMakeRig(desc, hum.RigType)     -- có thể CHỜ ở đây: các yêu cầu khác có thể chen vào
     if myGen ~= CharSwap.gen then                       -- đã có yêu cầu mới hơn: bỏ rig này

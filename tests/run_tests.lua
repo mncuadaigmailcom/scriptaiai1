@@ -1379,6 +1379,34 @@ test("xem 3D: model người kia được neo, không va chạm/không rơi/đ�
     noErrors()
 end)
 
+test("giữ sau respawn: script Animate đến TRỄ vẫn được đợi → rig có animation, không đứng im", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    click(panel(), "Thay skin")
+    M.stepFrames(1)
+    M.spawnCharacter({ animateDelay = 2.0 })
+    M.advance(4)
+    noErrors()
+    local rig = puppets()[1]
+    expect(rig ~= nil, "không có rig sau respawn")
+    expect(has(playingAnims(rig), "IdleAnim"), "rig sau respawn không phát animation (đứng im): " .. table.concat(playingAnims(rig), ","))
+    eq(#puppets(), 1, "số rig sau respawn phải là 1")
+end)
+
+test("thay skin khi Animate đến trễ: vẫn được đợi, rig có animation", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    M.spawnCharacter({ animateDelay = 1.5 })
+    click(panel(), "Thay skin")
+    M.advance(4)
+    noErrors()
+    local rig = puppets()[1]
+    expect(rig ~= nil, "không có rig")
+    expect(has(playingAnims(rig), "IdleAnim"), "rig không phát animation: " .. table.concat(playingAnims(rig), ","))
+end)
+
 -- ===================== chạy =====================
 local failed, passed = {}, 0
 for _, t in ipairs(tests) do
