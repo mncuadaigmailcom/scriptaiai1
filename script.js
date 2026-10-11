@@ -6979,38 +6979,59 @@ do
         return nil, lastError
     end
     function AL.RenderPreview(record)
+        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
+        viewport.Visible = false
+        local userId = math.floor(tonumber(record.userId) or 0)
+        fallbackImage.Image = userId > 0 and string.format("rbxthumb://type=AvatarBust&id=%d&w=420&h=420", userId) or ""
+        fallbackImage.Visible = fallbackImage.Image ~= ""
+        local thumbnailReady = false
+        if userId > 0 then
+            for attempt = 1, 4 do
+                local okThumb, image, ready = pcall(function()
+                    return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size420x420)
+                end)
+                if okThumb and type(image) == "string" and image ~= "" then
+                    fallbackImage.Image = image
+                    thumbnailReady = ready == true
+                end
+                if thumbnailReady then break end
+                if attempt < 4 then task.wait(0.45) end
+            end
+        end
+
         local model, modelError = createPreviewModel(record.description)
         if model then
-            for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
-            pcall(function() model:PivotTo(CFrame.new()) end)
+            local visibleParts = 0
             for _, descendant in ipairs(model:GetDescendants()) do
                 if descendant:IsA("BasePart") then
                     pcall(function() descendant.Anchored = true descendant.CanCollide = false end)
+                    if descendant.Transparency < 1 then visibleParts = visibleParts + 1 end
                 end
             end
-            model.Parent = previewWorld
-            local okBounds, boxCFrame, boxSize = pcall(function() return model:GetBoundingBox() end)
-            if okBounds and boxCFrame and boxSize then
-                local target = boxCFrame.Position + Vector3.new(0, boxSize.Y * 0.06, 0)
-                local distance = math.max(5, math.max(boxSize.X, boxSize.Y, boxSize.Z) * 1.55)
-                previewCamera.CFrame = CFrame.lookAt(target + Vector3.new(0, boxSize.Y * 0.1, -distance), target)
-            else
-                previewCamera.CFrame = CFrame.lookAt(Vector3.new(0, 3, -8), Vector3.new(0, 2, 0))
+            if visibleParts > 0 then
+                pcall(function() model:PivotTo(CFrame.new()) end)
+                model.Parent = previewWorld
+                local okBounds, boxCFrame, boxSize = pcall(function() return model:GetBoundingBox() end)
+                if okBounds and boxCFrame and boxSize then
+                    local target = boxCFrame.Position + Vector3.new(0, boxSize.Y * 0.06, 0)
+                    local distance = math.max(5, math.max(boxSize.X, boxSize.Y, boxSize.Z) * 1.55)
+                    previewCamera.CFrame = CFrame.lookAt(target + Vector3.new(0, boxSize.Y * 0.1, -distance), target)
+                else
+                    previewCamera.CFrame = CFrame.lookAt(Vector3.new(0, 3, -8), Vector3.new(0, 2, 0))
+                end
+                viewport.Visible = true fallbackImage.Visible = false
+                return true, nil
             end
-            viewport.Visible = true fallbackImage.Visible = false
-            return true, nil
+            safeDestroy(model)
+            modelError = "Model avatar không có bộ phận hiển thị."
         end
 
-        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
-        viewport.Visible = false fallbackImage.Visible = false
-        local okThumb, image = pcall(function()
-            return Players:GetUserThumbnailAsync(record.userId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size420x420)
-        end)
-        if okThumb and type(image) == "string" and image ~= "" then
-            fallbackImage.Image = image fallbackImage.Visible = true
-            return false, "Chỉ dựng được ảnh đại diện 2D; " .. tostring(modelError)
+        viewport.Visible = false
+        fallbackImage.Visible = fallbackImage.Image ~= ""
+        if fallbackImage.Visible then
+            return false, "Đang hiển thị thumbnail 2D dự phòng; " .. tostring(modelError)
         end
-        return false, tostring(modelError)
+        return false, "Không tải được thumbnail hoặc model avatar: " .. tostring(modelError)
     end
 
     local function getCurrentHumanoid()
