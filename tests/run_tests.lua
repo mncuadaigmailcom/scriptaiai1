@@ -1356,6 +1356,29 @@ test("bạn di chuyển: rig quay theo hướng di chuyển và giữ hướng �
     expect(near(rig.CFrame.LookVector.X, 1) and near(rig.CFrame.LookVector.Z, 0), "rig xoay lại khi dừng")
 end)
 
+test("xem 3D: model người kia được neo, không va chạm/không rơi/đổ/xoay trong khung 3D", function()
+    runScript()
+    registerUser(156, "Builderman")
+    searchFor("Builderman")
+    noErrors()
+    local vm = viewModel()[1]
+    expect(vm ~= nil, "thiếu model 3D")
+    local n = 0
+    for _, p in ipairs(M.descendants(vm)) do
+        if p.ClassName == "Part" then
+            n = n + 1
+            eq(p.Anchored, true, "phần " .. tostring(p.Name) .. " của model 3D chưa được neo")
+            eq(p.CanCollide, false, "phần " .. tostring(p.Name) .. " của model 3D vẫn va chạm")
+        end
+    end
+    expect(n >= 2, "model 3D thiếu phần")
+    local h = vm:FindFirstChildOfClass("Humanoid")
+    eq(h.PlatformStand, true, "Humanoid model 3D chưa PlatformStand")
+    eq(h.AutoRotate, false, "Humanoid model 3D còn AutoRotate")
+    M.stepFrames(10)
+    noErrors()
+end)
+
 -- ===================== chạy =====================
 local failed, passed = {}, 0
 for _, t in ipairs(tests) do

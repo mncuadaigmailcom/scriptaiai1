@@ -9177,6 +9177,14 @@ end)()
         local m, merr = PI.MakeRig(desc, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
         if not m then return false, merr end
         m.Name = "BC_ViewModel"
+        -- Neo model 3D: trong ViewportFrame vật lý vẫn chạy, không neo thì model rơi/đổ/xoay tại chỗ
+        for _, d in ipairs(m:GetDescendants()) do
+            if d:IsA("BasePart") then
+                pcall(function() d.Anchored = true d.CanCollide = false d.CanTouch = false d.CanQuery = false end)
+            end
+        end
+        local vh = m:FindFirstChildOfClass("Humanoid")
+        if vh then pcall(function() vh.AutoRotate = false vh.PlatformStand = true end) end
         m.Parent = v.wm
         v.model = m
         PI.ViewerUpdate()
